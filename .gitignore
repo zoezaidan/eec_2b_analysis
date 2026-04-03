@@ -1,1 +1,27 @@
+# Compiled ROOT ACLiC files
+*.so
+*.d
+*.pcm
+*_rdict.pcm
+
+# ROOT output files
+*.root
+
+# PDFs and plots
+*.pdf
+
+# Logs
 *.log
+nohup.out
+
+# Emacs backup files
+*~
+\#*\#
+
+# Condor job outputs
+condor/logfiles/
+condor/exec_jobs/
+condor/*_tmp_*
+condor/*.so
+condor/*.d
+condor/*.pcm
