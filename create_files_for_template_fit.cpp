@@ -863,10 +863,20 @@ void make_templates(TString filename, TString output_folder, TString output_hist
   // Data: single distribution to be fit
   TH3D *h3D_data = new TH3D("h3D_data", "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
 
-  h3D_0b->Sumw2();
-  h3D_b->Sumw2();
-  h3D_bb->Sumw2();
-  h3D_data->Sumw2();
+  h3D_0b->Sumw2();   h3D_0b->SetCanExtend(TH1::kNoAxis);
+  h3D_b->Sumw2();    h3D_b->SetCanExtend(TH1::kNoAxis);
+  h3D_bb->Sumw2();   h3D_bb->SetCanExtend(TH1::kNoAxis);
+  h3D_data->Sumw2(); h3D_data->SetCanExtend(TH1::kNoAxis);
+
+  // Jet counts (no EEC weight): 3D (mB, dr, jtpt) — same axes as the EEC histograms
+  TH3D *h_count_0b   = new TH3D("h_count_0b",   "jet counts 0b;m_{B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h_count_b    = new TH3D("h_count_b",    "jet counts 1b;m_{B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h_count_bb   = new TH3D("h_count_bb",   "jet counts 2b;m_{B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h_count_data = new TH3D("h_count_data", "jet counts data;m_{B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  h_count_0b->Sumw2();   h_count_0b->SetCanExtend(TH1::kNoAxis);
+  h_count_b->Sumw2();    h_count_b->SetCanExtend(TH1::kNoAxis);
+  h_count_bb->Sumw2();   h_count_bb->SetCanExtend(TH1::kNoAxis);
+  h_count_data->Sumw2(); h_count_data->SetCanExtend(TH1::kNoAxis);
 
   Long64_t n_events = t.GetEntries();
   if (ev_last < 0 || ev_last > n_events) ev_last = n_events;
@@ -910,14 +920,21 @@ void make_templates(TString filename, TString output_folder, TString output_hist
       double eec  = std::pow(pt1 * pt2, n);
       double jtpt = t.jtpt[ijet];
       double mB   = reco_sv[0].M() + reco_sv[1].M();
+      if (mB > mb_max_fill) mB = mb_max_fill;  // fold overflow into last bin
+
+
+
+      std::cout << "weight: " << weight_tree << std::endl;
+      std::cout << "eec: " << eec << std::endl;
 
       if (isMC) {
         // use truth to classify: fill separate 0b, b and bb templates
-        if      (t.jtNbHad[ijet] == 0) h3D_0b->Fill(mB, dr, jtpt, eec * weight_tree);
-        else if (t.jtNbHad[ijet] == 1) h3D_b ->Fill(mB, dr, jtpt, eec * weight_tree);
-        else if (t.jtNbHad[ijet] == 2) h3D_bb->Fill(mB, dr, jtpt, eec * weight_tree);
+        if      (t.jtNbHad[ijet] == 0) { h3D_0b->Fill(mB, dr, jtpt, eec * weight_tree); h_count_0b->Fill(mB, dr, jtpt, weight_tree); }
+        else if (t.jtNbHad[ijet] == 1) { h3D_b ->Fill(mB, dr, jtpt, eec * weight_tree); h_count_b ->Fill(mB, dr, jtpt, weight_tree); }
+        else if (t.jtNbHad[ijet] == 2) { h3D_bb->Fill(mB, dr, jtpt, eec * weight_tree); h_count_bb->Fill(mB, dr, jtpt, weight_tree); }
       } else {
         h3D_data->Fill(mB, dr, jtpt, eec * weight_tree);
+        h_count_data->Fill(mB, dr, jtpt, weight_tree);
       }
     }
   }
@@ -930,8 +947,12 @@ void make_templates(TString filename, TString output_folder, TString output_hist
     h3D_0b->Write();
     h3D_b->Write();
     h3D_bb->Write();
+    h_count_0b->Write();
+    h_count_b->Write();
+    h_count_bb->Write();
   } else {
     h3D_data->Write();
+    h_count_data->Write();
   }
   outFile.Close();
 }
