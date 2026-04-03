@@ -68,7 +68,7 @@ void draw_stack_pad(TH1D* h_0b, TH1D* h_1b, TH1D* h_2b, TH1D* h_data,
   hs_2b->SetFillColor(kBlue-5);     hs_2b->SetLineColor(kBlue-4);     hs_2b->SetLineWidth(1);
 
   // Draw largest first so smaller ones are visible on top
-  h_total->SetTitle(Form(";%s;Normalised entries", xtitle));
+  h_total->SetTitle(Form(";%s;Entries", xtitle));
   h_total->GetXaxis()->SetTitleSize(0.045);
   h_total->GetYaxis()->SetTitleSize(0.045);
   h_total->GetXaxis()->SetLabelSize(0.038);
@@ -79,10 +79,18 @@ void draw_stack_pad(TH1D* h_0b, TH1D* h_1b, TH1D* h_2b, TH1D* h_data,
   h_12->Draw("hist same");
   hs_2b->Draw("hist same");
 
-  // Data: normalise to 1, draw as filled black triangles
+  // Data: draw as filled black triangles (no normalisation)
   TH1D* hd = nullptr;
   if (h_data && h_data->Integral() > 0) {
     hd = (TH1D*) h_data->Clone(Form("stkdata_%s_p%d", var_name, pad));
+    // Fold overflow into last bin
+    int nb = hd->GetNbinsX();
+    double ov  = hd->GetBinContent(nb + 1);
+    double ov_err = hd->GetBinError(nb + 1);
+    hd->SetBinContent(nb, hd->GetBinContent(nb) + ov);
+    hd->SetBinError(nb, std::sqrt(hd->GetBinError(nb)*hd->GetBinError(nb) + ov_err*ov_err));
+    hd->SetBinContent(nb + 1, 0);
+    hd->SetBinError(nb + 1, 0);
     hd->Scale(1.0 / hd->Integral());
     hd->SetMarkerStyle(22);  // filled triangle up
     hd->SetMarkerSize(1.0);
@@ -98,9 +106,9 @@ void draw_stack_pad(TH1D* h_0b, TH1D* h_1b, TH1D* h_2b, TH1D* h_data,
   leg->SetFillStyle(1001);
   leg->SetFillColor(kWhite);
   leg->SetTextSize(0.030);
-  leg->AddEntry(h_total, "Light Jets", "f");
-  leg->AddEntry(h_12,    "Single B",   "f");
-  leg->AddEntry(hs_2b,   "Double B",   "f");
+  leg->AddEntry(h_total, "All", "f");
+  leg->AddEntry(h_12,    "BB+B",   "f");
+  leg->AddEntry(hs_2b,   "BB",   "f");
   if (hd) leg->AddEntry(hd, "Data", "lep");
   leg->Draw();
 
@@ -125,9 +133,9 @@ void plot_stacked_templates(TString mc_file,
     std::cerr << "Cannot open MC file: " << mc_file << std::endl;
     return;
   }
-  TH3D* h3_0b = (TH3D*) fmc->Get("h3D_0b");
-  TH3D* h3_1b = (TH3D*) fmc->Get("h3D_b");
-  TH3D* h3_2b = (TH3D*) fmc->Get("h3D_bb");
+  TH3D* h3_0b = (TH3D*) fmc->Get("h_count_0b");
+  TH3D* h3_1b = (TH3D*) fmc->Get("h_count_b");
+  TH3D* h3_2b = (TH3D*) fmc->Get("h_count_bb");
   if (!h3_0b || !h3_1b || !h3_2b) {
     std::cerr << "Cannot find h3D_0b / h3D_b / h3D_bb in MC file." << std::endl;
     fmc->ls();  // print what's actually in the file
@@ -141,7 +149,7 @@ void plot_stacked_templates(TString mc_file,
     if (!fdata || fdata->IsZombie()) {
       std::cerr << "Cannot open data file: " << data_file << std::endl;
     } else {
-      h3_data = (TH3D*) fdata->Get("h3D_data");
+      h3_data = (TH3D*) fdata->Get("h_count_data");
       if (!h3_data) {
         std::cerr << "Cannot find h3D_data in data file." << std::endl;
         fdata->ls();  // print what's actually in the file
