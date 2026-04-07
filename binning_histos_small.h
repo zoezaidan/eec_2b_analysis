@@ -1,14 +1,14 @@
 // Define binnings
 
 //dr
-const Int_t dr_binsVectorSize = 21;
+const Int_t dr_binsVectorSize = 16;
 Int_t bins_dr = dr_binsVectorSize - 1;
 Int_t dr_bins = bins_dr;
 Double_t dr_binsVector[dr_binsVectorSize];
 void build_dr_bins()
 {   
  const Double_t start = 0.002;
- const Double_t end   = 1;
+ const Double_t end   = 0.4;
 
     Double_t log_start = std::log(start);
     Double_t log_end   = std::log(end);
@@ -26,7 +26,7 @@ Double_t dr_max = dr_binsVector[bins_dr];
 //Values for histogram filling
 Double_t dr_shiftbin = 0.00001;
 Double_t dr_min_fill = 0.0021;
-Double_t dr_max_fill = 0.99;
+Double_t dr_max_fill = 0.39;
 
 //mB
 const Int_t mb_binsVectorSize = 9;
