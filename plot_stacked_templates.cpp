@@ -165,7 +165,6 @@ void plot_stacked_templates(TString mc_file,
       std::cerr << "Cannot open data file: " << data_file << std::endl;
     } else {
       h3_data = (TH3D*) fdata->Get("h_count_data");
-      if (!h3_data) h3_data = (TH3D*) fdata->Get("h_InvMass_vs_Dr_Data"); // fallback for older files (run_data.c output)
       if (!h3_data) {
         std::cerr << "Cannot find h3D_data in data file." << std::endl;
         fdata->ls();  // print what's actually in the file
