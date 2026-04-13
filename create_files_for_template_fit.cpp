@@ -863,10 +863,20 @@ void make_templates(TString filename, TString output_folder, TString output_hist
   // Data: single distribution to be fit
   TH3D *h3D_data = new TH3D("h3D_data", "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
 
-  h3D_0b->Sumw2();
-  h3D_b->Sumw2();
-  h3D_bb->Sumw2();
-  h3D_data->Sumw2();
+  h3D_0b->Sumw2();   h3D_0b->SetCanExtend(TH1::kNoAxis);
+  h3D_b->Sumw2();    h3D_b->SetCanExtend(TH1::kNoAxis);
+  h3D_bb->Sumw2();   h3D_bb->SetCanExtend(TH1::kNoAxis);
+  h3D_data->Sumw2(); h3D_data->SetCanExtend(TH1::kNoAxis);
+
+  // Jet counts (no EEC weight): 3D (mB, dr, jtpt) — same axes as the EEC histograms
+  TH3D *h_count_0b   = new TH3D("h_count_0b",   "jet counts 0b;m_{B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h_count_b    = new TH3D("h_count_b",    "jet counts 1b;m_{B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h_count_bb   = new TH3D("h_count_bb",   "jet counts 2b;m_{B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h_count_data = new TH3D("h_count_data", "jet counts data;m_{B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  h_count_0b->Sumw2();   h_count_0b->SetCanExtend(TH1::kNoAxis);
+  h_count_b->Sumw2();    h_count_b->SetCanExtend(TH1::kNoAxis);
+  h_count_bb->Sumw2();   h_count_bb->SetCanExtend(TH1::kNoAxis);
+  h_count_data->Sumw2(); h_count_data->SetCanExtend(TH1::kNoAxis);
 
   Long64_t n_events = t.GetEntries();
   if (ev_last < 0 || ev_last > n_events) ev_last = n_events;
@@ -882,15 +892,13 @@ void make_templates(TString filename, TString output_folder, TString output_hist
 
     // trigger selection
     if (!isMC && dataType == 0) {
-      if (!(t.HLT_HIAK4PFJet80_v1 == 1)) continue;  // require exactly Jet80 for fair comparison with MC
+      if (!(t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) continue; }
+    
+      else if (!isMC && dataType == -1) {
+      if (t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1) continue; 
+      if (!(t.HLT_HIAK4PFJet40_v1 || t.HLT_HIAK4PFJet60_v1 )) continue;
     }
-    if (!isMC && dataType == -1) {
-      if (!((t.HLT_HIAK4PFJet60_v1 == 1 && t.HLT_HIAK4PFJet80_v1 == 0 && t.HLT_HIAK4PFJet100_v1 == 0) ||
-            (t.HLT_HIAK4PFJet40_v1 == 1 && t.HLT_HIAK4PFJet60_v1 == 0 && t.HLT_HIAK4PFJet80_v1 == 0 && t.HLT_HIAK4PFJet100_v1 == 0))) continue;
-    }
-    if (isMC) {
-      if (!(t.HLT_HIAK4PFJet80_v1 == 1)) continue;
-    }
+    else if (isMC) {if (!(t.HLT_HIAK4PFJet40_v1)) continue;}
 
     for (Int_t ijet = 0; ijet < t.nref; ijet++) {
 
@@ -902,7 +910,7 @@ void make_templates(TString filename, TString output_folder, TString output_hist
 
       // reco SV reconstruction — same for data and MC
       vector<ROOT::Math::PtEtaPhiMVector> reco_sv = makeSvtxs_withBDT(t, ijet, ient, agg_fail, nb_sv, sv_fail, merge_fail, nullptr, nullptr);
-      if (reco_sv.size() != 2) continue;
+      if (reco_sv.size() < 2) continue;
 
       double dr   = t.calc_dr(reco_sv[0].Eta(), reco_sv[0].Phi(), reco_sv[1].Eta(), reco_sv[1].Phi());
       double pt1  = reco_sv[0].Pt();
@@ -911,13 +919,24 @@ void make_templates(TString filename, TString output_folder, TString output_hist
       double jtpt = t.jtpt[ijet];
       double mB   = reco_sv[0].M() + reco_sv[1].M();
 
+      //Fix the under/overflow
+      if(dr < dr_min) dr = dr_min_fill;
+      if(dr >= dr_max) dr = dr_max_fill;
+      if(mB >= mb_max) mB = mb_max_fill;
+
+
+
+      std::cout << "weight: " << weight_tree << std::endl;
+      std::cout << "eec: " << eec << std::endl;
+
       if (isMC) {
         // use truth to classify: fill separate 0b, b and bb templates
-        if      (t.jtNbHad[ijet] == 0) h3D_0b->Fill(mB, dr, jtpt, eec * weight_tree);
-        else if (t.jtNbHad[ijet] == 1) h3D_b ->Fill(mB, dr, jtpt, eec * weight_tree);
-        else if (t.jtNbHad[ijet] == 2) h3D_bb->Fill(mB, dr, jtpt, eec * weight_tree);
+        if      (t.jtNbHad[ijet] == 0) { h3D_0b->Fill(mB, dr, jtpt, eec * weight_tree); h_count_0b->Fill(mB, dr, jtpt, weight_tree); }
+        else if (t.jtNbHad[ijet] == 1) { h3D_b ->Fill(mB, dr, jtpt, eec * weight_tree); h_count_b ->Fill(mB, dr, jtpt, weight_tree); }
+        else if (t.jtNbHad[ijet] == 2) { h3D_bb->Fill(mB, dr, jtpt, eec * weight_tree); h_count_bb->Fill(mB, dr, jtpt, weight_tree); }
       } else {
         h3D_data->Fill(mB, dr, jtpt, eec * weight_tree);
+        h_count_data->Fill(mB, dr, jtpt, weight_tree);
       }
     }
   }
@@ -930,8 +949,12 @@ void make_templates(TString filename, TString output_folder, TString output_hist
     h3D_0b->Write();
     h3D_b->Write();
     h3D_bb->Write();
+    h_count_0b->Write();
+    h_count_b->Write();
+    h_count_bb->Write();
   } else {
     h3D_data->Write();
+    h_count_data->Write();
   }
   outFile.Close();
 }
@@ -962,36 +985,40 @@ if (!isMC && dataType > 1) {
 
 if(dataType == -1){//________________________________data______________________________
   filename = "/data_CMS/cms/kalipoliti/bJet2017G/LowEGJet/aggrTMVA_fixedMassBug/all_merged_HiForestMiniAOD.root";
-  output_hist = "template_for_fit_histos_3D_LowEG";
+  output_hist = "template_for_fit_histos_3D_LowEG_f";
   isMC = false;
   cout<<"you chose data Low" <<endl;
   }
 
 else if(dataType == 0) {
   filename = "/data_CMS/cms/kalipoliti/bJet2017G/HighEGJet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
-  output_hist = "template_for_fit_histos_3D_HighEG";
+  output_hist = "template_for_fit_histos_3D_HighEG_f";
   isMC = false;
   cout<<"you chose data High" <<endl;       
   }      
                                                                                                                                                                                                                                                                         
 else if(dataType == 1){//________________________________bjet______________________________
   filename = "/data_CMS/cms/kalipoliti/qcdMC/bjet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
-  output_hist = "template_for_fit_histos_3D_bjet_test";
+  output_hist = "template_for_fit_histos_3D_bjet_f";
   std::cout << "Creating files for template fit for bjet sample" << std::endl;
   cout<<"you chose bjet MC" <<endl;
   }
 
 else if(dataType == 2){//________________________________dijet______________________________
   filename = "/data_CMS/cms/kalipoliti/qcdMC/dijet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root"; 
-  output_hist = "template_for_fit_histos_3D_qcd";
+  output_hist = "template_for_fit_histos_3D_qcd_f";
   std::cout << "Creating files for template fit for qcd sample" << std::endl;
   cout<<"you chose qcd MC" <<endl;
   }
+
+
 
 else{
   cout<<" undefined data type"<<endl;
   return; 
   }
+
+
 
 
   make_templates(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC, dataType);
