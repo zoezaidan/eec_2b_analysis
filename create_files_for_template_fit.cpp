@@ -918,6 +918,12 @@ void make_templates(TString filename, TString output_folder, TString output_hist
       double eec  = std::pow(pt1 * pt2, n);
       double jtpt = t.jtpt[ijet];
       double mB   = reco_sv[0].M() + reco_sv[1].M();
+      if (mB > mb_max_fill) mB = mb_max_fill;  // fold overflow into last bin
+
+
+
+      std::cout << "weight: " << weight_tree << std::endl;
+      std::cout << "eec: " << eec << std::endl;
 
       //Fix the under/overflow
       if(dr < dr_min) dr = dr_min_fill;

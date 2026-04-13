@@ -21,3 +21,7 @@ nohup.out
 # Condor job outputs
 condor/logfiles/
 condor/exec_jobs/
+condor/*_tmp_*
+condor/*.so
+condor/*.d
+condor/*.pcm
