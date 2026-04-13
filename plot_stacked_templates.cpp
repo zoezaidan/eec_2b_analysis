@@ -34,8 +34,9 @@ void draw_stack_pad(TH1D* h_0b, TH1D* h_1b, TH1D* h_2b, TH1D* h_data,
 
   c->cd(pad);
   gPad->SetLeftMargin(0.15);
+  gPad->SetRightMargin(0.15);
   gPad->SetBottomMargin(0.15);
-  gPad->SetTopMargin(0.12);
+  gPad->SetTopMargin(0.15);
   if (TString(var_name).Contains("dr")) gPad->SetLogx();
 
   // Clone so originals are untouched
@@ -44,6 +45,7 @@ void draw_stack_pad(TH1D* h_0b, TH1D* h_1b, TH1D* h_2b, TH1D* h_data,
   TH1D* hs_2b = (TH1D*) h_2b->Clone(Form("stk2b_%s_p%d", var_name, pad));
 
   // Joint normalisation: scale all three by 1 / (I_0b + I_1b + I_2b)
+  // so MC fractions reflect true composition and are on the same scale as data
   double total = hs_0b->Integral() + hs_1b->Integral() + hs_2b->Integral();
   if (total > 0) {
     hs_0b->Scale(1.0 / total);
@@ -68,21 +70,43 @@ void draw_stack_pad(TH1D* h_0b, TH1D* h_1b, TH1D* h_2b, TH1D* h_data,
   hs_2b->SetFillColor(kBlue-5);     hs_2b->SetLineColor(kBlue-4);     hs_2b->SetLineWidth(1);
 
   // Draw largest first so smaller ones are visible on top
-  h_total->SetTitle(Form(";%s;Normalised entries", xtitle));
-  h_total->GetXaxis()->SetTitleSize(0.045);
-  h_total->GetYaxis()->SetTitleSize(0.045);
-  h_total->GetXaxis()->SetLabelSize(0.038);
-  h_total->GetYaxis()->SetLabelSize(0.038);
-  h_total->GetXaxis()->SetTitleOffset(1.1);
-  h_total->GetYaxis()->SetTitleOffset(1.4);
+  h_total->SetTitle(Form(";%s;Entries", xtitle));
+  h_total->GetXaxis()->SetTitleSize(0.050);
+  h_total->GetYaxis()->SetTitleSize(0.050);
+  h_total->GetXaxis()->SetLabelSize(0.035);
+  h_total->GetYaxis()->SetLabelSize(0.035);
+  h_total->GetXaxis()->SetTitleOffset(1.2);
+  h_total->GetYaxis()->SetTitleOffset(1.3);
+  h_total->GetXaxis()->SetLabelOffset(0.01);
+  h_total->GetYaxis()->SetLabelOffset(0.01);
+  if (TString(var_name).Contains("dr")) {
+    // Use exact bin edges from binning_histos_small.h
+    // dr_binsVector[18] = last edge with meaningful data (~0.537)
+    h_total->GetXaxis()->SetRangeUser(dr_binsVector[0], dr_binsVector[bins_dr]);
+    h_total->GetXaxis()->SetMoreLogLabels();
+    h_total->GetXaxis()->SetNoExponent();
+  } else {
+    h_total->GetXaxis()->SetRangeUser(0., 7.);
+    h_total->GetXaxis()->SetNdivisions(7, 0, 0, true);
+  }
   h_total->Draw("hist");
   h_12->Draw("hist same");
   hs_2b->Draw("hist same");
 
-  // Data: normalise to 1, draw as filled black triangles
+  // Data: draw as filled black triangles (no normalisation)
   TH1D* hd = nullptr;
   if (h_data && h_data->Integral() > 0) {
     hd = (TH1D*) h_data->Clone(Form("stkdata_%s_p%d", var_name, pad));
+    // Fold overflow into last bin (mB only — for dr, empty large bins are physics)
+    if (!TString(var_name).Contains("dr")) {
+      int nb = hd->GetNbinsX();
+      double ov     = hd->GetBinContent(nb + 1);
+      double ov_err = hd->GetBinError(nb + 1);
+      hd->SetBinContent(nb, hd->GetBinContent(nb) + ov);
+      hd->SetBinError(nb, std::sqrt(hd->GetBinError(nb)*hd->GetBinError(nb) + ov_err*ov_err));
+      hd->SetBinContent(nb + 1, 0);
+      hd->SetBinError(nb + 1, 0);
+    }
     hd->Scale(1.0 / hd->Integral());
     hd->SetMarkerStyle(22);  // filled triangle up
     hd->SetMarkerSize(1.0);
@@ -93,14 +117,13 @@ void draw_stack_pad(TH1D* h_0b, TH1D* h_1b, TH1D* h_2b, TH1D* h_data,
   }
 
   // Legend (top right) — names match what each visible band represents
-  TLegend* leg = new TLegend(0.57, 0.60, 0.92, 0.88);
-  leg->SetBorderSize(1);
-  leg->SetFillStyle(1001);
-  leg->SetFillColor(kWhite);
+  TLegend* leg = new TLegend(0.17, 0.60, 0.52, 0.88);
+  leg->SetBorderSize(0);
+  leg->SetFillColorAlpha(kWhite, 0.2);
   leg->SetTextSize(0.030);
-  leg->AddEntry(h_total, "Light Jets", "f");
-  leg->AddEntry(h_12,    "Single B",   "f");
-  leg->AddEntry(hs_2b,   "Double B",   "f");
+  leg->AddEntry(h_total, "All", "f");
+  leg->AddEntry(h_12,    "BB+B",   "f");
+  leg->AddEntry(hs_2b,   "BB",   "f");
   if (hd) leg->AddEntry(hd, "Data", "lep");
   leg->Draw();
 
@@ -109,7 +132,7 @@ void draw_stack_pad(TH1D* h_0b, TH1D* h_1b, TH1D* h_2b, TH1D* h_data,
   lat.SetNDC();
   lat.SetTextSize(0.040);
   lat.SetTextFont(62);
-  lat.DrawLatex(0.18, 0.92, Form("p_{T}^{jet} #in [%s]", pt_label));
+  lat.DrawLatex(0.18, 0.88, Form("p_{T}^{jet} #in [%s]", pt_label));
 }
 
 
@@ -141,7 +164,8 @@ void plot_stacked_templates(TString mc_file,
     if (!fdata || fdata->IsZombie()) {
       std::cerr << "Cannot open data file: " << data_file << std::endl;
     } else {
-      h3_data = (TH3D*) fdata->Get("h3D_data");
+      h3_data = (TH3D*) fdata->Get("h_count_data");
+      if (!h3_data) h3_data = (TH3D*) fdata->Get("h_InvMass_vs_Dr_Data"); // fallback for older files (run_data.c output)
       if (!h3_data) {
         std::cerr << "Cannot find h3D_data in data file." << std::endl;
         fdata->ls();  // print what's actually in the file
@@ -180,6 +204,7 @@ void plot_stacked_templates(TString mc_file,
 
     TCanvas* cpt = new TCanvas(Form("cstk_pt%d", ipt),
                                Form("Stacked templates – %s", pt_label), 1200, 600);
+    cpt->cd();  // make cpt the active canvas before dividing
     cpt->Divide(2, 1);
     draw_stack_pad(h_0b_dr, h_1b_dr, h_2b_dr, h_data_dr,
                    "#DeltaR", "dr", pt_label, cpt, 1);

@@ -1,14 +1,14 @@
 // Define binnings
 
 //dr
-const Int_t dr_binsVectorSize = 21;
+const Int_t dr_binsVectorSize = 16;
 Int_t bins_dr = dr_binsVectorSize - 1;
 Int_t dr_bins = bins_dr;
 Double_t dr_binsVector[dr_binsVectorSize];
 void build_dr_bins()
 {   
  const Double_t start = 0.002;
- const Double_t end   = 1;
+ const Double_t end   = 0.4;
 
     Double_t log_start = std::log(start);
     Double_t log_end   = std::log(end);
@@ -26,10 +26,10 @@ Double_t dr_max = dr_binsVector[bins_dr];
 //Values for histogram filling
 Double_t dr_shiftbin = 0.00001;
 Double_t dr_min_fill = 0.0021;
-Double_t dr_max_fill = 0.99;
+Double_t dr_max_fill = 0.39;
 
 //mB
-const Int_t mb_binsVectorSize = 19;
+const Int_t mb_binsVectorSize = 9;
 Int_t mb_bins = mb_binsVectorSize - 1;
 Double_t mb_binsVector[mb_binsVectorSize] = {
     0., 
@@ -40,22 +40,11 @@ Double_t mb_binsVector[mb_binsVectorSize] = {
     5.,
     6.,
     7.,
-    8.,
-    9.,
-    10.,
-    11.,
-    12.,
-    13.,
-    14.,
-    15.,
-    16.,
-    17.,
-    18.,
 };
 Double_t mb_min = mb_binsVector[0];
 Double_t mb_max = mb_binsVector[mb_bins];
-Int_t bins_mb = 18;
-Double_t mb_max_fill = 17.9;
+Int_t bins_mb = 7;
+Double_t mb_max_fill = 6.9;
 
 //EEC
 const Int_t eec_binsVectorSize = 6;
