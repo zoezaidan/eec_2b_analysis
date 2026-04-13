@@ -892,15 +892,13 @@ void make_templates(TString filename, TString output_folder, TString output_hist
 
     // trigger selection
     if (!isMC && dataType == 0) {
-      if (!(t.HLT_HIAK4PFJet80_v1 == 1)) continue;  // require exactly Jet80 for fair comparison with MC
+      if (!(t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) continue; }
+    
+      else if (!isMC && dataType == -1) {
+      if (t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1) continue; 
+      if (!(t.HLT_HIAK4PFJet40_v1 || t.HLT_HIAK4PFJet60_v1 )) continue;
     }
-    if (!isMC && dataType == -1) {
-      if (!((t.HLT_HIAK4PFJet60_v1 == 1 && t.HLT_HIAK4PFJet80_v1 == 0 && t.HLT_HIAK4PFJet100_v1 == 0) ||
-            (t.HLT_HIAK4PFJet40_v1 == 1 && t.HLT_HIAK4PFJet60_v1 == 0 && t.HLT_HIAK4PFJet80_v1 == 0 && t.HLT_HIAK4PFJet100_v1 == 0))) continue;
-    }
-    if (isMC) {
-      if (!(t.HLT_HIAK4PFJet80_v1 == 1)) continue;
-    }
+    else if (isMC) {if (!(t.HLT_HIAK4PFJet40_v1)) continue;}
 
     for (Int_t ijet = 0; ijet < t.nref; ijet++) {
 
@@ -912,7 +910,7 @@ void make_templates(TString filename, TString output_folder, TString output_hist
 
       // reco SV reconstruction — same for data and MC
       vector<ROOT::Math::PtEtaPhiMVector> reco_sv = makeSvtxs_withBDT(t, ijet, ient, agg_fail, nb_sv, sv_fail, merge_fail, nullptr, nullptr);
-      if (reco_sv.size() != 2) continue;
+      if (reco_sv.size() < 2) continue;
 
       double dr   = t.calc_dr(reco_sv[0].Eta(), reco_sv[0].Phi(), reco_sv[1].Eta(), reco_sv[1].Phi());
       double pt1  = reco_sv[0].Pt();
@@ -921,6 +919,16 @@ void make_templates(TString filename, TString output_folder, TString output_hist
       double jtpt = t.jtpt[ijet];
       double mB   = reco_sv[0].M() + reco_sv[1].M();
       if (mB > mb_max_fill) mB = mb_max_fill;  // fold overflow into last bin
+
+
+
+      std::cout << "weight: " << weight_tree << std::endl;
+      std::cout << "eec: " << eec << std::endl;
+
+      //Fix the under/overflow
+      if(dr < dr_min) dr = dr_min_fill;
+      if(dr >= dr_max) dr = dr_max_fill;
+      if(mB >= mb_max) mB = mb_max_fill;
 
 
 
@@ -983,36 +991,40 @@ if (!isMC && dataType > 1) {
 
 if(dataType == -1){//________________________________data______________________________
   filename = "/data_CMS/cms/kalipoliti/bJet2017G/LowEGJet/aggrTMVA_fixedMassBug/all_merged_HiForestMiniAOD.root";
-  output_hist = "template_for_fit_histos_3D_LowEG";
+  output_hist = "template_for_fit_histos_3D_LowEG_f";
   isMC = false;
   cout<<"you chose data Low" <<endl;
   }
 
 else if(dataType == 0) {
   filename = "/data_CMS/cms/kalipoliti/bJet2017G/HighEGJet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
-  output_hist = "template_for_fit_histos_3D_HighEG";
+  output_hist = "template_for_fit_histos_3D_HighEG_f";
   isMC = false;
   cout<<"you chose data High" <<endl;       
   }      
                                                                                                                                                                                                                                                                         
 else if(dataType == 1){//________________________________bjet______________________________
   filename = "/data_CMS/cms/kalipoliti/qcdMC/bjet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
-  output_hist = "template_for_fit_histos_3D_bjet_test";
+  output_hist = "template_for_fit_histos_3D_bjet_f";
   std::cout << "Creating files for template fit for bjet sample" << std::endl;
   cout<<"you chose bjet MC" <<endl;
   }
 
 else if(dataType == 2){//________________________________dijet______________________________
   filename = "/data_CMS/cms/kalipoliti/qcdMC/dijet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root"; 
-  output_hist = "template_for_fit_histos_3D_qcd";
+  output_hist = "template_for_fit_histos_3D_qcd_f";
   std::cout << "Creating files for template fit for qcd sample" << std::endl;
   cout<<"you chose qcd MC" <<endl;
   }
+
+
 
 else{
   cout<<" undefined data type"<<endl;
   return; 
   }
+
+
 
 
   make_templates(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC, dataType);
