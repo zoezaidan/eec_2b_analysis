@@ -1,105 +1,18 @@
+
+
 #include "tTree.h"
 #include "binning_histos_all.h"
-
-
-// For the output to be saved: 
-TString sDirname = "TemplateFitOutput";
-
-void DrawCommonTextTopRight(TPad*pad,  int ibin_dr, int ibin_pt, const char* extra="") {
-    
-    // you can pass dirctly a canvas pointer 
-    pad->cd(); 
-    // draw auto legend first
-    auto leg = pad->BuildLegend(0.6, 0.5, 0.88, 0.75); // 0.6, 0.5, 0.88, 0.7
-        // optional styling
-        leg->SetBorderSize(0);
-        leg->SetFillStyle(0);
-
-    // -- text for other information
-    double right = 1.0 - gPad->GetRightMargin();
-    double top   = 1.0 - gPad->GetTopMargin();
-
-    TLatex latex;
-    latex.SetNDC(); // relative coorinates
-    latex.SetTextSize(0.035);
-    latex.SetTextAlign(13); // left top alignment
-    latex.SetTextFont(42); // font helvatic normal (42). bold(62)
-
-    double x = right - 0.3; // shift left from right edge
-    double y = top - 0.03;
-
-    // legend text setting: read bins to numbers 
-    double pt_first = 0;
-    double pt_last = 0;
-    double dr_first = 0;
-    double dr_last = 0;
-    if(!ibin_dr){dr_first = 0; dr_last = 1;} // converted to infintiy 
-        else { dr_first =  dr_binsVector[ibin_dr -1]; dr_last  = dr_binsVector[ibin_dr];}
-
-    if (!ibin_pt){pt_first = jtpt_binsVector[0];  pt_last = jtpt_binsVector[jtpt_bins];} 
-        else{pt_first = jtpt_binsVector[ibin_pt-1]; pt_last = jtpt_binsVector[ibin_pt]; }
-
-        cout << "pt bin #"<< ibin_pt << "pt first and last are: " << pt_first << ", " << pt_last << endl;
-
-    if (dr_last == 1.0) latex.DrawLatex(x, y, Form("%g < #DeltaR < #infty", dr_first));
-    else latex.DrawLatex(x, y, Form("%g < #DeltaR < %g", dr_first, dr_last));
-    latex.DrawLatex(x, y - 0.04, Form("%g < p_{T} < %g GeV", pt_first, pt_last));
-    latex.DrawLatex(x, y - 0.08, extra);
-}
-
-void AddRatioPlot(TH1* h1, TH1* h2, double min = -2, double max = 2) {
-    // draw ratio of two hists
-    TH1* ratio = (TH1*)h1->Clone("ratio");
-    ratio->Divide(h2);
-
-    ratio->SetTitle("");
-    ratio->GetYaxis()->SetTitle("Ratio");
-    ratio->GetYaxis()->CenterTitle(true);
-
-    ratio->SetMaximum(max);
-    ratio->SetMinimum(min);
-        // larger label
-        ratio->GetYaxis()->SetNdivisions(505);
-        ratio->GetYaxis()->SetTitleSize(0.10);
-        ratio->GetYaxis()->SetLabelSize(0.08);
-        ratio->GetYaxis()->SetTitleOffset(0.5);
-
-        ratio->GetXaxis()->SetTitleSize(0.12);
-        ratio->GetXaxis()->SetLabelSize(0.1);
-        ratio->GetXaxis()->SetTitleOffset(0.8);
-
-        // dont show the xaxis labels
-        // ratio->GetXaxis()->SetTitleSize(0); 
-        // ratio->GetXaxis()->SetLabelSize(0);
-
-
-    ratio->SetMarkerStyle(20);
-    ratio->SetLineColor(kBlack);
-    ratio->Draw("EP");
-
-    // unity line
-    TLine* line = new TLine(
-        ratio->GetXaxis()->GetXmin(), 1.0,
-        ratio->GetXaxis()->GetXmax(), 1.0
-    );
-    line->SetLineStyle(2);
-    line->Draw();
-}
+#include "Help_Functions.h"
 
 
 
 void do_template_fit_combined(const TString &HighEGdata_name, const TString &LowEGdata_name, TString &templates, TString &templates_bjet, TString pT_selection, TString folder, TString &fout_name, bool& alsoLowEG){
     /*
         // ----- WORK in PROGRESS ---- 14/04/2026
-        // to be added: the morethan 2B into the signal pdf. 
-        // Zoe files do not have seperated contirbution of >2B  
-        // 0B contrinution to be taken only from qcd sample 
         // In the new version of files: 2B contribution has both 2B + morethan2B in the same histogram. No anymore seprated histogram for it.
-
+        // 0B onl from qcd sample. bjet sample 0B contribution is not physical (it is already filtered to be bjets so these light quark templates are not real but mistaken).
     */
 
-    bool isSampled = false; // for templates 
-    
     // -- For output histograms 
     TFile *fout = new TFile(Form("%s/%s", sDirname.Data(), fout_name.Data()), "recreate");
 
@@ -186,12 +99,10 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
     /// -- For later drawing of S/B fractions, store true and fit result in the following histograms
         // Note that: since inetgaretd bins are pt 0 and dr 0, the hist of fractions should have #bins + 1 size 
         //  // x = dr, y = jetpt
-          TH2D *h_sig_fraction = new TH2D("h_sig_fraction", ";dr; jet pt",h3D_data->GetNbinsY(),
-                                                                          h3D_data->GetYaxis()->GetXmin(),
-                                                                          h3D_data->GetYaxis()->GetXmax() + 1,
-                                                                          h3D_data->GetNbinsZ(),
-                                                                          h3D_data->GetZaxis()->GetXmin(),
-                                                                          h3D_data->GetZaxis()->GetXmax() + 1); // yes GetXmin() fpr Y an Z-axis
+        // Axis here is for the bin number instead of the values 
+          TH2D *h_sig_fraction = new TH2D("h_sig_fraction", ";dr; jet pt",h3D_data->GetNbinsY() + 1,  1,  h3D_data->GetNbinsY() + 2,
+                                                                          h3D_data->GetNbinsZ() + 1 , 1, h3D_data->GetNbinsZ()+ 2 ); // yes GetXmin() fpr Y an Z-axis
+                                                                                                                                                 
             h_sig_fraction->Reset();
             TH2D *h_bkg_fraction = (TH2D *) h_sig_fraction->Clone("h_bkg_fraction");
             TH2D *h_sig_fraction_error = (TH2D *) h_sig_fraction->Clone("h_sig_fraction_error");
@@ -208,10 +119,10 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
 
     // Fitting - loop over dr and jtpt entries
     // Bin0: is integarted over the range 
-    // for(Int_t ibin_pt = 0; ibin_pt <= bins_pt; ibin_pt++){
-    for(Int_t ibin_pt = 0; ibin_pt <= 0; ibin_pt++){
-        // for(Int_t ibin_dr = 0; ibin_dr <= bins_dr; ibin_dr++){
-        for(Int_t ibin_dr = 0; ibin_dr <= 0; ibin_dr++){
+    for(Int_t ibin_pt = 0; ibin_pt <= bins_pt; ibin_pt++){
+    // for(Int_t ibin_pt = 0; ibin_pt <= 0; ibin_pt++){
+        for(Int_t ibin_dr = 0; ibin_dr <= bins_dr; ibin_dr++){
+        // for(Int_t ibin_dr = 0; ibin_dr <= 0; ibin_dr++){
             
             // define slice
             Int_t SliceFirstbin_dr = ibin_dr;
@@ -282,16 +193,16 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                 
                 // -- check integrals in bjet and qcd sample
                 // relative fraction of 1B: 2B in bjet and qcd samples is SAME. So you can combine the two samples with simple + (without reweighting).
-                cout << "Total input data integral = "<< integral_inputdata << endl;
-                std::cout << "int2 h_bb=" << int2 << std::endl;
-                std::cout << "int1 h_b =" << int1 << std::endl;
-                cout << "Dijet: int0 of 0B" << int0 << endl;
+                // cout << "Total input data integral = "<< integral_inputdata << endl;
+                // std::cout << "int2 h_bb=" << int2 << std::endl;
+                // std::cout << "int1 h_b =" << int1 << std::endl;
+                // cout << "Dijet: int0 of 0B" << int0 << endl;
 
-                cout << "Dijet: 2B/(1B + 2B) = " << int2/(int2 + int1) << endl;
-                std::cout << "int2 h_bb_bjet=" << int2_bjet << std::endl;
-                std::cout << "int1 h_b_bjet =" << int1_bjet << std::endl;
-                cout << "2B/(2B + 1B) in qcd sample = " << int2_bjet/(int2_bjet + int1_bjet) << endl;
-                cout << " Dijet: 0B/(1B+2B) = " << int0/(int2 + int1) << endl;
+                // cout << "Dijet: 2B/(1B + 2B) = " << int2/(int2 + int1) << endl;
+                // std::cout << "int2 h_bb_bjet=" << int2_bjet << std::endl;
+                // std::cout << "int1 h_b_bjet =" << int1_bjet << std::endl;
+                // cout << "2B/(2B + 1B) in qcd sample = " << int2_bjet/(int2_bjet + int1_bjet) << endl;
+                // cout << " Dijet: 0B/(1B+2B) = " << int0/(int2 + int1) << endl;
 
             // --- Prepare PDFs for template fit
 
@@ -359,6 +270,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                             DrawCommonTextTopRight(canva_beforefit, ibin_dr, ibin_pt);
                             canva_beforefit->Write();
                             canva_beforefit->Print(Form("%s/%s_allcontributions_beforefit.png", sDirname.Data(), sname_canvas.Data()));
+
         // -- Draw Stack for combined qcd + bjet: 1B, Combined 2B, and 0b : the real contrituions that is to be fitted before normalization
             // absolute yields of Signal and bkg  
             THStack hstack_templatesforfit(Form("hstack_templatesforfit_%d_%d", ibin_dr, ibin_pt),"Mass stacked histograms without normalization");
@@ -377,6 +289,10 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                             DrawCommonTextTopRight(canva_sum_beforefit, ibin_dr, ibin_pt);
                             canva_sum_beforefit->Write();
                             canva_sum_beforefit->Print(Form("%s/%s_templates_beforefit.png", sDirname.Data(), sname_canvas.Data()));
+
+        // -- Safety for empty bins 
+            if ((int0 + int1 + int2) < 1  ) { cout << " ----------- empty bin -----------  "; continue;}   
+                          
 
                 // ----- To avoid empty bins if exist!, set them to eps value
                 const double eps = 1e-6; 
@@ -406,8 +322,8 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                 // normalize signal and bkg 
                 h_sig->Scale(1/h_sig->Integral(1, h_sig_bins, "width"));
                 h_bkg->Scale(1/h_bkg->Integral(1, h_bkg_bins, "width"));
-                    cout << "After Normalization (qcd +bjet) True 2B integral = " << h_sig->Integral(1, h_sig_bins, "width") << endl;
-                    cout << "After Normalization (qcd+bjet)  True 1B integral =  "<<  h_bkg->Integral(1, h_bkg_bins, "width") << endl;
+                    // cout << "After Normalization (qcd +bjet) True 2B integral = " << h_sig->Integral(1, h_sig_bins, "width") << endl;
+                    // cout << "After Normalization (qcd+bjet)  True 1B integral =  "<<  h_bkg->Integral(1, h_bkg_bins, "width") << endl;
 
             // -- Effective bkg PDF 
                 // Assume : a + b + c = 1; where a, b, c, are fractions in in nominal MC like 
@@ -428,15 +344,16 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                 // update combined normalized bkg integral and error  
                 double err_int;
                 double int_val = h_bkg->IntegralAndError(1,  h_bkg_bins, err_int ,"width");
-                    cout << "Effective Bkg normalized hist integral +/- uncertainity = ? (should be 1):  "<< int_val << "+/-" << err_int << endl;
-                    cout << "effective 1B and 0B fractions = (sum should be 1): "<< eff_bkg1B << ", " << eff_bkg0B << endl;
-                    if (h_bkg->Integral(1,  h_bkg_bins, "width") != 1.) {cout << "Effective BKG PDF is not normalized to 1!"<< endl; return;}
-                    if (h_sig->Integral(1,  h_sig_bins, "width") != 1.) {cout << "Signal PDF is not normalized to 1!"<< endl; return;}
+                    // cout << "Effective Bkg normalized hist integral +/- uncertainity = ? (should be 1):  "<< int_val << "+/-" << err_int << endl;
+                    // cout << "effective 1B and 0B fractions = (sum should be 1): "<< eff_bkg1B << ", " << eff_bkg0B << endl;
+                    // avoid float point failur 
+                    if ( std::abs(int_val - 1)  > 1e-06) {cout << "Effective BKG PDF is not normalized to 1!"<< endl; return;}
+                    if ( std::abs( h_sig->Integral(1,  h_sig_bins, "width") - 1)  > 1e-06) {cout << "Signal PDF is not normalized to 1!"<< endl; return;}
 
             // -- Draw normalized PDFs of signal and effective background as inputs: prefit
             // set PDF titles 
-            h_bkg->SetTitle("PDF:1B + 0B");
-            h_sig->SetTitle("PDF:2B");
+            h_bkg->SetTitle("1B + 0B");
+            h_sig->SetTitle("2B");
             h_sig->SetFillStyle(3244);
             h_bkg->SetFillColor(kGreen+2);
             h_sig->SetFillColor(kOrange+4);
@@ -524,6 +441,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                         // 1B (bjet and dijet)
                         TH1D* hnorm_sumbkg_1B_scaledint = (TH1D*) h_sumbkg->Clone("hnorm_sumbkg_1B_scaledint");
                                  hnorm_sumbkg_1B_scaledint->Scale(1./hnorm_sumbkg_1B_scaledint->Integral(1, mb_bins, "width"));
+                                hnorm_sumbkg_1B_scaledint->Scale(int1);
                         hstack_pfds_seperated_scaledtoqcd_int.Add(h_sig_scaledint); 
                         hstack_pfds_seperated_scaledtoqcd_int.Add(hnorm_sumbkg_1B_scaledint);
                         hstack_pfds_seperated_scaledtoqcd_int.Add(h_nob);
@@ -601,16 +519,16 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
             errP1 = da *eff_bkg1B;
             errP2 = da *eff_bkg0B;
 
-            std::cout << "a: 2B =" << sig_fraction_true << ", a': after fit=" << p0 << std::endl;            
-            std::cout << "a'/a  for 2B = " << p0/sig_fraction_true << std::endl;
+            // std::cout << "a: 2B =" << sig_fraction_true << ", a': after fit=" << p0 << std::endl;            
+            // std::cout << "a'/a  for 2B = " << p0/sig_fraction_true << std::endl;
 
 
-            std::cout << "b: 1B =" << bkg_fraction_b_true << ", b': 1B =" << p1 << std::endl;
-            std::cout << "b'/b for 1B = " << p1/bkg_fraction_b_true << std::endl;
+            // std::cout << "b: 1B =" << bkg_fraction_b_true << ", b': 1B =" << p1 << std::endl;
+            // std::cout << "b'/b for 1B = " << p1/bkg_fraction_b_true << std::endl;
 
 
-            std::cout << "c: 0B =" << (1 - sig_fraction_true - bkg_fraction_b_true) << ", c': 0B after fit =" << p2 << std::endl;
-            std::cout << "c'/c = " << p2/(1-sig_fraction_true - bkg_fraction_b_true) << std::endl;
+            // std::cout << "c: 0B =" << (1 - sig_fraction_true - bkg_fraction_b_true) << ", c': 0B after fit =" << p2 << std::endl;
+            // std::cout << "c'/c = " << p2/(1-sig_fraction_true - bkg_fraction_b_true) << std::endl;
 
 
             // -- updated for the new hsit binning for the true and fitresult S/B fractions (for later drawings)
@@ -629,15 +547,19 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
             // -- sigma True for S or B  = (B x sigmaS + SxsigmaB)/(S+B)²
             double err_true_frac = ( (int0 + int1) * True_sig_err + int2 * True_bkg_err )/TMath::Power(int0 + int1+ int2, 2);// 0B + 1B and 2B 
             h_sig_frac_true->SetBinContent(ibin_dr +1, ibin_pt +1, sig_fraction_true);
+            h_sig_frac_true->SetBinError(ibin_dr +1, ibin_pt +1, err_true_frac);
+            
             h_bkg_frac_true->SetBinContent(ibin_dr +1, ibin_pt +1, bkg_fraction_true);
-            h_sig_frac_true_error->SetBinContent(ibin_dr +1, ibin_pt +1, err_true_frac);
+            h_bkg_frac_true->SetBinError(ibin_dr +1, ibin_pt +1, err_true_frac);
             h_bkg_frac_true_error->SetBinContent(ibin_dr +1, ibin_pt +1, err_true_frac);
             
 
             // -- After fits: save mass distribution re and post-fit 
             TH1D *h_sig_fit = (TH1D*) h_sig->Clone(Form("h_sig_fit_%d_%d", ibin_dr, ibin_pt));
                 h_sig_fit->Scale(p0 * integral_inputdata);
-                h_sig_fit->SetTitle("sig. (2B)");
+                h_sig_fit->SetTitle("2B");
+                h_sig_fit->GetYaxis()->SetTitle("Counts/[GeV^{2}]");
+
                 h_sig_fit->SetMarkerColor(kRed+2);
                 h_sig_fit->SetLineColor(kRed+2);
                 h_sig_fit->SetFillColor(kRed+2);
@@ -646,7 +568,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
 
             TH1D *h_bkg_fit = (TH1D*) h_bkg->Clone(Form("h_bkg_fit_%d_%d", ibin_dr, ibin_pt)); // total bkg 
                 h_bkg_fit->Scale(integral_inputdata * (1.0 - p0));
-                h_bkg_fit->SetTitle("bkg (1B+ 0B)");
+                h_bkg_fit->SetTitle("1B+ 0B");
                 h_bkg_fit->SetMarkerColor(kCyan+2);
                 h_bkg_fit->SetLineColor(kCyan+2);
                 h_bkg_fit->SetFillColor(kCyan+2);
@@ -687,13 +609,13 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
 
             /// -- Draw useful canvas: Distiburions of Sig, Bkg, MC before and after fit 
             TString sname_canvas_afterfit = sname_canvas + "_afterfit";
-            auto canva_afterfit = new TCanvas(sname_canvas_afterfit,Form("Templaets pre and post-fit, %s", sname_canvas.Data()), 800, 800 );
+            auto canva_afterfit = new TCanvas(Form("ALLHist_%s", sname_canvas_afterfit.Data()) ,Form("Templaets pre and post-fit, %s", sname_canvas.Data()), 800, 800 );
                 canva_afterfit->cd();
                 h_data_mb->SetMaximum(1.2 * h_data_mb->GetMaximum());
                 h_data_mb->SetTitle("Data");
                 h_data_mb->SetLineWidth(2);
-                h_bb_bjet->SetLineWidth(3);
-                h_sig_fit->SetLineWidth(3);
+                h_bb_bjet->SetLineWidth(2);
+                h_sig_fit->SetLineWidth(2);
                 h_b_bjet->SetLineStyle(9);
                 h_bkg_fit->SetLineWidth(2);
                 h_data_mb->Draw("P E");
@@ -713,8 +635,9 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                 hstack_afterfit.Add(h_sig_fit);
                 hstack_afterfit.Add(h_bkg_fit_1b);
                 hstack_afterfit.Add(h_bkg_fit_nob);
-                hstack_afterfit.SetMaximum(1.01* h_data_mb->GetMaximum());
-            auto canva_stack_afterfit = new TCanvas("All_templates_Data_stacked_afterfit",Form(""), 800, 800 );
+                hstack_afterfit.SetMaximum(1.2 * hstack_afterfit.GetMaximum());
+
+            auto canva_stack_afterfit = new TCanvas(Form("All_templates_Data_stacked_%s", sname_canvas_afterfit.Data()),Form(""), 800, 800 );
                 canva_stack_afterfit->cd();
                 hstack_afterfit.Draw("hist E"); 
                 h_data_mb->Draw("PE same"); 
@@ -731,7 +654,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                 hstack_norm_afterfit.Add(h_sig_fit_normstack);
                 hstack_norm_afterfit.Add(h_bkg_fit_normstack);
                 hstack_norm_afterfit.SetMaximum(1.5 * h_bkg_fit_normstack->GetMaximum());
-                auto canva_stack_norm_afterfit = new TCanvas("PDFs_Data_stacked_norm_afterfit",Form(""), 800, 800 );
+                auto canva_stack_norm_afterfit = new TCanvas(Form("PDFs_Data_stacked_norm_%s", sname_canvas_afterfit.Data()),Form(""), 800, 800 );
                 canva_stack_norm_afterfit->cd();
                 hstack_norm_afterfit.Draw("hist E"); 
                 hnorm_data_self->Draw("PE same"); 
@@ -744,20 +667,20 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                 fout->cd();
                 DrawCommonTextTopRight(canva_afterfit, ibin_dr, ibin_pt);
                 canva_afterfit->Write();
-                canva_afterfit->Print(Form("%s/%s_%d_%d.png", sDirname.Data(), canva_afterfit->GetName(), ibin_dr, ibin_pt));
+                canva_afterfit->Print(Form("%s/%s.png", sDirname.Data(), canva_afterfit->GetName()));
 
 
                 DrawCommonTextTopRight(canva_stack_afterfit,ibin_dr, ibin_pt);
                 canva_stack_afterfit->Write();
-                canva_stack_afterfit->Print(Form("%s/%s_%d_%d.png", sDirname.Data(), canva_stack_afterfit->GetName(), ibin_dr, ibin_pt));
+                canva_stack_afterfit->Print(Form("%s/%s.png", sDirname.Data(), canva_stack_afterfit->GetName()));
 
 
                 DrawCommonTextTopRight(canva_stack_norm_afterfit, ibin_dr, ibin_pt);
                 canva_stack_norm_afterfit->Write();
-                canva_stack_norm_afterfit->Print(Form("%s/%s_%d_%d.png", sDirname.Data(), canva_stack_norm_afterfit->GetName(), ibin_dr, ibin_pt));
+                canva_stack_norm_afterfit->Print(Form("%s/%s.png", sDirname.Data(), canva_stack_norm_afterfit->GetName()));
 
             //-- ratio plot: data /total fit
-                TCanvas* c = new TCanvas("RatioPlot_afterfit", "", 800, 1100);
+                TCanvas* c = new TCanvas(Form("RatioPlot_%s", sname_canvas_afterfit.Data()), "", 900, 1100); // 800, 1100
                     TPad* pad1 = new TPad("pad1","",0,0.2,1,1);
                     TPad* pad2 = new TPad("pad2","",0,0,1,0.24);
                     // pad1->SetBottomMargin(0.13);
@@ -766,18 +689,26 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                     pad2->SetBottomMargin(0.40);  // keep space for x-axis labels
                     pad1->Draw();
                     pad2->Draw(); 
-
                     pad1->cd();
-                        hstack_afterfit.Draw("hist E"); 
+                    // Draw frame to control y axis name 
+                    TH1F *frame = pad1->DrawFrame(hstack_afterfit.GetXaxis()->GetXmin(), 0, hstack_afterfit.GetXaxis()->GetXmax(), hstack_afterfit.GetMaximum()*1.);
+                        frame->GetYaxis()->SetTitle("Counts/[GeV]");
+                        hstack_afterfit.Draw("hist E same"); 
                         h_data_mb->Draw("PE same"); 
-                        h_total_fit->Draw("P E SAME");
+                        // h_total_fit->Draw("P E SAME");
                         DrawCommonTextTopRight(pad1, ibin_dr, ibin_pt);
+                        pad1->Modified(); // force refresh 
+                        pad1->Update();
+                        // gPad->Modified();
+                        // gPad->Update();
                     pad2->cd(); 
-                    AddRatioPlot(h_data_mb, h_total_fit, 0.8, 1.5);
+                    AddRatioPlot(h_data_mb, h_total_fit);
                     pad2->SetTickx(1);// → draws ticks on both bottom and top
+
+
                         fout->cd();
                         c ->Write();
-                        c ->Print(Form("%s/%s_%d_%d.png", sDirname.Data(), c->GetName(), ibin_dr, ibin_pt));
+                        c ->Print(Form("%s/%s.png", sDirname.Data(), c->GetName()));
 
 
                 cout << "---------------------\n\n\n" << endl; 
@@ -809,6 +740,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
 
 }
 
+
 void template_fit(){
 
     //Get data and mc labels
@@ -829,20 +761,24 @@ void template_fit(){
         return;
     }
 
-    // --  HG data and bjet with HLT80: using result of Zoe code and condor result 
+    // --  using result of Zoe code and condor result 
     alsoLowEG = true;
     TString dataset_HG = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/data_MC_samples_Zoe_14April/template_for_fit_histos_3D_HighEG_btag.root"; 
     TString dataset_LG = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/data_MC_samples_Zoe_14April/template_for_fit_histos_3D_LowEG_btag.root"; 
-
         TString dataname = "All";
         TString templates_dijet = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/data_MC_samples_Zoe_14April/template_for_fit_histos_3D_qcd_btag.root";
         TString templates_bjet = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/data_MC_samples_Zoe_14April/template_for_fit_histos_3D_bjet_btag.root";
-        TString fout_name = "TemplateFits_histos_3d_HighEGdata_" + pT_selection +  ".root";
+        TString fout_name = "TemplateFits_histos_3d_" + pT_selection +  ".root";
         do_template_fit_combined (dataset_HG,dataset_LG,templates_dijet, templates_bjet,  pT_selection, folder, fout_name, alsoLowEG);
 
+    // -- next draw S, B farctions true Vs. after fit (draw_template_fit_result)
+    // --- 
 
-   
+
+
     foutputPlots_dijet->Print();
     foutputPlots_dijet->Close();
     delete foutputPlots_dijet;
-} 
+}
+
+
