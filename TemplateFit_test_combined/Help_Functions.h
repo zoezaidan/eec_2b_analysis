@@ -42,7 +42,8 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     TFile* foutputPlots,
     TString &dataset,
     TString &folder,
-    TString &pT_selection, Int_t pt_bin = 0, bool isIntegDeltaR = false);
+    TString &pT_selection,
+     Int_t pt_bin = 0);
 
 TLegend* CreateLegend(
     double x1, double y1, double x2, double y2,
@@ -71,17 +72,6 @@ TLegend* CreateLegend(
     }
 
     return leg;
-    /*
-    // example to use it 
-        TLegend* leg = CreateLegend(
-            0.5, 0.6, 0.85, 0.85,
-            {h_data_mb, h_total_fit, h_sig},
-            {"PE", "L", "F"},
-            {"Data", "Fit", "Signal"}
-        );
-
-        leg->Draw();
-    */
 }
 
 
@@ -123,7 +113,7 @@ void DrawCommonTextTopRight(TPad*pad,  int ibin_dr, int ibin_pt, bool useDeaultL
     if (!ibin_pt){pt_first = jtpt_binsVector[0];  pt_last = jtpt_binsVector[jtpt_bins];} 
         else{pt_first = jtpt_binsVector[ibin_pt-1]; pt_last = jtpt_binsVector[ibin_pt]; }
 
-        cout << "pt bin #"<< ibin_pt << "pt first and last are: " << pt_first << ", " << pt_last << endl;
+        // cout << "pt bin #"<< ibin_pt << "pt first and last are : " << pt_first << ", " << pt_last << endl;
 
     if (dr_last == 1.0) latex.DrawLatex(x, y, Form("%g < #DeltaR < #infty", dr_first));
     else latex.DrawLatex(x, y, Form("%g < #DeltaR < %g", dr_first, dr_last));
@@ -177,7 +167,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     TFile* foutputPlots,
     TString &dataset,
     TString &folder,
-    TString &pT_selection, Int_t pt_bin)
+    TString &pT_selection, Int_t ibin_pt)
 {
 
     // ----------------------------------
@@ -185,12 +175,19 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     // ----------------------------------
 
 
-    // pt_bin is kept with convenstion starting from 0 (for integarted interval, then then the rest) 
+    // ibin_pt is kept with convenstion starting from 0 (for integarted interval, then then the rest) 
 
     // For trvial tests 
     TString trivialMC_label = fout_name.Contains("trivialMC") ? "_trivialMC": "";
 
-    //Get fractions for the jtpt bin pt_bin
+    // -- general style 
+    gStyle->SetOptStat(0);
+
+    // -- output directory 
+    TString sresultDir = Form("%s/FitResult_Summary_S_B_fractions", sDirname.Data());// aprent already exist
+    gSystem->mkdir(sresultDir, kTRUE); 
+
+    //Get fractions for the jtpt bin ibin_pt
     TFile *file = new TFile(Form("%s/%s", sDirname.Data(), fout_name.Data()), "read");
     if (!file) {Error("Input File:", "File does not exist'%s'", file->GetName());return nullptr;}
     cout << "input file name " << file->GetName() << endl;
@@ -201,21 +198,21 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     TH1D *hbkg;
     TH1D *hbkg_true;
     TString sname_canvas;
-        sname_canvas = Form("c_%s_ptbin_%d%s", dataset.Data(), pt_bin,  trivialMC_label.Data());
+        sname_canvas = Form("c_%s_ptbin_%d%s", dataset.Data(), ibin_pt,  trivialMC_label.Data());
 
     // -- Read input TH2D  summary of signa and background fractions 
     //signal fraction
     // Fit result (uncertaintiy already at the point)
     TH2D *h_2D = (TH2D*)file->Get("h_sig_fraction"); h_2D->SetDirectory(nullptr);
-        h = (TH1D*) h_2D->ProjectionX("h", pt_bin+1 , pt_bin+1);
+        h = (TH1D*) h_2D->ProjectionX("h", ibin_pt+1 , ibin_pt+1);
         h->GetXaxis()->SetTitle("Bin (\\#Delta\\ r)");
     // True fractions (uncertaintiy already at the point)
     TH2D *htrue_2D = (TH2D*)file->Get("h_sig_frac_true"); htrue_2D->SetDirectory(nullptr);
-        htrue = (TH1D*)htrue_2D->ProjectionX("htrue", pt_bin+1 , pt_bin+1);
+        htrue = (TH1D*)htrue_2D->ProjectionX("htrue", ibin_pt+1 , ibin_pt+1);
         
         // and its uncertainity 
         // TH2D *htrue_err_2D = (TH2D*)file->Get("h_sig_frac_true_error");
-        // TH1D* htrue_err = (TH1D*) htrue_err_2D->ProjectionX("htrue_err", pt_bin+1 , pt_bin+1);
+        // TH1D* htrue_err = (TH1D*) htrue_err_2D->ProjectionX("htrue_err", ibin_pt+1 , ibin_pt+1);
         // for (int ibin = 1; ibin <= htrue_err->GetNbinsX(); ibin++)
         // {
         //     htrue->SetBinError(ibin, htrue_err->GetBinContent(ibin));
@@ -223,23 +220,37 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
 
     //background fraction
     TH2D *hbkg_2D = (TH2D*)file->Get("h_bkg_fraction"); hbkg_2D->SetDirectory(nullptr);
-        hbkg = (TH1D*)hbkg_2D->ProjectionX("hbkg", pt_bin+1, pt_bin+1);
+        hbkg = (TH1D*)hbkg_2D->ProjectionX("hbkg", ibin_pt+1, ibin_pt+1);
     TH2D *hbkg_true_2D = (TH2D*)file->Get("h_bkg_frac_true");   hbkg_true_2D->SetDirectory(nullptr);
-        hbkg_true = (TH1D*)hbkg_true_2D->ProjectionX("hbkg_true",pt_bin+1, pt_bin+1);
+        hbkg_true = (TH1D*)hbkg_true_2D->ProjectionX("hbkg_true",ibin_pt+1, ibin_pt+1);
         // // and its uncertainity 
         // TH2D *hbkg_true_err_2D = (TH2D*)file->Get("h_bkg_frac_true_error");
-        // TH1D* hbkg_true_err = (TH1D*) hbkg_true_err_2D->ProjectionX("hbkg_true_err", pt_bin,pt_bin);
+        // TH1D* hbkg_true_err = (TH1D*) hbkg_true_err_2D->ProjectionX("hbkg_true_err", ibin_pt,ibin_pt);
         // for (int ibin = 1; ibin <= hbkg_true_err->GetNbinsX(); ibin++)
         // {
         //     /// Assign the uncertainity to the iD hist of true signal Vs. DeltaR 
         //     hbkg_true->SetBinError(ibin, hbkg_true_err->GetBinContent(ibin));
         // }
 
+    // -- Label vertically dr bins axis 
+
+
     // -- deattach hists from input root file: for drawing 
     h->SetDirectory(nullptr);
     htrue->SetDirectory(nullptr);
     hbkg->SetDirectory(nullptr);
     hbkg_true->SetDirectory(nullptr);
+
+    // -- Set styles 
+    h ->SetLineColor(kRed +2);
+    htrue ->SetLineColor(kBlue +1);
+    hbkg ->SetLineColor(kGreen +2);
+    hbkg_true ->SetLineColor(kMagenta +2);
+
+    h ->SetLineWidth(2);
+    htrue ->SetLineWidth(2);
+    hbkg ->SetLineWidth(2);
+    hbkg_true ->SetLineWidth(2);
 
     // -- Output summary canvas
     auto c = std::make_unique<TCanvas>(sname_canvas,"Template fit result", 900, 1100);// 800 x 800
@@ -250,64 +261,40 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     TPad *pad1 = new TPad("pad1", "pad1", 0, 0.30, 1, 1.0);
     TPad *pad2 = new TPad("pad2", "pad2", 0, 0.00, 1, 0.30);
     // -- dettach pads from root ownership
-    pad1->SetBit(kCanDelete, false);
-    pad2->SetBit(kCanDelete, false);
+    pad1->SetBit(kCanDelete, false); // not sure if neeed 
+    pad2->SetBit(kCanDelete, false); // not sure if neeed 
 
-    pad1->SetBottomMargin(0.02);
+    // --  set pads margins 
+    pad1->SetBottomMargin(0.01);
     pad1->SetLeftMargin(0.12);
     pad1->SetTopMargin(0.08);
-    pad1->SetLogx();
     
     pad2->SetTopMargin(0.05);
     pad2->SetBottomMargin(0.35);
     pad2->SetLeftMargin(0.12);
-    pad2->SetLogx();
     pad1->Draw();
     pad2->Draw();
     
-    //--- pad 1
+    //--- Draw on pad 1 
     pad1->cd();
-
     //Draw results
-    h->SetStats(0);
-    h->SetTitle("");
-    h->GetYaxis()->SetRangeUser(0,1);
-    // h->GetXaxis()->CenterTitle(true);
-    h->GetXaxis()->SetTitle("");
-    h->GetYaxis()->SetTitle("Signal or Background fraction");
-    h->GetYaxis()->CenterTitle(true);
-    h->SetMarkerColor(kBlue);
-    h->SetLineColor(kBlue);
-    h->SetLineWidth(2);
-    
-    h->SetDirectory(nullptr);
-    h->Draw("EH");
-    
-    htrue->SetDirectory(nullptr);
-    htrue->SetMarkerColor(kRed);
-    htrue->SetLineColor(kRed);
-    htrue->SetLineStyle(9);
-    htrue->SetLineWidth(2);
-    htrue->Draw("same");
-
-    hbkg->SetDirectory(nullptr);
-    hbkg->SetStats(0);
-    hbkg->SetMarkerColor(kCyan+2);
-    hbkg->SetLineColor(kCyan+2);
-    hbkg->Draw("EH SAME");
-    hbkg_true->SetDirectory(nullptr);
-    hbkg_true->SetMarkerColor(kMagenta);
-    hbkg_true->SetLineColor(kMagenta);
-    hbkg_true->SetLineStyle(9);
-    hbkg_true->Draw("same");
-
-    
+        h->SetStats(0);
+        h->SetTitle("");
+        h->GetYaxis()->SetRangeUser(0,1);
+        // h->GetXaxis()->CenterTitle(true);
+        h->GetXaxis()->SetTitle("");
+        h->GetYaxis()->SetTitle("Signal or Background fraction");
+        h->GetYaxis()->CenterTitle(true);
+        h->Draw("Hist E");
+        htrue->Draw("Hist E same");
+        hbkg->Draw("Hist E same");
+        hbkg_true->Draw("Hist E same");
 
     //Text
     TLatex *test_info_text = new TLatex;
     test_info_text->SetNDC();
     test_info_text->SetTextSize(0.03);
-    // if(!isIntegDeltaR) test_info_text->DrawLatex(0.15, 0.5, Form("%g < p_{T} < %g GeV", jtpt_binsVector[pt_bin-1], jtpt_binsVector[pt_bin]));
+    // if(!isIntegDeltaR) test_info_text->DrawLatex(0.15, 0.5, Form("%g < p_{T} < %g GeV", jtibin_ptsVector[ibin_pt-1], jtibin_ptsVector[ibin_pt]));
     // else{ 
     //     TString srangeDeltaR = Form("#DeltaR [Full range]");
     //     test_info_text->DrawLatex(0.15, 0.5, srangeDeltaR);
@@ -317,73 +304,66 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     test_info_text->Draw("SAME");
 
 
-    TLegend *leg = new TLegend(0.406,0.39,0.7,0.55, ""); //get position from legend.C file (lower left corner is 0,0)
+    TLegend *leg = new TLegend(0.32,0.39, 0.61,0.55, ""); //get position from legend.C file (lower left corner is 0,0)
+    // 0.406 ,0.39,0.7,0.55, ""
     leg->SetTextSize(0.03);
     leg->SetFillStyle(0);
     leg->SetBorderSize(0);
     leg->SetMargin(0.50);
-    leg->AddEntry(h, "fitted signal");
-    leg->AddEntry(htrue, "MC signal");
-    leg->AddEntry(hbkg, "fitted B background");
-    leg->AddEntry(hbkg_true, "MC B background");
+    leg->AddEntry(hbkg_true, "Bkg. frac. (True)");
+    leg->AddEntry(hbkg, "Bkg. frac. (Fit)");
+    leg->AddEntry(htrue, "Sig. frac. (True)");
+    leg->AddEntry(h, "Sig. frac. (Fit)");
+    // Add pt range  in leg title 
+    double pt_first = 0, pt_last = 0;
+        if (!ibin_pt){pt_first = jtpt_binsVector[0];  pt_last = jtpt_binsVector[jtpt_bins];} 
+        else{pt_first = jtpt_binsVector[ibin_pt-1]; pt_last = jtpt_binsVector[ibin_pt]; }
+        leg->SetHeader(Form("%g < p_{T} < %g GeV", pt_first, pt_last), "C"); //centered 
     leg->Draw("same");
 
+    // ----------------------------------------------------------
+
     pad2->cd();
-
-  // Create ratio histogram
-    TH1D* h_ratio = (TH1D*) h->Clone("h_ratio");
+    // Create ratio histogram
+    TH1D* h_ratio = (TH1D*) h->Clone("h_ratio"); h_ratio->Reset();
+    h_ratio->Sumw2();
+    h_ratio->Divide(h, htrue);
     h_ratio->SetDirectory(nullptr);
-    h_ratio->Divide(htrue);
-    // for (int ibin = 1; ibin <= h_ratio->GetNbinsX() ; ibin++)
-    // {
-    //     h_ratio->SetBinError(ibin, h->GetBinError(ibin)/htrue->GetBinContent(ibin));
-    //     // cout << "bin error = "<<  h->GetBinError(ibin)/htrue->GetBinContent(ibin)  << endl;
-    // }
-
-    h_ratio->SetStats(0);
-    h_ratio->SetLineColor(kBlue);
+    // ratio color is same as the true one 
+    h_ratio->SetLineColor(kBlue + 1);
     h_ratio->SetLineWidth(2);
     h_ratio->SetMarkerStyle(20);
-    h_ratio->SetMarkerColor(kBlue);
-    // h_ratio->SetFillColor(kBlue-6);
-    // h_ratio->SetFillStyle(3018);
+    h_ratio->SetMarkerColor(kBlue + 1);
 
-
-    TH1D* h_ratio2 = (TH1D*) hbkg->Clone("h_ratio2");
+    TH1D* h_ratio2 = (TH1D*) hbkg->Clone("h_ratio2"); h_ratio2->Reset();
+    h_ratio2->Sumw2();
+    h_ratio2->Divide(hbkg, hbkg_true);
     h_ratio2->SetDirectory(nullptr);
-    h_ratio2->Divide(hbkg_true);
-    // for (int ibin = 1; ibin <= h_ratio2->GetNbinsX() ; ibin++)
-    // {
-    //     h_ratio2->SetBinError(ibin, hbkg->GetBinError(ibin)/hbkg_true->GetBinContent(ibin));
-    //     cout << "bkg hist bin error = "<<  hbkg->GetBinError(ibin)/hbkg_true->GetBinContent(ibin)  << endl;
-    // }
-
-    h_ratio2->SetStats(0);
-    h_ratio2->SetLineColor(kCyan+2);
+    h_ratio2->SetLineColor(kMagenta+1);
     h_ratio2->SetLineWidth(2);
     h_ratio2->SetMarkerStyle(4);
-    h_ratio2->SetMarkerColor(kCyan+2);
-    // h_ratio->SetFillColor(kCyan-6);
-    // h_ratio->SetFillStyle(3018);
+    h_ratio2->SetMarkerColor(kMagenta+1);
 
     // -- styles for the ratio plot 
-    h_ratio->GetYaxis()->SetTitle("ratio");
+    h_ratio->GetYaxis()->SetTitle("Fit/True");
     h_ratio->GetYaxis()->SetNdivisions(505);
     h_ratio->GetYaxis()->SetTitleSize(0.10);
     h_ratio->GetYaxis()->SetLabelSize(0.09);
     h_ratio->GetYaxis()->SetTitleOffset(0.5);
-    
-       h_ratio->GetXaxis()->SetTitle("#DeltaR");
-     // else { h_ratio->GetXaxis()->SetTitle("#it{p}_{T} [GeV]");}
+    h_ratio->GetXaxis()->SetTitle("Bin(#DeltaR)");
     h_ratio->GetXaxis()->SetTitleSize(0.12);
     h_ratio->GetXaxis()->SetLabelSize(0.10);
-    // h_ratio->GetXaxis()->SetRangeUser(0,12);
     
-    h_ratio->SetMinimum(0.1); //-5
-    h_ratio->SetMaximum(1.9);// 10
-    
-    h_ratio->Draw("HIST PE1 L  ");
-    h_ratio2->Draw("HIST PE1 L same");
+    // -- Set pad 2 y axis limit 
+    double max = 0, min = 0; 
+    if (h_ratio->GetMaximum() > 10) max = 5; else max = h_ratio->GetMaximum() + 0.2; // avoid very very large values when fit is almost zero.
+    if (h_ratio->GetMinimum() < 0.01) min = 0; else min = h_ratio->GetMinimum()- 0.2;
+    h_ratio->SetMaximum( max ); // max
+    h_ratio->SetMinimum( min); // min
+
+    // Draw lower Pad 
+    h_ratio->Draw("HIST E  ");
+    h_ratio2->Draw("HIST E  same");
 
     // Reference line at 1
     TLine *line = new TLine(h_ratio->GetXaxis()->GetXmin(), 1.0, h_ratio->GetXaxis()->GetXmax(), 1.0);
@@ -391,24 +371,25 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     line->Draw();
  
 
-    TLegend *leg2 = new TLegend(0.406,0.7,0.7,0.9, ""); //get position from legend.C file (lower left corner is 0,0) // 0.406,0.39,0.7,0.55, ""
-    leg2->SetTextSize(0.03);
+    TLegend *leg2 = new TLegend(0.7, 0.7, 0.85, 0.9, "");
+     //get position from legend.C file (lower left corner is 0,0) // 0.406,0.39,0.7,0.55, ""
+    leg2->SetTextSize(0.05);
     leg2->SetFillStyle(0);
     leg2->SetBorderSize(0);
     leg2->SetMargin(0.50);
-    leg2->AddEntry(h_ratio, "sig ratio");
-    leg2->AddEntry(h_ratio2, "bkg ratio");
+    leg2->AddEntry(h_ratio, "Sig.");
+    leg2->AddEntry(h_ratio2, "Bkg.");
     leg2->Draw("same");
     
     TString ptbin_name;
     // if(!isIntegDeltaR) 
     // ------------------------------- range has to be modified  -------------------------------
-        {ptbin_name= Form("%g_%g", jtpt_binsVector[pt_bin-1], jtpt_binsVector[pt_bin]);}
+    if (ibin_pt > 0){ ptbin_name = Form("%g_%g", jtpt_binsVector[ibin_pt-1], jtpt_binsVector[ibin_pt]);}
+    else ptbin_name = Form("%g_%g", jtpt_binsVector[0], jtpt_binsVector[bins_pt]);
+
     // else if (isIntegDeltaR) { cout << "HELLO   --- This is integarted bin "<< endl; ptbin_name= Form("IntegDeltaR_vspTbins");}
-    c->Print( folder + sDirname + "/" + trivialMC_label + "sign_frac_result_" + dataset + "_" + ptbin_name + ".pdf");
-    c->SaveAs( folder + sDirname + "/"  + trivialMC_label + "sign_frac_result_" + dataset + "_" + ptbin_name + ".png");
-
-
+    c->Print( folder + sresultDir + "/" + trivialMC_label + "sign_frac_result_" + dataset + "_" + ptbin_name + ".pdf");
+    c->SaveAs( folder + sresultDir + "/"  + trivialMC_label + "sign_frac_result_" + dataset + "_" + ptbin_name + ".png");
 
 
     // -- Write plotted canvas to output file 

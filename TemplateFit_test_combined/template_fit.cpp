@@ -120,9 +120,9 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
     // Fitting - loop over dr and jtpt entries
     // Bin0: is integarted over the range 
     for(Int_t ibin_pt = 0; ibin_pt <= bins_pt; ibin_pt++){
-    // for(Int_t ibin_pt = 0; ibin_pt <= 2; ibin_pt++){
+    // for(Int_t ibin_pt = 3; ibin_pt <= 3; ibin_pt++){
         for(Int_t ibin_dr = 0; ibin_dr <= bins_dr; ibin_dr++){
-        // for(Int_t ibin_dr = 0; ibin_dr <= 3; ibin_dr++){
+        // for(Int_t ibin_dr = 13; ibin_dr <= 14; ibin_dr++){
             
             // define slice
             Int_t SliceFirstbin_dr = ibin_dr;
@@ -698,8 +698,11 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                     TPad* pad2 = new TPad("pad2","",0,0,1,0.24);
                     // pad1->SetBottomMargin(0.13);
                     pad1->SetBottomMargin(0.06);
+                    pad1->SetLeftMargin(0.18); // for y axis title space 
                     pad2->SetTopMargin(0.02);     // bottom pad (very small)
                     pad2->SetBottomMargin(0.40);  // keep space for x-axis labels
+                    pad2->SetLeftMargin(0.18);  
+
                     pad1->Draw();
                     pad2->Draw(); 
                     pad1->cd();
@@ -786,11 +789,15 @@ void template_fit(){
         TString templates_dijet = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/data_MC_samples_Zoe_14April/template_for_fit_histos_3D_qcd_btag.root";
         TString templates_bjet = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/data_MC_samples_Zoe_14April/template_for_fit_histos_3D_bjet_btag.root";
         TString fout_name = "TemplateFits_histos_3d_" + pT_selection +  ".root";
-        do_template_fit_combined (dataset_HG,dataset_LG,templates_dijet, templates_bjet,  pT_selection, folder, fout_name, alsoLowEG);
+        // do_template_fit_combined (dataset_HG,dataset_LG,templates_dijet, templates_bjet,  pT_selection, folder, fout_name, alsoLowEG);
 
     // -- next draw S, B farctions true Vs. after fit (draw_template_fit_result)
-    // --- 
-
+    // --- Loop over pt intervals, draw the fit summary Vs. Dr bins 
+    for(Int_t ibin_pt = 0; ibin_pt <= bins_pt; ibin_pt++){
+    // for(Int_t ibin_pt = 0; ibin_pt <= 0; ibin_pt++){
+        // fout as input , foutputPlots for output of the summary, dataname just as tag, folder is destination of the output file, pt selection and pt bin of drawing
+        draw_template_fit_result(fout_name, foutputPlots_dijet, dataname, folder, pT_selection, ibin_pt);
+    }
 
 
     foutputPlots_dijet->Print();
