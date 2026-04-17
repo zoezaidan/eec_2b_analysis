@@ -120,9 +120,9 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
     // Fitting - loop over dr and jtpt entries
     // Bin0: is integarted over the range 
     for(Int_t ibin_pt = 0; ibin_pt <= bins_pt; ibin_pt++){
-    // for(Int_t ibin_pt = 0; ibin_pt <= 0; ibin_pt++){
+    // for(Int_t ibin_pt = 0; ibin_pt <= 2; ibin_pt++){
         for(Int_t ibin_dr = 0; ibin_dr <= bins_dr; ibin_dr++){
-        // for(Int_t ibin_dr = 0; ibin_dr <= 0; ibin_dr++){
+        // for(Int_t ibin_dr = 0; ibin_dr <= 3; ibin_dr++){
             
             // define slice
             Int_t SliceFirstbin_dr = ibin_dr;
@@ -253,7 +253,8 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                 hstack_all_beforefit.Add(h_b_bjet); 
                 hstack_all_beforefit.Add(h_b);
                 hstack_all_beforefit.Add(h_nob);
-                hstack_all_beforefit.SetMaximum(10e+03);
+                hstack_all_beforefit.SetMaximum(1.2 * hstack_all_beforefit.GetMaximum());
+
                 auto canva_beforefit = new TCanvas(Form("All_contributions_beforefit_%d_%d", ibin_dr, ibin_pt),"", 800, 800 );
                         canva_beforefit->cd();
                         // canva_beforefit->SetLogy();
@@ -276,7 +277,9 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
             THStack hstack_templatesforfit(Form("hstack_templatesforfit_%d_%d", ibin_dr, ibin_pt),"Mass stacked histograms without normalization");
                     hstack_templatesforfit.SetTitle(Form("DeltaRBin_%d_PtBin_%d;m_{2B} [GeV];",  ibin_dr, ibin_pt));
                     hstack_templatesforfit.Add(h_sumsig);
-                    hstack_templatesforfit.Add(h_sumbkg_0b_1b);                    
+                    hstack_templatesforfit.Add(h_sumbkg_0b_1b);    
+                    hstack_templatesforfit.SetMaximum(1.2 * hd_norm_slice->GetMaximum());
+                
                     auto canva_sum_beforefit = new TCanvas(Form("templates_beforefit_%d_%d", ibin_dr, ibin_pt), "", 800, 800 );
                         canva_sum_beforefit->cd();
                         hstack_templatesforfit.Draw("hist E");
@@ -391,6 +394,8 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                         TH1D* h_bkg_scaled = (TH1D*) h_bkg ->Clone("h_bkg_scaled"); h_bkg_scaled->Scale(1. - sig_fraction_true);
                             hstack_pfds_scaledtoqcd.Add(h_sig_scaled); 
                             hstack_pfds_scaledtoqcd.Add(h_bkg_scaled);
+                            hstack_pfds_scaledtoqcd.SetMaximum(1.2 * hstack_pfds_scaledtoqcd.GetMaximum());
+
                             auto canva_pdfs_scaledtoqcd = new TCanvas("canva_pdfs_scaledtoqcd","", 800, 800 );
                                 canva_pdfs_scaledtoqcd->cd();
                                 hstack_pfds_scaledtoqcd.Draw("Hist E");
@@ -413,6 +418,8 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                         TH1D* h_bkg_scaledint = (TH1D*) h_bkg ->Clone("h_bkg_scaledint"); h_bkg_scaledint->Scale(int1 + int0);
                             hstack_pfds_scaledtoqcd_int.Add(h_sig_scaledint); 
                             hstack_pfds_scaledtoqcd_int.Add(h_bkg_scaledint);
+                            hstack_pfds_scaledtoqcd_int.SetMaximum(1.2 * hstack_pfds_scaledtoqcd_int.GetMaximum());
+
                             auto canva_pdfs_scaledtoqcd_int = new TCanvas("canva_pdfs_scaledtoqcd_int","", 800, 800 );
                                 canva_pdfs_scaledtoqcd_int->cd();
                                 hstack_pfds_scaledtoqcd_int.Draw("Hist E");
@@ -445,6 +452,8 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                         hstack_pfds_seperated_scaledtoqcd_int.Add(h_sig_scaledint); 
                         hstack_pfds_seperated_scaledtoqcd_int.Add(hnorm_sumbkg_1B_scaledint);
                         hstack_pfds_seperated_scaledtoqcd_int.Add(h_nob);
+                        hstack_pfds_seperated_scaledtoqcd_int.SetMaximum(1.2 * hstack_pfds_seperated_scaledtoqcd_int.GetMaximum());
+
 
                             auto canva_pdfs_seperated_scaledtoqcd_int = new TCanvas("canva_pdfs_seperated_scaledtoqcd_int","", 800, 800 );
                                 canva_pdfs_seperated_scaledtoqcd_int->cd();
@@ -611,18 +620,21 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
             TString sname_canvas_afterfit = sname_canvas + "_afterfit";
             auto canva_afterfit = new TCanvas(Form("ALLHist_%s", sname_canvas_afterfit.Data()) ,Form("Templaets pre and post-fit, %s", sname_canvas.Data()), 800, 800 );
                 canva_afterfit->cd();
-                h_data_mb->SetMaximum(1.2 * h_data_mb->GetMaximum());
                 h_data_mb->SetTitle("Data");
                 h_data_mb->SetLineWidth(2);
                 h_bb_bjet->SetLineWidth(2);
                 h_sig_fit->SetLineWidth(2);
                 h_b_bjet->SetLineStyle(9);
                 h_bkg_fit->SetLineWidth(2);
+                if (h_data_mb->GetMaximum() < h_total_fit->GetMaximum() ) { h_data_mb->SetMaximum(1.3 * h_total_fit->GetMaximum());}
+                else { h_data_mb->SetMaximum(1.3 * h_data_mb->GetMaximum()); }
+
                 h_data_mb->Draw("P E");
                 h_total_fit->Draw("P E SAME");
-                h_bkg_fit_1b->Draw("HIST E SAME");
+                h_bkg_fit_1b->Draw("HIST E same");
                 h_bkg_fit_nob->Draw("HIST E SAME");
                 h_sig_fit->Draw("HIST E SAME");
+                canva_afterfit->SetTitle("");
                 gPad->Modified();   
                 gPad->Update();
                 canva_afterfit->Modified();
@@ -653,7 +665,8 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                 TH1D* h_bkg_fit_normstack = (TH1D*)  h_bkg_fit->Clone("h_bkg_fit_normstack");  h_bkg_fit_normstack ->Scale(1./integral_inputdata);
                 hstack_norm_afterfit.Add(h_sig_fit_normstack);
                 hstack_norm_afterfit.Add(h_bkg_fit_normstack);
-                hstack_norm_afterfit.SetMaximum(1.5 * h_bkg_fit_normstack->GetMaximum());
+                hstack_norm_afterfit.SetMaximum(1.3 * hnorm_data_self->GetMaximum());
+
                 auto canva_stack_norm_afterfit = new TCanvas(Form("PDFs_Data_stacked_norm_%s", sname_canvas_afterfit.Data()),Form(""), 800, 800 );
                 canva_stack_norm_afterfit->cd();
                 hstack_norm_afterfit.Draw("hist E"); 
@@ -690,22 +703,26 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                     pad1->Draw();
                     pad2->Draw(); 
                     pad1->cd();
-                    // Draw frame to control y axis name 
-                    TH1F *frame = pad1->DrawFrame(hstack_afterfit.GetXaxis()->GetXmin(), 0, hstack_afterfit.GetXaxis()->GetXmax(), hstack_afterfit.GetMaximum()*1.);
+                    // Draw frame to control y axis name: frame needed to control y axis name 
+                    TH1F *frame = pad1->DrawFrame(hstack_afterfit.GetXaxis()->GetXmin(), 0, hstack_afterfit.GetXaxis()->GetXmax(), hstack_afterfit.GetMaximum()*1.3);
                         frame->GetYaxis()->SetTitle("Counts/[GeV]");
                         hstack_afterfit.Draw("hist E same"); 
                         h_data_mb->Draw("PE same"); 
                         // h_total_fit->Draw("P E SAME");
-                        DrawCommonTextTopRight(pad1, ibin_dr, ibin_pt);
+                        // Add (dr, pt) bins legend 
+                        DrawCommonTextTopRight(pad1, ibin_dr, ibin_pt, false); // without default bildlegend of other objects
+                        // use new Legend for enties (withut hframe)
+                        TLegend* leg = CreateLegend(0.54, 0.6, 0.85, 0.8,
+                            {h_data_mb, h_sig_fit, h_bkg_fit_1b, h_bkg_fit_nob},
+                            {"LPE", "LF", "LF", "LF"},
+                            {"Data", "", "", ""} // use default titles 
+                        );
+                        leg->Draw("same");
                         pad1->Modified(); // force refresh 
                         pad1->Update();
-                        // gPad->Modified();
-                        // gPad->Update();
                     pad2->cd(); 
                     AddRatioPlot(h_data_mb, h_total_fit);
                     pad2->SetTickx(1);// → draws ticks on both bottom and top
-
-
                         fout->cd();
                         c ->Write();
                         c ->Print(Form("%s/%s.png", sDirname.Data(), c->GetName()));

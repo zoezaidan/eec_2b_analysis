@@ -26,6 +26,13 @@
 #include <RooFitResult.h>
 #include <RooFit.h>
 
+// C++ includes 
+#include <vector>
+    #include <TLegend.h>
+#include <TObject.h>
+#include <vector>
+#include <string>
+
 
 // name for outpur directory (in path) 
 TString sDirname = "TemplateFitOutput"; // has to be before Help_Functions.h
@@ -36,17 +43,62 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     TString &dataset,
     TString &folder,
     TString &pT_selection, Int_t pt_bin = 0, bool isIntegDeltaR = false);
-    
-void DrawCommonTextTopRight(TPad*pad,  int ibin_dr, int ibin_pt, const char* extra="") {
+
+TLegend* CreateLegend(
+    double x1, double y1, double x2, double y2,
+    const std::vector<TObject*>& objects,
+    const std::vector<std::string>& options,
+    const std::vector<std::string>& labels = {})
+{
+    TLegend* leg = new TLegend(x1, y1, x2, y2);
+    leg->SetBorderSize(0);
+    leg->SetFillStyle(0);
+
+    for (size_t i = 0; i < objects.size(); ++i) {
+        TObject* obj = objects[i];
+
+        // decide label
+        const char* label = nullptr;
+        if (!labels.empty() && i < labels.size() && labels[i] != "") {
+            label = labels[i].c_str();  // custom label
+        } else {
+            label = obj->GetTitle();   // fallback to object title
+        }
+
+        const char* opt = (i < options.size()) ? options[i].c_str() : "l";
+
+        leg->AddEntry(obj, label, opt);
+    }
+
+    return leg;
+    /*
+    // example to use it 
+        TLegend* leg = CreateLegend(
+            0.5, 0.6, 0.85, 0.85,
+            {h_data_mb, h_total_fit, h_sig},
+            {"PE", "L", "F"},
+            {"Data", "Fit", "Signal"}
+        );
+
+        leg->Draw();
+    */
+}
+
+
+void DrawCommonTextTopRight(TPad*pad,  int ibin_dr, int ibin_pt, bool useDeaultLegend =true,const char* extra="") {
     /*Draw dr range, pt range + default Build Legend*/    
     // you can pass dirctly a canvas pointer 
     pad->cd(); 
     // draw auto legend first
-    auto leg = pad->BuildLegend(0.6, 0.5, 0.88, 0.75); // 0.6, 0.5, 0.88, 0.7
+    TLegend* leg = nullptr;
+    if(useDeaultLegend){
+        leg = pad->BuildLegend(0.59, 0.5, 0.87, 0.75); // 0.6, 0.5, 0.88, 0.7
         // optional styling
         leg->SetBorderSize(0);
         leg->SetFillStyle(0);
+    }
 
+    // -------------- pt dr legend ----------------------------
     // -- text for other information
     double right = 1.0 - gPad->GetRightMargin();
     double top   = 1.0 - gPad->GetTopMargin();
@@ -127,7 +179,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     TString &folder,
     TString &pT_selection, Int_t pt_bin)
 {
-    
+
     // ----------------------------------
     // --- WORK IN PROGRESS -------------
     // ----------------------------------
