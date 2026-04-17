@@ -7,32 +7,29 @@
 
 // 
 //dr
-const Int_t dr_binsVectorSize = 21;
+const Int_t dr_binsVectorSize = 16;
 Int_t bins_dr = dr_binsVectorSize - 1;
 Int_t dr_bins =  dr_binsVectorSize - 1;
 // Equally sized bins in logarithmic scale... Zoe binning instead of Frac.
 Double_t dr_binsVector[dr_binsVectorSize]= 
-{0.002, 
-0.00272884, 
-0.00372329, 
-0.00508014, 
-0.00693145, 
-0.00945742, 
-0.0129039, 
-0.0176064, 
-0.0240225, 
-0.0327768, 
-0.0447214, 
-0.0610188, 
-0.0832553, 
-0.113595, 
-0.154992, 
-0.211474, 
-0.28854, 
-0.39369, 
-0.537159, 
-0.732911, 
-1};
+{
+ 0.002000000
+, 0.002856000
+, 0.004079000
+, 0.005825000
+, 0.008320000
+, 0.011883000
+, 0.016953000
+, 0.024155000
+, 0.034399000
+, 0.049013000
+, 0.069840000
+, 0.099570000
+, 0.141980000
+, 0.202700000
+, 0.289100000
+, 0.400000000
+};
 
 Double_t dr_min = dr_binsVector[0];
 Double_t dr_max = dr_binsVector[bins_dr];
@@ -41,7 +38,7 @@ Double_t dr_max = dr_binsVector[bins_dr];
 // Franc. first bin was 0.15 to 0.4
 Double_t dr_shiftbin = 0.0001; //  0.0001
 Double_t dr_min_fill = 0.0021; //  0.016 = -0.15 + 0.01 
-Double_t dr_max_fill = 0.99;// 0.39 = 0.4- 0.01
+Double_t dr_max_fill = 0.39;// 0.39 = 0.4- 0.01
 
 //mB
 const Int_t mb_binsVectorSize = 13;
