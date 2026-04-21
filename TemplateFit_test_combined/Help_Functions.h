@@ -35,7 +35,9 @@
 
 
 // name for outpur directory (in path) 
-TString sDirname = "TemplateFitOutput"; // has to be before Help_Functions.h
+TString sDirname = "TemplateFitOutput_updated"; // has to be before Help_Functions.h
+// for test rebinning: add _Rebinned
+
 
 std::unique_ptr<TCanvas> draw_template_fit_result(
     TString fout_name,
@@ -255,7 +257,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     // -- Output summary canvas
     auto c = std::make_unique<TCanvas>(sname_canvas,"Template fit result", 900, 1100);// 800 x 800
         gROOT->GetListOfCanvases()->Remove(c.get()); // to save it later 
-        c->SetTitle("");
+        c->SetTitle("Bin1 for full dr range, then differential bins");
 
     // --- Pads
     TPad *pad1 = new TPad("pad1", "pad1", 0, 0.30, 1, 1.0);
@@ -291,9 +293,9 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
         hbkg_true->Draw("Hist E same");
 
     //Text
-    TLatex *test_info_text = new TLatex;
-    test_info_text->SetNDC();
-    test_info_text->SetTextSize(0.03);
+    // TLatex *test_info_text = new TLatex;
+    // test_info_text->SetNDC();
+    // test_info_text->SetTextSize(0.03);
     // if(!isIntegDeltaR) test_info_text->DrawLatex(0.15, 0.5, Form("%g < p_{T} < %g GeV", jtibin_ptsVector[ibin_pt-1], jtibin_ptsVector[ibin_pt]));
     // else{ 
     //     TString srangeDeltaR = Form("#DeltaR [Full range]");
@@ -301,7 +303,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     // }
     // test_info_text->DrawLatex(0.15, 0.45, dataset);
     // test_info_text->DrawLatex(0.15, 0.4, "Template from MC bjet");
-    test_info_text->Draw("SAME");
+    // test_info_text->Draw("SAME");
 
 
     TLegend *leg = new TLegend(0.32,0.39, 0.61,0.55, ""); //get position from legend.C file (lower left corner is 0,0)
@@ -310,10 +312,10 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     leg->SetFillStyle(0);
     leg->SetBorderSize(0);
     leg->SetMargin(0.50);
-    leg->AddEntry(hbkg_true, "Bkg. frac. (True)");
-    leg->AddEntry(hbkg, "Bkg. frac. (Fit)");
-    leg->AddEntry(htrue, "Sig. frac. (True)");
-    leg->AddEntry(h, "Sig. frac. (Fit)");
+    leg->AddEntry(hbkg_true, "Bkg. frac. (MC)");
+    leg->AddEntry(hbkg, "Bkg. frac. (Data)");
+    leg->AddEntry(htrue, "Sig. frac. (MC)");
+    leg->AddEntry(h, "Sig. frac. (Data)");
     // Add pt range  in leg title 
     double pt_first = 0, pt_last = 0;
         if (!ibin_pt){pt_first = jtpt_binsVector[0];  pt_last = jtpt_binsVector[jtpt_bins];} 
@@ -345,7 +347,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     h_ratio2->SetMarkerColor(kMagenta+1);
 
     // -- styles for the ratio plot 
-    h_ratio->GetYaxis()->SetTitle("Fit/True");
+    h_ratio->GetYaxis()->SetTitle("Data/MC");
     h_ratio->GetYaxis()->SetNdivisions(505);
     h_ratio->GetYaxis()->SetTitleSize(0.10);
     h_ratio->GetYaxis()->SetLabelSize(0.09);
@@ -382,14 +384,163 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     leg2->Draw("same");
     
     TString ptbin_name;
-    // if(!isIntegDeltaR) 
     // ------------------------------- range has to be modified  -------------------------------
     if (ibin_pt > 0){ ptbin_name = Form("%g_%g", jtpt_binsVector[ibin_pt-1], jtpt_binsVector[ibin_pt]);}
     else ptbin_name = Form("%g_%g", jtpt_binsVector[0], jtpt_binsVector[bins_pt]);
-
-    // else if (isIntegDeltaR) { cout << "HELLO   --- This is integarted bin "<< endl; ptbin_name= Form("IntegDeltaR_vspTbins");}
-    c->Print( folder + sresultDir + "/" + trivialMC_label + "sign_frac_result_" + dataset + "_" + ptbin_name + ".pdf");
+    c->SaveAs( folder + sresultDir + "/" + trivialMC_label + "sign_frac_result_" + dataset + "_" + ptbin_name + ".pdf");
     c->SaveAs( folder + sresultDir + "/"  + trivialMC_label + "sign_frac_result_" + dataset + "_" + ptbin_name + ".png");
+
+
+    // ---------- 
+    // -- Another canvas: for each pt, draw only differntial bins, without integarted dr result + axis is absolute Dr values
+    auto c_drval = std::make_unique<TCanvas>(Form("drval_%s", sname_canvas.Data()),"Template fit result vs. dr intervals", 900, 1100);// 800 x 800
+        gROOT->GetListOfCanvases()->Remove(c_drval.get()); // to save it later 
+        c_drval->SetTitle("");
+        // c_drval->SetLogx();
+
+        // --- Pads
+        TPad *pad1_val = new TPad("pad1_val", "pad1_val", 0, 0.30, 1, 1.0);
+        TPad *pad2_val = new TPad("pad2_val", "pad2_val", 0, 0.00, 1, 0.30);
+
+        // -- convert bin number to absolute dr values 
+        // -- signal
+        Int_t N_dr_bins = bins_dr; // to be changed if input changes + the vector 
+        Double_t* binsvector; 
+        binsvector = dr_binsVector;
+        TH1D* h_dr = new TH1D("h_dr", "h_dr", N_dr_bins, dr_binsVector); 
+        h_dr->GetXaxis() ->SetTitle("#DeltaR"); 
+        h_dr->Reset();
+        cout << "\n old histogram binning with integrated dr:  #bins = " << h->GetNbinsX()<< endl;
+        cout << " and the new dr axis without integarted dr: #bins = " << h_dr->GetNbinsX()<< endl;       
+        
+        // - and the rest of histograms 
+        TH1D* htrue_dr = (TH1D*) h_dr->Clone("htrue_dr");htrue_dr->Reset();
+        TH1D* hbkg_dr = (TH1D*) h_dr->Clone("hbkg_dr");hbkg_dr->Reset();        
+        TH1D* hbkg_true_dr = (TH1D*) h_dr->Clone("hbkg_true_dr");hbkg_true_dr->Reset();
+
+        // change the axes here -----------------------
+        for (int i = 1; i <= N_dr_bins; i++)
+        {
+            h_dr->SetBinContent(i, h->GetBinContent(i+1));
+            h_dr->SetBinError(i, h->GetBinError(i+1));
+
+            htrue_dr->SetBinContent(i, htrue ->GetBinContent(i+1));
+            htrue_dr->SetBinError(i, htrue ->GetBinError(i+1));
+
+            hbkg_dr->SetBinContent(i, hbkg ->GetBinContent(i+1));
+            hbkg_dr->SetBinError(i, hbkg ->GetBinError(i+1));
+
+            hbkg_true_dr ->SetBinContent(i, hbkg_true ->GetBinContent(i+1));
+            hbkg_true_dr ->SetBinError(i, hbkg_true ->GetBinError(i+1));
+        }
+
+        h_dr->SetDirectory(nullptr);
+        htrue_dr->SetDirectory(nullptr);
+        hbkg_dr->SetDirectory(nullptr);
+        hbkg_true_dr->SetDirectory(nullptr);
+
+    // -- Set styles 
+    h_dr ->SetLineColor(kRed +2);
+    htrue_dr ->SetLineColor(kBlue +1);
+    hbkg_dr ->SetLineColor(kGreen +2);
+    hbkg_true_dr ->SetLineColor(kMagenta +2);
+
+    h_dr ->SetLineWidth(2);
+    htrue_dr ->SetLineWidth(2);
+    hbkg_dr ->SetLineWidth(2);
+    hbkg_true_dr ->SetLineWidth(2);
+
+        // -- Draw the new histograms of the new axis 
+         // --  set pads margins 
+            pad1_val->SetBottomMargin(0.01);
+            pad1_val->SetLeftMargin(0.12);
+            pad1_val->SetTopMargin(0.08);
+            
+            pad2_val->SetTopMargin(0.05);
+            pad2_val->SetBottomMargin(0.35);
+            pad2_val->SetLeftMargin(0.12);
+            pad1_val->Draw();
+            pad2_val->Draw();
+            // 
+            pad1_val ->cd();
+            pad1_val->SetLogx();
+
+                h_dr->SetStats(0);
+                h_dr->SetTitle("");
+                h_dr->GetYaxis()->SetRangeUser(0,1);
+                h_dr->GetXaxis()->SetTitle("");
+                h_dr->GetYaxis()->SetTitle("Signal or Background fraction");
+                h_dr->GetYaxis()->CenterTitle(true);
+                h_dr->Draw("Hist E");
+                htrue_dr->Draw("Hist E same");
+                hbkg_dr->Draw("Hist E same");
+                hbkg_true_dr->Draw("Hist E same");
+                TLegend *leg_val = new TLegend(0.32,0.39, 0.61,0.55, "");
+                    leg_val->SetTextSize(0.03);
+                    leg_val->SetFillStyle(0);
+                    leg_val->SetBorderSize(0);
+                    leg_val->SetMargin(0.50);
+                    leg_val->AddEntry(hbkg_true_dr, "Bkg. frac. (MC)");
+                    leg_val->AddEntry(hbkg_dr, "Bkg. frac. (Data)");
+                    leg_val->AddEntry(htrue_dr, "Sig. frac. (MC)");
+                    leg_val->AddEntry(h_dr, "Sig. frac. (Data)");
+                    leg_val->SetHeader(Form("%g < p_{T} < %g GeV", pt_first, pt_last), "C"); //defined before
+                    leg_val->Draw("same");
+
+            pad2_val->cd();
+            pad2_val->SetLogx();
+
+            TH1D* h_ratio_dr = (TH1D*) h_dr->Clone("h_ratio_dr"); h_ratio_dr->Reset();
+            h_ratio_dr->Divide(h_dr, htrue_dr);
+            h_ratio_dr->SetDirectory(nullptr);
+            h_ratio_dr->SetLineColor(kBlue + 1);
+            h_ratio_dr->SetLineWidth(2);
+            h_ratio_dr->SetMarkerStyle(20);
+            h_ratio_dr->SetMarkerColor(kBlue + 1);
+
+            TH1D* h_ratio2_dr = (TH1D*) hbkg_dr->Clone("h_ratio2_dr"); h_ratio2_dr->Reset();
+            h_ratio2_dr->Divide(hbkg_dr, hbkg_true_dr);
+            h_ratio2_dr->SetDirectory(nullptr);
+            h_ratio2_dr->SetLineColor(kMagenta+1);
+            h_ratio2_dr->SetLineWidth(2);
+            h_ratio2_dr->SetMarkerStyle(4);
+            h_ratio2_dr->SetMarkerColor(kMagenta+1);
+
+            // -- styles for the ratio plot 
+            h_ratio_dr->GetYaxis()->SetTitle("Data/MC");
+            h_ratio_dr->GetYaxis()->SetNdivisions(505);
+            h_ratio_dr->GetYaxis()->SetTitleSize(0.10);
+            h_ratio_dr->GetYaxis()->SetLabelSize(0.09);
+            h_ratio_dr->GetYaxis()->SetTitleOffset(0.5);
+            h_ratio_dr->GetXaxis()->SetTitle("#DeltaR");
+            h_ratio_dr->GetXaxis()->SetTitleSize(0.12);
+            h_ratio_dr->GetXaxis()->SetLabelSize(0.10);
+
+            if (h_ratio_dr->GetMaximum() > 10) max = 5; else max = h_ratio_dr->GetMaximum() + 0.2; // avoid very very large values when fit is almost zero.
+            if (h_ratio_dr->GetMinimum() < 0.01) min = 0; else min = h_ratio_dr->GetMinimum()- 0.2;
+            h_ratio_dr->SetMaximum( max ); // max
+            h_ratio_dr->SetMinimum( min); // min
+            // Draw lower Pad 
+            h_ratio_dr->Draw("HIST E  ");
+            h_ratio2_dr->Draw("HIST E  same");
+
+            // Reference line at 1
+            TLine *line_val = new TLine(h_ratio_dr->GetXaxis()->GetXmin(), 1.0, h_ratio_dr->GetXaxis()->GetXmax(), 1.0);
+            line_val->SetLineStyle(2);
+            line_val->Draw();
+         
+
+            TLegend *leg2_val = new TLegend(0.7, 0.7, 0.85, 0.9, "");
+            leg2_val->SetTextSize(0.05);
+            leg2_val->SetFillStyle(0);
+            leg2_val->SetBorderSize(0);
+            leg2_val->SetMargin(0.50);
+            leg2_val->AddEntry(h_ratio_dr, "Sig.");
+            leg2_val->AddEntry(h_ratio2_dr, "Bkg.");
+            leg2_val->Draw("same");
+
+            c_drval->SaveAs( folder + sresultDir + "/" + trivialMC_label + "sign_frac_result_differentialDronly_" + dataset + "_" + ptbin_name + ".png");
+                c_drval->SaveAs( folder + sresultDir + "/" + trivialMC_label + "sign_frac_result_differentialDronly_" + dataset + "_" + ptbin_name + ".pdf");
 
 
     // -- Write plotted canvas to output file 
@@ -399,6 +550,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     }
     foutputPlots->cd();
     c->Write();
+    c_drval->Write();
     foutputPlots->Write();
 
 
