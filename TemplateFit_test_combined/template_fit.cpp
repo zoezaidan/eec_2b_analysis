@@ -116,13 +116,20 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
     // --- Vector to test the convergence
     std::vector <std::pair<int, int>> non_converge_bins;
 
+    // ------------ Rebining here ------------------------
+    int N_bins_dr = bins_dr; 
+    bool rebin_dr = false;
+    if (rebin_dr) N_bins_dr = bins_dr_wider;
+
+    // h = (TH1D*)h->Rebin(bins_dr_wider, h->GetName(), dr_binsVector_wider);
+
 
     // Fitting - loop over dr and jtpt entries
     // Bin0: is integarted over the range 
     for(Int_t ibin_pt = 0; ibin_pt <= bins_pt; ibin_pt++){
-    // for(Int_t ibin_pt = 3; ibin_pt <= 3; ibin_pt++){
-        for(Int_t ibin_dr = 0; ibin_dr <= bins_dr; ibin_dr++){
-        // for(Int_t ibin_dr = 13; ibin_dr <= 14; ibin_dr++){
+    // for(Int_t ibin_pt = 0 ; ibin_pt <= 0; ibin_pt++){
+        for(Int_t ibin_dr = 0; ibin_dr <= N_bins_dr; ibin_dr++){
+        // for(Int_t ibin_dr = 0; ibin_dr <= 0; ibin_dr++){
             
             // define slice
             Int_t SliceFirstbin_dr = ibin_dr;
@@ -167,6 +174,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
             double int2 = h_bb->Integral(1, mb_bins, "width");
             double int1 = h_b ->Integral(1, mb_bins, "width");
             double int0 = h_nob->Integral(1, mb_bins, "width"); 
+            double tot = int0 + int1 + int2;
                 // compute the true fractions and their errors (for later comparison)           
                 double sig_fraction_true = (int0  + int1 + int2 ) == 0 ? 0 : (int2 / (int0 + int1 + int2)); 
                 double bkg_fraction_b_true = (int0  + int1 + int2 ) == 0 ? 0 : (int1 / (int0 + int1 + int2));
@@ -468,6 +476,41 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                                 canva_pdfs_seperated_scaledtoqcd_int->Write();
                                 canva_pdfs_seperated_scaledtoqcd_int->Print(Form("%s/%s_pdfs_seperated_scaledtoqcd_int_beforefit.png", sDirname.Data(), sname_canvas.Data()));
                                  
+            // Before fit: pdfs scaled to data 
+             THStack hstack_pfds_scaledtoData (Form("hstack_pfds_scaledtoData_%d_%d", ibin_dr, ibin_pt),"PDFs scaled to data, before fit");
+                    hstack_pfds_scaledtoData.SetTitle(Form("DeltaRBin_%d_PtBin_%d;m_{2B} [GeV];",  ibin_dr, ibin_pt));
+                        // Create scaled PDFs to the data inetgral 
+                        // normalized then multiplied by their fraction from qcd, then scaled to data
+                        TH1D* hnorm_sumbkg_1B_scaledtoData = (TH1D*) h_sumbkg->Clone("hnorm_sumbkg_1B_scaledtoData");
+                                hnorm_sumbkg_1B_scaledtoData->Scale(1./hnorm_sumbkg_1B_scaledtoData->Integral(1, mb_bins, "width"));
+                                hnorm_sumbkg_1B_scaledtoData->Scale(integral_inputdata * int1/tot);
+                        TH1D* h_nob_scaledtoData = (TH1D*) norm_h_nob->Clone("h_nob_scaledtoData");
+                                 h_nob_scaledtoData->Scale(integral_inputdata * int0/tot);
+                        TH1D* h_2B_scaledtoData = (TH1D*) h_sig->Clone("h_2B_scaledtoData");
+                                h_2B_scaledtoData->Scale(integral_inputdata * int2/tot);
+                        hstack_pfds_scaledtoData.Add(h_2B_scaledtoData); // 2B 
+                        hstack_pfds_scaledtoData.Add(hnorm_sumbkg_1B_scaledtoData);
+                        hstack_pfds_scaledtoData.Add(h_nob_scaledtoData); // 0B
+                        hstack_pfds_scaledtoData.SetMaximum(1.2 * hstack_pfds_scaledtoData.GetMaximum());
+                            auto canva_pdfs_scaledtoData = new TCanvas("canva_pdfs_scaledtoData","", 800, 800 );
+                                canva_pdfs_scaledtoData->cd();
+                                hstack_pfds_scaledtoData.Draw("Hist E");
+                                h_data_mb->Draw("Hist PE same");
+                                DrawCommonTextTopRight(canva_pdfs_scaledtoData, ibin_dr, ibin_pt, false);
+                                TLegend* leg_before = CreateLegend(0.54, 0.6, 0.85, 0.8,
+                                    {h_data_mb, h_sig, h_sumbkg, norm_h_nob},
+                                    {"LPE", "LF", "LF", "LF"},
+                                    {"Data", "2B", "1B", "0B"} // use default titles 
+                                    );
+                                    leg_before->Draw("same");
+                                gPad->Modified();   
+                                gPad->Update();
+                                canva_pdfs_scaledtoData->Modified();
+                                canva_pdfs_scaledtoData->Update();
+                                fout->cd();
+                                canva_pdfs_scaledtoData->Write();
+                                canva_pdfs_scaledtoData->Print(Form("%s/%s_pdfs_scaledtoData_beforefit.png", sDirname.Data(), sname_canvas.Data()));
+// return;                                        
 
             ///// Fitting
             // Create the observable
@@ -795,7 +838,8 @@ void template_fit(){
     // --- Loop over pt intervals, draw the fit summary Vs. Dr bins 
     for(Int_t ibin_pt = 0; ibin_pt <= bins_pt; ibin_pt++){
     // for(Int_t ibin_pt = 0; ibin_pt <= 0; ibin_pt++){
-        // fout as input , foutputPlots for output of the summary, dataname just as tag, folder is destination of the output file, pt selection and pt bin of drawing
+    // fout as input , foutputPlots for output of the summary, dataname just as tag, folder is destination of the output file, pt selection and pt bin of drawing
+        
         draw_template_fit_result(fout_name, foutputPlots_dijet, dataname, folder, pT_selection, ibin_pt);
     }
 
