@@ -28,14 +28,14 @@
 
 // C++ includes 
 #include <vector>
-    #include <TLegend.h>
+#include <TLegend.h>
 #include <TObject.h>
 #include <vector>
 #include <string>
 
 
 // name for outpur directory (in path) 
-TString sDirname = "TemplateFitOutput_updated"; // has to be before Help_Functions.h
+TString sDirname = "TemplateFitOutput_Rebinned"; // Must use before Help_Functions.h
 // for test rebinning: add _Rebinned
 
 
@@ -47,6 +47,215 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     TString &pT_selection,
      Int_t pt_bin = 0);
 
+// -----------------------
+TH3D* CutAndRebinY(TH3D* h3, double yMin, int newNyBins, const double* newyBins, const double* xBins, const double* zBins)
+{
+    /* This fucntion takes TH3D input hitograms with axis y: dr that has binning of dr from ~0-1, and 
+        convert it into TH3D that start at lower edge: yMin (without doing underflow): it is cut
+        then rebin the other bins based on the given array yBins.
+        Assuming the array is already at the edges of the old binnings.
+    */
+
+    if (!h3 || !newyBins || newNyBins < 2) return nullptr;
+
+    // --- Y-axis cut of the old hist
+    TAxis* yAxis = h3->GetYaxis();
+    int yMinBin = yAxis->FindBin(yMin); // Find bin take it even if it is  the lower edge of next bin! 
+    int yMaxBin = yAxis->GetNbins();
+
+    cout << "yMinBin = " << yMinBin << endl;
+
+    // --- Build new histogram with variable Y binning
+    TH3D* hNew = new TH3D(
+        Form("%s_rebinnedY", h3->GetName()),
+        h3->GetTitle(),
+        // X axis (kept unchanged)
+        h3->GetXaxis()->GetNbins(),
+        xBins,  
+        // Y axis (variable binning)
+        newNyBins,
+        newyBins,
+        // Z axis (kept unchanged)
+        h3->GetZaxis()->GetNbins(),
+        zBins
+    );
+    // hNew->Reset();
+    hNew->Sumw2();
+
+    // --- Fill new histogram
+    for (int ix = 1; ix <= h3->GetXaxis()->GetNbins(); ix++) {
+        for (int iy = yMinBin; iy <= yMaxBin; iy++) {
+            for (int iz = 1; iz <= h3->GetZaxis()->GetNbins(); iz++) {
+
+                double content = h3->GetBinContent(ix, iy, iz);
+                double error   = h3->GetBinError(ix, iy, iz);
+
+                if (content == 0 && error == 0) continue;
+                // test using lowedge intead of bin center for x and z 
+                double x = h3->GetXaxis()->GetBinLowEdge(ix) + 1e-03; //  + 1e-12
+                double z = h3->GetZaxis()->GetBinLowEdge(iz) + 1e-03;
+                double y = h3->GetYaxis()->GetBinLowEdge(iy) + 1e-03; // use low edge instead of center, and add this epsilon to avoid the abiguity of bin edge (we use up to 9 digits)
+
+
+                // The new bins 
+                int xbin =  hNew->GetXaxis()->FindBin(x);
+                int zbin =  hNew->GetZaxis()->FindBin(z);
+                int ybin = -1;
+
+                // USe global bin number for add content 
+                int newBin;
+
+                // add overflow old bins to the last new bin
+                if (y >= newyBins[newNyBins]){
+                    ybin = newNyBins;
+                }
+                else {
+                    ybin =  hNew->GetYaxis()->FindBin(y);  
+                }
+                // global bin 
+                newBin =  hNew->GetBin(xbin, ybin, zbin);
+                // accumulate content
+                hNew->AddBinContent(newBin, content);
+
+                // combine errors in quadrature
+                double oldErr = hNew->GetBinError(newBin);
+                hNew->SetBinError(newBin,
+                std::sqrt(oldErr * oldErr + error * error));
+            
+                // -- debug 
+                // if (iy == SOME_BIN && ix == SOME_BIN && iz == SOME_BIN) {
+                //         cout << "EVENT: x=" << x << " y=" << y << " z=" << z << endl;
+                //         cout << " -> xbin=" << xbin
+                //              << " ybin=" << ybin
+                //              << " zbin=" << zbin << endl;
+                //     }
+
+            }
+        }
+    }
+
+    return hNew;
+}
+
+
+// TH3D* CutMergeAndRebinY(TH3D* h3,
+//                         const double* xBins,
+//                         const double* newyBins,
+//                         const double* zBins,
+//                         int newNyBins)
+// {
+//     if (!h3 || !newyBins || newNyBins < 2) return nullptr;
+
+//     TAxis* yA = h3->GetYaxis();
+
+//     // =====================================================
+//     // STEP 1: CUT
+//     // =====================================================
+//     double yCut = 0.004079;
+
+//     int startBin = 1;
+//     for (int i = 1; i <= yA->GetNbins(); i++) {
+//         if (yA->GetBinUpEdge(i) > yCut) {
+//             startBin = i;
+//             break;
+//         }
+//     }
+
+//     int endBin = yA->GetNbins();
+
+//     // =====================================================
+//     // STEP 2: CREATE FINAL HIST DIRECTLY (NO ROOT REBIN)
+//     // =====================================================
+//     TH3D* hFinal = new TH3D(
+//         "hFinal",
+//         h3->GetTitle(),
+
+//         h3->GetNbinsX(),
+//         xBins,
+
+//         newNyBins,
+//         newyBins,
+
+//         h3->GetNbinsZ(),
+//         zBins
+//     );
+
+//     hFinal->Sumw2();
+
+//     TAxis* yNew = hFinal->GetYaxis();
+
+//     // =====================================================
+//     // STEP 3: FILL DIRECTLY INTO FINAL HIST
+//     // =====================================================
+//     for (int ix = 1; ix <= h3->GetNbinsX(); ix++) {
+//         for (int iz = 1; iz <= h3->GetNbinsZ(); iz++) {
+
+//             for (int iy = startBin; iy <= endBin; iy++) {
+
+//                 double c = h3->GetBinContent(ix, iy, iz);
+//                 double e = h3->GetBinError(ix, iy, iz);
+
+//                 if (c == 0 && e == 0) continue;
+
+//                 double yLow  = yA->GetBinLowEdge(iy);
+//                 double yHigh = yA->GetBinUpEdge(iy);
+
+//                 // distribute into variable bins
+//                 for (int j = 1; j <= newNyBins; j++) {
+
+//                     double nLow  = yNew->GetBinLowEdge(j);
+//                     double nHigh = yNew->GetBinUpEdge(j);
+
+//                     double overlap = std::min(yHigh, nHigh)
+//                                    - std::max(yLow, nLow);
+
+//                     if (overlap <= 0) continue;
+
+//                     double frac = overlap / (yHigh - yLow);
+
+//                     int bin = hFinal->GetBin(ix, j, iz);
+
+//                     hFinal->AddBinContent(bin, c * frac);
+
+//                     hFinal->SetBinError(bin,
+//                         std::sqrt(
+//                             std::pow(hFinal->GetBinError(bin),2) +
+//                             std::pow(e * frac,2)
+//                         )
+//                     );
+//                 }
+//             }
+//         }
+//     }
+
+//     return hFinal;
+// }
+
+
+// 
+// //Rebin the dr axis to make the bins start later
+// void FuncRebin_dr(TH3D* &h){
+
+//     Int_t first_bin = 3;
+//     Int_t bins_dr = h->GetNbinsY();
+//     Int_t bins_mb = h->GetNbinsX();
+//     Int_t bins_pt = h->GetNbinsZ();
+
+//     for(Int_t ibin_pt = 1; ibin_pt <= bins_pt; ibin_pt++){
+//         for(Int_t imb_bin = 1; imb_bin <= bins_mb; imb_bin++){
+//             Float_t first_bin_content = 0;
+//             // for(Int_t ibin_dr = 1; ibin_dr <= first_bin; ibin_dr++){
+//             //     first_bin_content += h->GetBinContent(imb_bin, ibin_dr, ibin_pt);
+//             // }
+
+//             first_bin_content  = h->GetBinContent(imb_bin, first_bin, ibin_pt); // cut 
+//             h->GetYaxis()->SetRange(first_bin, bins_dr);
+//             h->SetBinContent(imb_bin, first_bin, ibin_pt, first_bin_content);
+//         }
+//     }
+// }
+
+// -----------------------
 TLegend* CreateLegend(
     double x1, double y1, double x2, double y2,
     const std::vector<TObject*>& objects,
@@ -76,10 +285,12 @@ TLegend* CreateLegend(
     return leg;
 }
 
-
-void DrawCommonTextTopRight(TPad*pad,  int ibin_dr, int ibin_pt, bool useDeaultLegend =true,const char* extra="") {
+// -----------------------
+void DrawCommonTextTopRight(TPad*pad,  int ibin_dr, int ibin_pt, const double* newyBins, bool useDeaultLegend =true,const char* extra="") {
     /*Draw dr range, pt range + default Build Legend*/    
     // you can pass dirctly a canvas pointer 
+    // Pass ybins array: to include changes when rebinning dr axis
+
     pad->cd(); 
     // draw auto legend first
     TLegend* leg = nullptr;
@@ -110,7 +321,7 @@ void DrawCommonTextTopRight(TPad*pad,  int ibin_dr, int ibin_pt, bool useDeaultL
     double dr_first = 0;
     double dr_last = 0;
     if(!ibin_dr){dr_first = 0; dr_last = 1;} // converted to infintiy 
-        else { dr_first =  dr_binsVector[ibin_dr -1]; dr_last  = dr_binsVector[ibin_dr];}
+        else { dr_first =  newyBins[ibin_dr -1]; dr_last  = newyBins[ibin_dr];}
 
     if (!ibin_pt){pt_first = jtpt_binsVector[0];  pt_last = jtpt_binsVector[jtpt_bins];} 
         else{pt_first = jtpt_binsVector[ibin_pt-1]; pt_last = jtpt_binsVector[ibin_pt]; }
@@ -123,7 +334,7 @@ void DrawCommonTextTopRight(TPad*pad,  int ibin_dr, int ibin_pt, bool useDeaultL
     latex.DrawLatex(x, y - 0.08, extra);
 }
 
-
+// -----------------------
 void AddRatioPlot(TH1* h1, TH1* h2) {
     // draw ratio of two hists
     TH1* ratio = (TH1*)h1->Clone("ratio");
@@ -163,22 +374,17 @@ void AddRatioPlot(TH1* h1, TH1* h2) {
     line->Draw();
 }
 
+// -----------------------
 //Draws the result of the template fit
 std::unique_ptr<TCanvas> draw_template_fit_result(
     TString fout_name,
     TFile* foutputPlots,
     TString &dataset,
     TString &folder,
-    TString &pT_selection, Int_t ibin_pt)
+    TString &pT_selection,
+    Int_t ibin_pt,
+    bool rebin_dr = true)
 {
-
-    // ----------------------------------
-    // --- WORK IN PROGRESS -------------
-    // ----------------------------------
-
-
-    // ibin_pt is kept with convenstion starting from 0 (for integarted interval, then then the rest) 
-
     // For trvial tests 
     TString trivialMC_label = fout_name.Contains("trivialMC") ? "_trivialMC": "";
 
@@ -211,31 +417,12 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     // True fractions (uncertaintiy already at the point)
     TH2D *htrue_2D = (TH2D*)file->Get("h_sig_frac_true"); htrue_2D->SetDirectory(nullptr);
         htrue = (TH1D*)htrue_2D->ProjectionX("htrue", ibin_pt+1 , ibin_pt+1);
-        
-        // and its uncertainity 
-        // TH2D *htrue_err_2D = (TH2D*)file->Get("h_sig_frac_true_error");
-        // TH1D* htrue_err = (TH1D*) htrue_err_2D->ProjectionX("htrue_err", ibin_pt+1 , ibin_pt+1);
-        // for (int ibin = 1; ibin <= htrue_err->GetNbinsX(); ibin++)
-        // {
-        //     htrue->SetBinError(ibin, htrue_err->GetBinContent(ibin));
-        // }
 
     //background fraction
     TH2D *hbkg_2D = (TH2D*)file->Get("h_bkg_fraction"); hbkg_2D->SetDirectory(nullptr);
         hbkg = (TH1D*)hbkg_2D->ProjectionX("hbkg", ibin_pt+1, ibin_pt+1);
     TH2D *hbkg_true_2D = (TH2D*)file->Get("h_bkg_frac_true");   hbkg_true_2D->SetDirectory(nullptr);
         hbkg_true = (TH1D*)hbkg_true_2D->ProjectionX("hbkg_true",ibin_pt+1, ibin_pt+1);
-        // // and its uncertainity 
-        // TH2D *hbkg_true_err_2D = (TH2D*)file->Get("h_bkg_frac_true_error");
-        // TH1D* hbkg_true_err = (TH1D*) hbkg_true_err_2D->ProjectionX("hbkg_true_err", ibin_pt,ibin_pt);
-        // for (int ibin = 1; ibin <= hbkg_true_err->GetNbinsX(); ibin++)
-        // {
-        //     /// Assign the uncertainity to the iD hist of true signal Vs. DeltaR 
-        //     hbkg_true->SetBinError(ibin, hbkg_true_err->GetBinContent(ibin));
-        // }
-
-    // -- Label vertically dr bins axis 
-
 
     // -- deattach hists from input root file: for drawing 
     h->SetDirectory(nullptr);
@@ -291,20 +478,6 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
         htrue->Draw("Hist E same");
         hbkg->Draw("Hist E same");
         hbkg_true->Draw("Hist E same");
-
-    //Text
-    // TLatex *test_info_text = new TLatex;
-    // test_info_text->SetNDC();
-    // test_info_text->SetTextSize(0.03);
-    // if(!isIntegDeltaR) test_info_text->DrawLatex(0.15, 0.5, Form("%g < p_{T} < %g GeV", jtibin_ptsVector[ibin_pt-1], jtibin_ptsVector[ibin_pt]));
-    // else{ 
-    //     TString srangeDeltaR = Form("#DeltaR [Full range]");
-    //     test_info_text->DrawLatex(0.15, 0.5, srangeDeltaR);
-    // }
-    // test_info_text->DrawLatex(0.15, 0.45, dataset);
-    // test_info_text->DrawLatex(0.15, 0.4, "Template from MC bjet");
-    // test_info_text->Draw("SAME");
-
 
     TLegend *leg = new TLegend(0.32,0.39, 0.61,0.55, ""); //get position from legend.C file (lower left corner is 0,0)
     // 0.406 ,0.39,0.7,0.55, ""
@@ -404,10 +577,13 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
 
         // -- convert bin number to absolute dr values 
         // -- signal
-        Int_t N_dr_bins = bins_dr; // to be changed if input changes + the vector 
-        Double_t* binsvector; 
-        binsvector = dr_binsVector;
-        TH1D* h_dr = new TH1D("h_dr", "h_dr", N_dr_bins, dr_binsVector); 
+        Int_t N_dr_bins; // 
+        const double* binsvector = nullptr;
+        if (rebin_dr) { binsvector = dr_binsVector_wider; N_dr_bins = bins_dr_wider;}
+        else { binsvector = dr_binsVector; N_dr_bins = bins_dr;}
+
+
+        TH1D* h_dr = new TH1D("h_dr", "h_dr", N_dr_bins, binsvector); 
         h_dr->GetXaxis() ->SetTitle("#DeltaR"); 
         h_dr->Reset();
         cout << "\n old histogram binning with integrated dr:  #bins = " << h->GetNbinsX()<< endl;

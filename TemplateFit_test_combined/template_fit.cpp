@@ -3,6 +3,7 @@
 #include "tTree.h"
 #include "binning_histos_all.h"
 #include "Help_Functions.h"
+#include "Draw_EEC.h"
 
 
 
@@ -72,37 +73,117 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
 
         // bjet 
         h3D_b_bjet->SetTitle("1B (bjet)");h3D_bb_bjet->SetTitle("2B (bjet)");
+        // its x axis name is not correct 
+        h3D_b_bjet->GetXaxis()->SetTitle("m_{2B} [GeV]"); // Name is wrong in MC templates (EEC) 
         h3D_b_bjet->SetFillColor(kMagenta-5); h3D_b_bjet->SetLineColor(kMagenta-5);        
         h3D_bb_bjet->SetFillColor(kMagenta-3); h3D_bb_bjet->SetLineColor(kMagenta-3);
-
 
         // qcd
         h3D_b->SetTitle("1B (qcd)");h3D_bb->SetTitle("2B (qcd)"); h3D_nob ->SetTitle("0B (qcd)");
         h3D_b->SetFillColor(kBlue-4); h3D_b->SetLineColor(kBlue-4);        
         h3D_bb->SetFillColor(kBlue-6); h3D_bb->SetLineColor(kBlue-6); 
-        // h3D_nob->SetFillColor(kYellow-6); h3D_nob->SetLineColor(kYellow-6); // not visible 
         h3D_nob->SetFillColor(kRed); h3D_nob->SetLineColor(kRed); 
 
-    // -- general style: remove stats box 
-    gStyle->SetOptStat(0);
-
-
     //define used bins 
-    Int_t bins_pt = h3D_data->GetNbinsZ();
-    Int_t bins_dr = h3D_data->GetNbinsY(); 
-    Int_t mb_bins = h3D_data->GetNbinsX();
-        cout << "-- Data hist binning" << endl;
+    // overwrite bins from data histograms (if different)
+    bins_pt = h3D_data->GetNbinsZ();
+    bins_dr = h3D_data->GetNbinsY(); 
+    mb_bins = h3D_data->GetNbinsX();
+        cout << "-- Data hist initial binning" << endl;
         cout << "pt bins = "<< bins_pt << endl;
         cout << "dr bins = "<< bins_dr << endl;
         cout << "mb bins = "<< mb_bins << endl;
 
+    // -- Write used inputs 
+    fout->cd();
+    h3D_data->Write();
+    h3D_b_bjet->Write(); 
+    h3D_bb_bjet->Write();
+    h3D_b->Write(); h3D_bb->Write(); h3D_nob->Write(); 
+
+
+    // ------------ Rebining here ------------------------
+    bool rebin_dr = true;
+    double lowcut = 0.004079000 + 1e-03; // start at 0.004 for now, if I use +1e-03 to force Find bin find the correct bin! if I use 1e-04 it also fail1!!!!! 
+    const double* yBins = nullptr; //dr array 
+    int N_bins_dr = 0; 
+    if (rebin_dr) {
+        N_bins_dr = bins_dr_wider;
+        yBins = dr_binsVector_wider;
+        // cout << "new dr bins = "<< N_bins_dr << endl;   
+          // rebinning with lower cut: x and z bins are same
+            // cout << "data hist inetegral in range dr [0.004-0.141980000] before rebin = " << h3D_data->Integral(1, mb_bins, 3, 5, 1, 3, "width") << endl; // only from 0.004 
+            // before rebinning 
+         // TH1D* htest1 = (TH1D*) h3D_data->ProjectionX("test1", 8, 8, 1, 1); // slice drbin = 3
+         //    cout << "this slice bin is "<< dr_binsVector[7]<< ", " << dr_binsVector[8] << endl; 
+         //    cout << "before: this slice integral = " << htest1->Integral() << endl;
+        // TH3D* h3D_data_new  = CutMergeAndRebinY(h3D_data, mb_binsVector, yBins, jtpt_binsVector, N_bins_dr);
+
+        TH3D* h3D_data_new  = CutAndRebinY(h3D_data, lowcut, N_bins_dr, yBins, mb_binsVector, jtpt_binsVector);
+        h3D_data = h3D_data_new; 
+            // cout << "After rebinning: data hist inetegral in range dr [0.004-0.141980000] before rebin = " << h3D_data_new->Integral(1, mb_bins, 1, 1, 1, 3, "width") << endl; // only from 0.004 
+            // cout << "Draw slice in dr [bin3, bin3] = " << dr_binsVector_wider[2] << ","  <<  dr_binsVector_wider[3] << endl;
+                // TH1D* htest = (TH1D*) h3D_data->ProjectionX("test", 3, 3, 1, 1); // slice drbin = 3
+                // // // htest->Draw();
+                // cout << "this slice bin is "<< dr_binsVector_wider[2]<< ", " << dr_binsVector_wider[3] << endl; 
+                // cout << "after: this slice integral = " << htest->Integral() << endl;
+
+        // -- the other templates 
+        // Add the reinning for others 
+        TH3D* h3D_bb_bjet_new  = CutAndRebinY(h3D_bb_bjet, lowcut, N_bins_dr, yBins, mb_binsVector, jtpt_binsVector);
+            h3D_bb_bjet = h3D_bb_bjet_new;        
+        TH3D* h3D_b_bjet_new  = CutAndRebinY(h3D_b_bjet, lowcut, N_bins_dr, yBins, mb_binsVector, jtpt_binsVector);
+            h3D_b_bjet = h3D_b_bjet_new;    
+
+        TH3D* h3D_bb_new  = CutAndRebinY(h3D_bb, lowcut, N_bins_dr, yBins, mb_binsVector, jtpt_binsVector);
+            h3D_bb = h3D_bb_new;        
+        TH3D* h3D_b_new  = CutAndRebinY(h3D_b, lowcut, N_bins_dr, yBins, mb_binsVector, jtpt_binsVector);
+            h3D_b = h3D_b_new;   
+        TH3D* h3D_nob_new  = CutAndRebinY(h3D_nob, lowcut, N_bins_dr, yBins, mb_binsVector, jtpt_binsVector);
+            h3D_nob = h3D_nob_new; 
+
+        // test 
+        // cout <<"data Integral after rebinning + pointer modification = " << h3D_data->Integral() << endl;
+
+        // -- Update the style of rebinned
+        h3D_data->SetTitle("Data");
+        h3D_data->SetMarkerStyle(20);
+        h3D_data->SetMarkerColor(kBlack);
+        h3D_data->SetLineColor(kBlack);
+        h3D_data->SetLineWidth(3);
+        // bjet 
+        h3D_b_bjet->SetTitle("1B (bjet)");h3D_bb_bjet->SetTitle("2B (bjet)");
+        h3D_b_bjet->SetFillColor(kMagenta-5); h3D_b_bjet->SetLineColor(kMagenta-5);        
+        h3D_bb_bjet->SetFillColor(kMagenta-3); h3D_bb_bjet->SetLineColor(kMagenta-3);
+        // qcd
+        h3D_b->SetTitle("1B (qcd)");h3D_bb->SetTitle("2B (qcd)"); h3D_nob ->SetTitle("0B (qcd)");
+        h3D_b->SetFillColor(kBlue-4); h3D_b->SetLineColor(kBlue-4);        
+        h3D_bb->SetFillColor(kBlue-6); h3D_bb->SetLineColor(kBlue-6); 
+        h3D_nob->SetFillColor(kRed); h3D_nob->SetLineColor(kRed); 
+
+        // ------- Write files after rebinning + deattaching the new hist: does not work! 
+        // -- WORK in progress ------
+        fout->cd();
+        h3D_data->SetDirectory(fout);
+        h3D_data->Write();
+        h3D_b_bjet->Write(); h3D_bb_bjet->Write();
+        h3D_b->Write(); h3D_bb->Write(); h3D_nob->Write(); 
+        // ------------------------
+    }
+    else {
+        N_bins_dr = bins_dr;
+        yBins = dr_binsVector; 
+    }
+
+    // return;
+
+    // ---------------------------------------------------------
     /// -- For later drawing of S/B fractions, store true and fit result in the following histograms
         // Note that: since inetgaretd bins are pt 0 and dr 0, the hist of fractions should have #bins + 1 size 
-        //  // x = dr, y = jetpt
+        // x = dr, y = jetpt
         // Axis here is for the bin number instead of the values 
-          TH2D *h_sig_fraction = new TH2D("h_sig_fraction", ";dr; jet pt",h3D_data->GetNbinsY() + 1,  1,  h3D_data->GetNbinsY() + 2,
-                                                                          h3D_data->GetNbinsZ() + 1 , 1, h3D_data->GetNbinsZ()+ 2 ); // yes GetXmin() fpr Y an Z-axis
-                                                                                                                                                 
+          TH2D *h_sig_fraction = new TH2D("h_sig_fraction", ";dr; jet pt", N_bins_dr+ 1,  1, N_bins_dr+ 2,
+                                                                           h3D_data->GetNbinsZ() + 1 , 1, h3D_data->GetNbinsZ()+ 2 );                                                                                                                              
             h_sig_fraction->Reset();
             TH2D *h_bkg_fraction = (TH2D *) h_sig_fraction->Clone("h_bkg_fraction");
             TH2D *h_sig_fraction_error = (TH2D *) h_sig_fraction->Clone("h_sig_fraction_error");
@@ -112,38 +193,37 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
             TH2D *h_bkg_frac_true = (TH2D *) h_sig_fraction->Clone("h_bkg_frac_true");
             TH2D *h_bkg_frac_true_error = (TH2D *) h_sig_fraction->Clone("h_bkg_frac_true_error");
 
+    //-----------------------
+    // -- general style: remove stats box 
+    gStyle->SetOptStat(0);
 
+    // ---------------------------------------------------------
     // --- Vector to test the convergence
     std::vector <std::pair<int, int>> non_converge_bins;
-
-    // ------------ Rebining here ------------------------
-    int N_bins_dr = bins_dr; 
-    bool rebin_dr = false;
-    if (rebin_dr) N_bins_dr = bins_dr_wider;
-
-    // h = (TH1D*)h->Rebin(bins_dr_wider, h->GetName(), dr_binsVector_wider);
-
+ 
 
     // Fitting - loop over dr and jtpt entries
     // Bin0: is integarted over the range 
     for(Int_t ibin_pt = 0; ibin_pt <= bins_pt; ibin_pt++){
     // for(Int_t ibin_pt = 0 ; ibin_pt <= 0; ibin_pt++){
         for(Int_t ibin_dr = 0; ibin_dr <= N_bins_dr; ibin_dr++){
-        // for(Int_t ibin_dr = 0; ibin_dr <= 0; ibin_dr++){
+        // for(Int_t ibin_dr = 3; ibin_dr <= 3; ibin_dr++){
             
             // define slice
             Int_t SliceFirstbin_dr = ibin_dr;
             Int_t SliceLastbin_dr =  ibin_dr;
             Int_t SliceFirstbin_pt = ibin_pt;
             Int_t SliceLastbin_pt =  ibin_pt;
-            if(!ibin_dr){SliceFirstbin_dr = 1; SliceLastbin_dr = bins_dr;}
+            if(!ibin_dr){SliceFirstbin_dr = 1; SliceLastbin_dr = N_bins_dr;}
             if (!ibin_pt){ SliceFirstbin_pt = 1;  SliceLastbin_pt = bins_pt;}
 
             // Make projections 
             TH1D *h_data_mb = (TH1D *) h3D_data->ProjectionX(Form("h_data_mb_%d_%d", ibin_dr, ibin_pt), SliceFirstbin_dr, SliceLastbin_dr, SliceFirstbin_pt, SliceLastbin_pt);
                 h_data_mb->GetXaxis()->SetTitle("m_{2B} [GeV]");
                 h_data_mb->SetTitle(h3D_data->GetTitle()); // upadte projection title
-
+                // -- test dr here 
+                    // TH1D* htest_in = (TH1D*) h3D_data->ProjectionY("test_in");
+                    // htest_in->Draw();
             
             // Make slices for dijet
             TH1D *h_bb = (TH1D *) h3D_bb->ProjectionX(Form("h_bb_%d_%d", ibin_dr, ibin_pt), SliceFirstbin_dr, SliceLastbin_dr, ibin_pt, ibin_pt);
@@ -243,7 +323,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                     // and for the bkg 1B + 0B 
                     h_sumbkg_0b_1b->SetFillColor(kGreen); h_sumbkg_0b_1b->SetLineColor(kGreen);  
 
-                // write to rootfile
+                // write to rootfile the used slices 
                 fout->cd();
                 h_data_mb->Write(); // data 
                 h_sumsig->Write(); // 2B (qcd + bjet)
@@ -261,7 +341,8 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                 hstack_all_beforefit.Add(h_b_bjet); 
                 hstack_all_beforefit.Add(h_b);
                 hstack_all_beforefit.Add(h_nob);
-                hstack_all_beforefit.SetMaximum(1.2 * hstack_all_beforefit.GetMaximum());
+                if (hstack_all_beforefit.GetMaximum() > h_data_mb->GetMaximum()/1e+04) { hstack_all_beforefit.SetMaximum(1.3* hstack_all_beforefit.GetMaximum());}
+                else { hstack_all_beforefit.SetMaximum(1.3* h_data_mb->GetMaximum()/1e+04);}
 
                 auto canva_beforefit = new TCanvas(Form("All_contributions_beforefit_%d_%d", ibin_dr, ibin_pt),"", 800, 800 );
                         canva_beforefit->cd();
@@ -276,7 +357,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                             canva_beforefit->Modified();
                             canva_beforefit->Update();
                             fout->cd();
-                            DrawCommonTextTopRight(canva_beforefit, ibin_dr, ibin_pt);
+                            DrawCommonTextTopRight(canva_beforefit, ibin_dr, ibin_pt, yBins);
                             canva_beforefit->Write();
                             canva_beforefit->Print(Form("%s/%s_allcontributions_beforefit.png", sDirname.Data(), sname_canvas.Data()));
 
@@ -297,7 +378,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                             canva_sum_beforefit->Modified();
                             canva_sum_beforefit->Update();
                             fout->cd();
-                            DrawCommonTextTopRight(canva_sum_beforefit, ibin_dr, ibin_pt);
+                            DrawCommonTextTopRight(canva_sum_beforefit, ibin_dr, ibin_pt, yBins);
                             canva_sum_beforefit->Write();
                             canva_sum_beforefit->Print(Form("%s/%s_templates_beforefit.png", sDirname.Data(), sname_canvas.Data()));
 
@@ -388,7 +469,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                             canva_pdf_norm_beforefit->Modified();
                             canva_pdf_norm_beforefit->Update();
                             fout->cd();
-                            DrawCommonTextTopRight(canva_pdf_norm_beforefit, ibin_dr, ibin_pt);
+                            DrawCommonTextTopRight(canva_pdf_norm_beforefit, ibin_dr, ibin_pt, yBins);
                             canva_pdf_norm_beforefit->Write();
                             canva_pdf_norm_beforefit->Print(Form("%s/%s_PDF_norm_beforefit.png", sDirname.Data(), sname_canvas.Data()));
             
@@ -413,7 +494,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                                 canva_pdfs_scaledtoqcd->Modified();
                                 canva_pdfs_scaledtoqcd->Update();
                                 fout->cd();
-                                DrawCommonTextTopRight(canva_pdfs_scaledtoqcd, ibin_dr, ibin_pt);
+                                DrawCommonTextTopRight(canva_pdfs_scaledtoqcd, ibin_dr, ibin_pt, yBins);
                                 canva_pdfs_scaledtoqcd->Write();
                                 canva_pdfs_scaledtoqcd->Print(Form("%s/%s_pdfs_scaledtoqcdfractions_beforefit.png", sDirname.Data(), sname_canvas.Data()));
             
@@ -439,7 +520,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                                 canva_pdfs_scaledtoqcd_int->Modified();
                                 canva_pdfs_scaledtoqcd_int->Update();
                                 fout->cd();
-                                DrawCommonTextTopRight(canva_pdfs_scaledtoqcd_int, ibin_dr, ibin_pt);
+                                DrawCommonTextTopRight(canva_pdfs_scaledtoqcd_int, ibin_dr, ibin_pt, yBins);
                                 canva_pdfs_scaledtoqcd_int->Write();
                                 canva_pdfs_scaledtoqcd_int->Print(Form("%s/%s_pdfs_scaledtoqcd_int_beforefit.png", sDirname.Data(), sname_canvas.Data()));
             
@@ -472,7 +553,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                                 canva_pdfs_seperated_scaledtoqcd_int->Modified();
                                 canva_pdfs_seperated_scaledtoqcd_int->Update();
                                 fout->cd();
-                                DrawCommonTextTopRight(canva_pdfs_seperated_scaledtoqcd_int, ibin_dr, ibin_pt);
+                                DrawCommonTextTopRight(canva_pdfs_seperated_scaledtoqcd_int, ibin_dr, ibin_pt, yBins);
                                 canva_pdfs_seperated_scaledtoqcd_int->Write();
                                 canva_pdfs_seperated_scaledtoqcd_int->Print(Form("%s/%s_pdfs_seperated_scaledtoqcd_int_beforefit.png", sDirname.Data(), sname_canvas.Data()));
                                  
@@ -496,7 +577,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                                 canva_pdfs_scaledtoData->cd();
                                 hstack_pfds_scaledtoData.Draw("Hist E");
                                 h_data_mb->Draw("Hist PE same");
-                                DrawCommonTextTopRight(canva_pdfs_scaledtoData, ibin_dr, ibin_pt, false);
+                                DrawCommonTextTopRight(canva_pdfs_scaledtoData, ibin_dr, ibin_pt,yBins,false);
                                 TLegend* leg_before = CreateLegend(0.54, 0.6, 0.85, 0.8,
                                     {h_data_mb, h_sig, h_sumbkg, norm_h_nob},
                                     {"LPE", "LF", "LF", "LF"},
@@ -510,7 +591,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                                 fout->cd();
                                 canva_pdfs_scaledtoData->Write();
                                 canva_pdfs_scaledtoData->Print(Form("%s/%s_pdfs_scaledtoData_beforefit.png", sDirname.Data(), sname_canvas.Data()));
-// return;                                        
+                                     
 
             ///// Fitting
             // Create the observable
@@ -721,17 +802,17 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
 
             //  -- Build legend and write plots     
                 fout->cd();
-                DrawCommonTextTopRight(canva_afterfit, ibin_dr, ibin_pt);
+                DrawCommonTextTopRight(canva_afterfit, ibin_dr, ibin_pt, yBins);
                 canva_afterfit->Write();
                 canva_afterfit->Print(Form("%s/%s.png", sDirname.Data(), canva_afterfit->GetName()));
 
 
-                DrawCommonTextTopRight(canva_stack_afterfit,ibin_dr, ibin_pt);
+                DrawCommonTextTopRight(canva_stack_afterfit,ibin_dr, ibin_pt, yBins);
                 canva_stack_afterfit->Write();
                 canva_stack_afterfit->Print(Form("%s/%s.png", sDirname.Data(), canva_stack_afterfit->GetName()));
 
 
-                DrawCommonTextTopRight(canva_stack_norm_afterfit, ibin_dr, ibin_pt);
+                DrawCommonTextTopRight(canva_stack_norm_afterfit, ibin_dr, ibin_pt, yBins);
                 canva_stack_norm_afterfit->Write();
                 canva_stack_norm_afterfit->Print(Form("%s/%s.png", sDirname.Data(), canva_stack_norm_afterfit->GetName()));
 
@@ -756,7 +837,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                         h_data_mb->Draw("PE same"); 
                         // h_total_fit->Draw("P E SAME");
                         // Add (dr, pt) bins legend 
-                        DrawCommonTextTopRight(pad1, ibin_dr, ibin_pt, false); // without default bildlegend of other objects
+                        DrawCommonTextTopRight(pad1, ibin_dr, ibin_pt, yBins, false); // without default bildlegend of other objects
                         // use new Legend for enties (withut hframe)
                         TLegend* leg = CreateLegend(0.54, 0.6, 0.85, 0.8,
                             {h_data_mb, h_sig_fit, h_bkg_fit_1b, h_bkg_fit_nob},
@@ -832,16 +913,19 @@ void template_fit(){
         TString templates_dijet = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/data_MC_samples_Zoe_14April/template_for_fit_histos_3D_qcd_btag.root";
         TString templates_bjet = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/data_MC_samples_Zoe_14April/template_for_fit_histos_3D_bjet_btag.root";
         TString fout_name = "TemplateFits_histos_3d_" + pT_selection +  ".root";
-        // do_template_fit_combined (dataset_HG,dataset_LG,templates_dijet, templates_bjet,  pT_selection, folder, fout_name, alsoLowEG);
+        do_template_fit_combined (dataset_HG,dataset_LG,templates_dijet, templates_bjet,  pT_selection, folder, fout_name, alsoLowEG);
 
-    // -- next draw S, B farctions true Vs. after fit (draw_template_fit_result)
+  
     // --- Loop over pt intervals, draw the fit summary Vs. Dr bins 
     for(Int_t ibin_pt = 0; ibin_pt <= bins_pt; ibin_pt++){
     // for(Int_t ibin_pt = 0; ibin_pt <= 0; ibin_pt++){
-    // fout as input , foutputPlots for output of the summary, dataname just as tag, folder is destination of the output file, pt selection and pt bin of drawing
-        
-        draw_template_fit_result(fout_name, foutputPlots_dijet, dataname, folder, pT_selection, ibin_pt);
+        // -- next draw S, B farctions true Vs. after fit (draw_template_fit_result)
+        // fout as input , foutputPlots for output of the summary, dataname just as tag, folder is destination of the output file, pt selection and pt bin of drawing
+        draw_template_fit_result(fout_name, foutputPlots_dijet, dataname, folder, pT_selection, ibin_pt, true); // for now: rebinning option is an argument for drawing. Will be removed later.
+        // -- and the EEC extracted from fit result vs MC 
+        draw_eec_simple(fout_name, folder, ibin_pt);
     }
+
 
 
     foutputPlots_dijet->Print();
