@@ -40,6 +40,24 @@ Double_t dr_shiftbin = 0.0001; //  0.0001
 Double_t dr_min_fill = 0.0021; //  0.016 = -0.15 + 0.01 
 Double_t dr_max_fill = 0.39;// 0.39 = 0.4- 0.01
 
+
+// --- Wider binning + cut 
+Int_t bins_dr_wider = 8;
+Double_t dr_binsVector_wider[9]= 
+{
+ 0.004079000 // cut at 0.004 for now (aim to 0.005 when reproduce templates)
+, 0.011883000 // [bin 1-5] merged 
+, 0.024155000 // bin [6-7]
+, 0.034399000 
+, 0.049013000
+, 0.069840000
+, 0.099570000
+, 0.141980000
+, 0.202700000
+};
+
+
+
 //mB
 const Int_t mb_binsVectorSize = 13;
 Int_t mb_bins = mb_binsVectorSize - 1;
