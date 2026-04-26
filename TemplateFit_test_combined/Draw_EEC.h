@@ -70,9 +70,9 @@ void draw_eec_simple(TString fout_name,  TString &folder, Int_t ibin_pt = 0){
 
             // -- Scale Raw data EEC(dr) by the signal fraction, bin by bin in dr 
             TH1D* heec_sigfrac = (TH1D*) h1D_rebinned_scaled ->Clone("heec_sigfrac"); heec_sigfrac->Multiply(hsigfrac_dr);
-                heec_sigfrac ->SetLineColor(kRed+1); heec_sigfrac ->SetLineWidth(2);
+                heec_sigfrac ->SetLineColor(kRed+1); heec_sigfrac ->SetLineWidth(3); heec_sigfrac->SetMarkerColor(kRed+1);
             TH1D* heec_bkgfrac = (TH1D*) h1D_rebinned_scaled ->Clone("heec_bkgfrac"); heec_bkgfrac->Multiply(hbkgfrac_dr);
-                heec_bkgfrac ->SetLineColor(kGreen+2); heec_bkgfrac ->SetLineWidth(2);
+                heec_bkgfrac ->SetLineColor(kGreen+2); heec_bkgfrac ->SetLineWidth(3); heec_bkgfrac->SetMarkerColor(kGreen+2); heec_bkgfrac->SetMarkerStyle(25); // open square
 
             // -- Read MC histograms: use qcd sample only 
             TH3D* h3D_bb_rebinnedY = (TH3D*) file->Get("h3D_bb_rebinnedY"); if(! h3D_bb_rebinnedY) cout << "hist does not exist" << endl;
@@ -89,8 +89,8 @@ void draw_eec_simple(TString fout_name,  TString &folder, Int_t ibin_pt = 0){
 
                 // set their styles 
                 h1D_bb->SetFillStyle(0);  h1D_b->SetFillStyle(0); h1D_0b->SetFillStyle(0); h1D_b_0b->SetFillStyle(0);
-                h1D_bb->SetLineColor(kBlue+2); h1D_bb ->SetLineWidth(2);
-                h1D_b_0b->SetLineColor(kMagenta + 2); h1D_b_0b ->SetLineWidth(2);
+                h1D_bb->SetLineColor(kCyan+2); h1D_bb ->SetLineWidth(3);
+                h1D_b_0b->SetLineColor(kMagenta + 1); h1D_b_0b ->SetLineWidth(3);
                 h1D_b->SetLineColor(kOrange+2); h1D_b ->SetLineWidth(2);
                 h1D_0b->SetLineColor(kYellow +2); h1D_0b ->SetLineWidth(2);
 
@@ -135,46 +135,89 @@ void draw_eec_simple(TString fout_name,  TString &folder, Int_t ibin_pt = 0){
                 c_MC->SaveAs( folder + sresultDir_eec + "/" + "MC_ EEC_" + ibin_pt + ".png");
 
             // -- Draw All: normlaized 
-            double int_data = h1D_rebinned_scaled->Integral(1, N_dr_bins, "width");
-            // data norm is not used 
-                TH1D* heec_data_norm = (TH1D*) h1D_rebinned_scaled->Clone("heec_data_norm");  heec_data_norm->Scale(1./heec_data_norm->Integral(), "width");
-                TH1D* heecdata_sigfrac_norm = (TH1D*) heec_data_norm->Clone("heecdata_sigfrac_norm");  heecdata_sigfrac_norm->Multiply(hsigfrac_dr);
-                heecdata_sigfrac_norm->SetLineColor(kRed+1);
-                TH1D* heecdata_bkgfrac_norm =  (TH1D*) heec_data_norm->Clone("heecdata_bkgfrac_norm");  heecdata_bkgfrac_norm->Multiply(hbkgfrac_dr);
-                heecdata_bkgfrac_norm->SetLineColor(kGreen+1);
-            
-            // MC integrals 
-            double int0 = h1D_0b->Integral(1, N_dr_bins, "width");
-            double int1 = h1D_b->Integral(1, N_dr_bins, "width");
-            double int2 = h1D_bb->Integral(1, N_dr_bins, "width");
-            double int_tot_mc = int0 + int1 + int2;
-            TH1D* heec_bb_norm =  (TH1D*) h1D_bb->Clone("heec_bb_norm");   heec_bb_norm->Scale(1.* int_data /int_tot_mc);
-            TH1D* heec_b_norm =  (TH1D*) h1D_b->Clone("heec_b_norm");   heec_b_norm->Scale(1.* int_data /int_tot_mc);
-            TH1D* heec_0b_norm =  (TH1D*) h1D_0b->Clone("heec_0b_norm");   heec_0b_norm->Scale(1.* int_data/int_tot_mc);
-            TH1D* heec_b_0b_norm =  (TH1D*) h1D_b_0b ->Clone("heec_b_0b_norm");   heec_b_0b_norm->Scale(1. * int_data /int_tot_mc);
-            TCanvas *c_all_norm = new TCanvas("c_all_norm", " ",1000, 1000);
-                c_all_norm->SetLogx();
-                c_all_norm->SetTitle("EEC");
-                c_all_norm->cd();
-                h1D_rebinned_scaled->SetTitle("");
-                h1D_rebinned_scaled->Draw("hist E ");
-                heec_sigfrac->Draw("hist E same");
-                heec_bkgfrac->Draw("hist E  same");
-                heec_b_0b_norm ->Draw("hist E same ");
-                heec_bb_norm->Draw("hist E same");
-                heec_b_norm->Draw("hist E same");
-                heec_0b_norm->Draw("hist E  same");
-              
-                TLegend* leg_all = CreateLegend(0.14, 0.4, 0.5, 0.8, // suggested: 0.6,0.7,0.9,0.9
-                        {h1D_rebinned_scaled, heec_sigfrac, heec_bkgfrac, heec_b_0b_norm,  heec_bb_norm, heec_b_norm, h1D_0b},
-                        {"LPE", "LPE", "LPE", "LE", "LE", "LE"},
-                        {"Data", "2B fraction (Data)", "1B+0B fraction (Data)",  "1B+0B (MC)",  "2B (MC)", "1B (MC)", "0B (MC)"} 
-                        );
-                        leg_all->SetHeader(Form("%g < p_{T} < %g GeV", pt_first, pt_last), "L"); //centered 
-                        leg_all->Draw("same");
-                c_all_norm->SaveAs( folder + sresultDir_eec + "/" + "AllNorm_ EEC_" + ibin_pt + ".pdf");
-                c_all_norm->SaveAs( folder + sresultDir_eec + "/" + "AllNorm_ EEC_" + ibin_pt + ".png");
+                double int_data = h1D_rebinned_scaled->Integral(1, N_dr_bins, "width");
+                double int_2B_data = heec_sigfrac->Integral(1, N_dr_bins, "width");
+                double int_bkg_data = heec_bkgfrac->Integral(1, N_dr_bins, "width");
+                // Normalize 2B MC to 2B in data, and nkg in MC to bkg in data only! 
+                double int0 = h1D_0b->Integral(1, N_dr_bins, "width");
+                double int1 = h1D_b->Integral(1, N_dr_bins, "width");
+                double int2 = h1D_bb->Integral(1, N_dr_bins, "width");
+                    cout << "Data integral = " << int_data << endl;
+                    cout << "2B in Data integral = " << int_2B_data << endl;
+                    cout << "bkg in Data integral = " << int_bkg_data << endl;
+                    cout << "MC integrals " << endl;
+                    cout << "2B in MC =  " << int2 << endl;
+                    cout << "1B + 0B in MC =  " << int1+int0 << endl;
+                
+                TH1D* heec_bb_MC_scaled =  (TH1D*) h1D_bb->Clone("heec_bb_MC_scaled");
+                        heec_bb_MC_scaled->Scale(1. * int_2B_data/int2);
+                TH1D* heec_b_0b_MC_scaled =  (TH1D*) h1D_b_0b ->Clone("heec_b_0b_MC_scaled");
+                       heec_b_0b_MC_scaled->Scale(1. * int_bkg_data /(int1 + int0));
 
+                    cout << "After scaling MC histograms --> they should be as their corresponding in data" << endl;
+                    cout << "Scaled 2B (MC) int = "<< heec_bb_MC_scaled->Integral(1, N_dr_bins, "width") << endl;
+                    cout << "Scaled 1B +0B (MC) int = "<< heec_b_0b_MC_scaled->Integral(1, N_dr_bins, "width") << endl;
+                // Draw reevant cotributions 
+                TCanvas *c_all_norm = new TCanvas("c_all_norm", " ",950, 1100);
+                    // c_all_norm->SetLogx();
+                    // c_all_norm->SetTitle("EEC");
+                    c_all_norm->cd();
+                    TPad* pad1 = new TPad("pad1","",0,0.2,1,1);
+                    TPad* pad2 = new TPad("pad2","",0,0,1,0.24);
+                    pad1->SetBottomMargin(0.07);
+                    pad1->SetLeftMargin(0.10); // for y axis title space 
+                    pad2->SetTopMargin(0.02);     // bottom pad (very small)
+                    pad2->SetBottomMargin(0.40);  // keep space for x-axis labels
+                    pad2->SetLeftMargin(0.10);  
+                    pad1->Draw();
+                    pad2->Draw(); 
+                    pad1->cd();
+                    pad1->SetLogx();
+                    pad1->SetTickx(1);
+                    pad1->SetTicky(1);
+
+                        // Add ratioplot ? ratio for Data/MC for each type 
+                        heec_sigfrac->SetTitle("");
+                        heec_sigfrac->SetMinimum(0);
+                        heec_sigfrac->SetMaximum(1.3 * heec_sigfrac->GetMaximum());
+                        heec_sigfrac->GetXaxis()->SetTitle("");
+                        heec_sigfrac->GetXaxis()->SetLabelSize(0);
+                        heec_sigfrac->Draw("hist E ");
+                        heec_bb_MC_scaled->Draw("hist E  same");
+                        heec_bkgfrac->Draw("hist E  same");
+                        heec_b_0b_MC_scaled->Draw("hist E  same");  
+                        TLegend* leg_all = CreateLegend(0.15, 0.55, 0.45, 0.85, // suggested: 0.6,0.7,0.9,0.9
+                            {heec_sigfrac, heec_bkgfrac, heec_bb_MC_scaled,  heec_b_0b_MC_scaled},
+                            {"LPE", "LPE", "LE", "LE"},
+                            {"2B (Data)", "1B+0B (Data)", "2B (MC)",  "1B+0B (MC)"} 
+                            );
+                            leg_all->SetHeader(Form("%g < p_{T} < %g GeV", pt_first, pt_last), "L"); //centered 
+                            leg_all->Draw("same");
+                        pad1->Modified(); // force refresh 
+                        pad1->Update();
+                    pad2->cd(); 
+                    pad2->SetLogx();
+                    pad2->SetTickx(1);
+                    pad2->SetTicky(1);
+                    AddRatioPlot(heec_sigfrac, heec_bb_MC_scaled, "", kRed+1);
+                            // change its y axis name 
+                            TH1* h1 = (TH1*) pad2->GetPrimitive(Form("ratio_%s_%s", heec_sigfrac->GetName(), heec_bb_MC_scaled->GetName()));
+                            h1->GetYaxis()->SetTitle("Data/MC");
+                            h1->GetXaxis()->SetTitle("#DeltaR");
+                            h1->SetMinimum(0.1);
+                    AddRatioPlot(heec_bkgfrac, heec_b_0b_MC_scaled, "EP same", kGreen+2); 
+                            TH1* h2 = (TH1*) pad2->GetPrimitive(Form("ratio_%s_%s", heec_bkgfrac->GetName(), heec_b_0b_MC_scaled->GetName()));
+                            TLegend* leg_ratio = CreateLegend(0.7, 0.62, 0.89, 0.90,  // suggested: 0.6,0.7,0.9,0.9
+                                {h1, h2},
+                                {"LP", "LP"},
+                                {"2B", "1B+0B"} 
+                                );
+                                leg_ratio->Draw("same");
+                        pad2->Modified(); // force refresh 
+                        pad2->Update();
+                    c_all_norm->SaveAs( folder + sresultDir_eec + "/" + "AllNorm_ EEC_" + ibin_pt + ".pdf");
+                    c_all_norm->SaveAs( folder + sresultDir_eec + "/" + "AllNorm_ EEC_" + ibin_pt + ".png");
+          
 }
 
 
