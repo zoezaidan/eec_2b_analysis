@@ -639,6 +639,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
             double a = sig_fraction_val.getValV();
             double da = sig_fraction_val.getError();
 
+
             //Print some check
             std::cout << "RooFit result: \n Signal PDF fraction: a = " << a << " \n its uncertainity: da = " << da << std::endl;
             /// Rescale the fit paraemters: a is for Signal + charm-light --> for now charmLight contribution is SET to ZERO I dont need it now.
@@ -919,11 +920,14 @@ void template_fit(){
     // --- Loop over pt intervals, draw the fit summary Vs. Dr bins 
     for(Int_t ibin_pt = 0; ibin_pt <= bins_pt; ibin_pt++){
     // for(Int_t ibin_pt = 0; ibin_pt <= 0; ibin_pt++){
+
         // -- next draw S, B farctions true Vs. after fit (draw_template_fit_result)
         // fout as input , foutputPlots for output of the summary, dataname just as tag, folder is destination of the output file, pt selection and pt bin of drawing
-        draw_template_fit_result(fout_name, foutputPlots_dijet, dataname, folder, pT_selection, ibin_pt, true); // for now: rebinning option is an argument for drawing. Will be removed later.
+        // draw_template_fit_result(fout_name, foutputPlots_dijet, dataname, folder, pT_selection, ibin_pt, true); // for now: rebinning option is an argument for drawing. Will be removed later.
+        
+
         // -- and the EEC extracted from fit result vs MC 
-        draw_eec_simple(fout_name, folder, ibin_pt);
+        // draw_eec_simple(fout_name, folder, ibin_pt);
     }
 
 

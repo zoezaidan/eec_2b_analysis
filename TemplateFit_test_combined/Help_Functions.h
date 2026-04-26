@@ -335,9 +335,9 @@ void DrawCommonTextTopRight(TPad*pad,  int ibin_dr, int ibin_pt, const double* n
 }
 
 // -----------------------
-void AddRatioPlot(TH1* h1, TH1* h2) {
+void AddRatioPlot(TH1* h1, TH1* h2, const char* drawoption="EP", int linecolor = kBlack) {
     // draw ratio of two hists
-    TH1* ratio = (TH1*)h1->Clone("ratio");
+    TH1* ratio = (TH1*)h1->Clone(Form("ratio_%s_%s", h1->GetName(), h2->GetName() ));
     ratio->Reset();
     ratio->Divide(h1, h2);
 
@@ -362,8 +362,8 @@ void AddRatioPlot(TH1* h1, TH1* h2) {
         ratio->GetXaxis()->SetTitleOffset(0.8);
 
     ratio->SetMarkerStyle(20);
-    ratio->SetLineColor(kBlack);
-    ratio->Draw("EP");
+    ratio->SetLineColor(linecolor);
+    ratio->Draw(drawoption);
 
     // unity line
     TLine* line = new TLine(
