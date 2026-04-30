@@ -1,9 +1,16 @@
+// might need to add the help functon header ?
 
 
-void draw_eec_simple(TString fout_name,  TString &folder, Int_t ibin_pt = 0){
+void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, Int_t ibin_pt = 2, Variation ivar = NOMINAL){
+    // input: the template fit output root file 
+    // folder: is the current working directory 
+    // The jet pt bin to draw: 0 to 3: integrated, 80 to 140 GeV. Nominal bin: 100-120 GeV, ibin_pt = 2. 
+
     // -- output directory 
-    TString sresultDir_eec = Form("%s/EEC_plots", sDirname.Data());// aprent already exist
+    // TString sresultDir_eec = Form("%s/EEC_plots", sDirname.Data());// aprent already exist
+    TString sresultDir_eec = Form("%s/EEC_plots/%s", sDirname.Data(), varNames[ivar].Data());
     gSystem->mkdir(sresultDir_eec, kTRUE); 
+    TString sname_canvas = Form("%d_%s", ibin_pt, varNames[ivar].Data());
 
 
     // -- for pt binning 
@@ -15,12 +22,8 @@ void draw_eec_simple(TString fout_name,  TString &folder, Int_t ibin_pt = 0){
     gStyle->SetOptStat(0);
 
     // -- Draw EEC after fit 
-    TCanvas *c_data = new TCanvas("c_data", " ",170,800,800,504);
+    TCanvas *c_data = new TCanvas(Form("c_EEC_data_%s", sname_canvas.Data()), " ",900,800);
         c_data->SetLogx();
-        // c->SetFillColor(0);
-        // c->SetBorderMode(0);
-        // c->SetBorderSize(2);
-        // c->SetFrameBorderMode(0);
         c_data->SetTitle("EEC extracted from template fits");
 
         // read template fit result 
@@ -84,15 +87,30 @@ void draw_eec_simple(TString fout_name,  TString &folder, Int_t ibin_pt = 0){
             TH3D* h3D_0b_rebinnedY = (TH3D*) file->Get("h3D_0b_rebinnedY"); if(! h3D_0b_rebinnedY) cout << "hist does not exist" << endl;
                 h3D_0b_rebinnedY->SetFillStyle(0);
                 TH1D *h1D_0b = h3D_0b_rebinnedY->ProjectionY(Form("h1D_0b_%d", ibin_pt), 1, mb_bins ,SliceFirstbin_pt, SliceLastbin_pt);
+            
+                // -- Add 2B from bjets 
+                TH3D* h3D_bb_bjet_rebinnedY = (TH3D*) file->Get("h3D_bb_bjet_rebinnedY"); if(! h3D_bb_bjet_rebinnedY) cout << "hist does not exist" << endl;
+                    h3D_bb_bjet_rebinnedY->SetFillStyle(0);
+                TH1D *h1D_bb_bjets = h3D_bb_bjet_rebinnedY->ProjectionY(Form("h1D_bb_bjets_%d", ibin_pt), 1, mb_bins ,SliceFirstbin_pt, SliceLastbin_pt);
+
+                // 2B : MC = qcd + bjet
+                TH1D* h1D_bb_combined =  (TH1D*) h1D_bb->Clone("h1D_bb_combined"); h1D_bb_combined->Add(h1D_bb_bjets); h1D_bb_combined->SetName("2B (MC: qcd+bjet)");
+                    // scale it to qcd integral 
+                        h1D_bb_combined->Scale(1. *h1D_bb->Integral(1, N_dr_bins, "width") /h1D_bb_combined->Integral(1, N_dr_bins, "width"));
+
             // Sum 1B + 0B as total bkg 
             TH1D* h1D_b_0b = (TH1D*) h1D_b->Clone("h1D_b_0b"); h1D_b_0b->Add(h1D_0b);
 
                 // set their styles 
-                h1D_bb->SetFillStyle(0);  h1D_b->SetFillStyle(0); h1D_0b->SetFillStyle(0); h1D_b_0b->SetFillStyle(0);
-                h1D_bb->SetLineColor(kCyan+2); h1D_bb ->SetLineWidth(3);
+                h1D_bb_combined->SetFillStyle(0); h1D_bb->SetFillStyle(0); h1D_bb_bjets->SetFillStyle(0);h1D_b->SetFillStyle(0); h1D_0b->SetFillStyle(0); h1D_b_0b->SetFillStyle(0);
+                h1D_bb_combined->SetLineColor(kCyan+2); h1D_bb_combined ->SetLineWidth(3);
+                h1D_bb->SetLineColor(kBlue); h1D_bb_bjets->SetLineColor(kBlue+ 4);
+
                 h1D_b_0b->SetLineColor(kMagenta + 1); h1D_b_0b ->SetLineWidth(3);
                 h1D_b->SetLineColor(kOrange+2); h1D_b ->SetLineWidth(2);
                 h1D_0b->SetLineColor(kYellow +2); h1D_0b ->SetLineWidth(2);
+
+
 
             // Draw canvas
             // --pt interval
@@ -115,19 +133,24 @@ void draw_eec_simple(TString fout_name,  TString &folder, Int_t ibin_pt = 0){
                 c_data->SaveAs( folder + sresultDir_eec + "/" + "Data_ EEC_fromFit_" + ibin_pt + ".png");
 
             // -- Draw MC EEC 
-             TCanvas *c_MC = new TCanvas("c_MC", " ",170,800,800,504);
+             TCanvas *c_MC = new TCanvas(Form("c_EEC_MC_%s", sname_canvas.Data()), " ",900, 800);
                 c_MC->SetLogx();
                 c_MC->SetTitle("EEC (reco MC)");
                 c_MC->cd();
                 h1D_bb->SetTitle("");
+                h1D_bb->GetXaxis()->SetTitle("#DeltaR");
+                h1D_bb->GetYaxis()->SetTitle("EEC");
+                h1D_bb->SetMaximum(1.3 *  h1D_bb_bjets->GetMaximum()); // bjets is larger 
                 h1D_bb->Draw("hist E");
+                h1D_bb_bjets->Draw("hist E same");
+                h1D_bb_combined->Draw("hist E same");
                 h1D_b_0b ->Draw("hist E same");
                 h1D_b->Draw("hist E same");
                 h1D_0b->Draw("hist E  same");
                 TLegend* leg_mc = CreateLegend(0.14, 0.6, 0.5, 0.8, // suggested: 0.6,0.7,0.9,0.9
-                        {h1D_bb, h1D_b_0b, h1D_b, h1D_0b},
+                        {h1D_bb_combined,h1D_bb, h1D_bb_bjets, h1D_b_0b, h1D_b, h1D_0b},
                         {"LPE", "LPE", "LPE"},
-                        {"2B (MC)", "1B+0B (MC)", "1B (MC)", "0B (MC)"} 
+                        {"2B (MC: qcd + bjet)","2B (qcd)", "2B (bjets)" , "1B+0B (MC)", "1B (MC)", "0B (MC)"} 
                         );
                         leg_mc->SetHeader(Form("%g < p_{T} < %g GeV", pt_first, pt_last), "L"); //centered 
                         leg_mc->Draw("same");
@@ -142,15 +165,25 @@ void draw_eec_simple(TString fout_name,  TString &folder, Int_t ibin_pt = 0){
                 double int0 = h1D_0b->Integral(1, N_dr_bins, "width");
                 double int1 = h1D_b->Integral(1, N_dr_bins, "width");
                 double int2 = h1D_bb->Integral(1, N_dr_bins, "width");
+                double int2_bjets = h1D_bb_bjets->Integral(1, N_dr_bins, "width");
+
                     cout << "Data integral = " << int_data << endl;
                     cout << "2B in Data integral = " << int_2B_data << endl;
                     cout << "bkg in Data integral = " << int_bkg_data << endl;
                     cout << "MC integrals " << endl;
                     cout << "2B in MC =  " << int2 << endl;
                     cout << "1B + 0B in MC =  " << int1+int0 << endl;
-                
+
+                /*
+                // if using qcd only 
                 TH1D* heec_bb_MC_scaled =  (TH1D*) h1D_bb->Clone("heec_bb_MC_scaled");
                         heec_bb_MC_scaled->Scale(1. * int_2B_data/int2);
+                */
+                // using qcd + bjet: combined hist is laready of qcd integral  
+                TH1D* heec_bb_MC_scaled =  (TH1D*) h1D_bb_combined->Clone("heec_bb_MC_scaled");
+                        heec_bb_MC_scaled->Scale(1. * int_2B_data/int2);
+                         
+
                 TH1D* heec_b_0b_MC_scaled =  (TH1D*) h1D_b_0b ->Clone("heec_b_0b_MC_scaled");
                        heec_b_0b_MC_scaled->Scale(1. * int_bkg_data /(int1 + int0));
 
@@ -158,9 +191,7 @@ void draw_eec_simple(TString fout_name,  TString &folder, Int_t ibin_pt = 0){
                     cout << "Scaled 2B (MC) int = "<< heec_bb_MC_scaled->Integral(1, N_dr_bins, "width") << endl;
                     cout << "Scaled 1B +0B (MC) int = "<< heec_b_0b_MC_scaled->Integral(1, N_dr_bins, "width") << endl;
                 // Draw reevant cotributions 
-                TCanvas *c_all_norm = new TCanvas("c_all_norm", " ",950, 1100);
-                    // c_all_norm->SetLogx();
-                    // c_all_norm->SetTitle("EEC");
+                TCanvas *c_all_norm = new TCanvas(Form("c_EEC_all_norm_%s", sname_canvas.Data()), " ",950, 1100);
                     c_all_norm->cd();
                     TPad* pad1 = new TPad("pad1","",0,0.2,1,1);
                     TPad* pad2 = new TPad("pad2","",0,0,1,0.24);
@@ -217,9 +248,25 @@ void draw_eec_simple(TString fout_name,  TString &folder, Int_t ibin_pt = 0){
                         pad2->Update();
                     c_all_norm->SaveAs( folder + sresultDir_eec + "/" + "AllNorm_ EEC_" + ibin_pt + ".pdf");
                     c_all_norm->SaveAs( folder + sresultDir_eec + "/" + "AllNorm_ EEC_" + ibin_pt + ".png");
+
+      // -- Write plotted canvas to output file 
+     if (!foutputPlots) {
+        std::cerr << "Invalid output file pointer!" << std::endl;
+        return;
+    }
+
+    foutputPlots->cd();
+    c_all_norm->Write();
+    c_data->Write();
+    c_MC->Write();
+    // -- Added the needed histograms + their tag 
+    for (auto h: {heec_sigfrac, heec_bkgfrac, heec_bb_MC_scaled, heec_b_0b_MC_scaled}){ 
+        h->SetName(Form("%s_%d_%s", h->GetName(), ibin_pt ,varNames[ivar].Data()));
+        h->Write( Form(("%s_%d"),h->GetName(), ibin_pt), TObject::kWriteDelete);
+    }
+    foutputPlots->Write();
           
 }
-
 
 
 
