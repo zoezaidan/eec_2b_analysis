@@ -56,6 +56,20 @@ Double_t dr_binsVector_wider[9]=
 , 0.202700000
 };
 
+// ---  to use in the future
+Int_t bins_dr_data = 8;
+Double_t dr_binsVector_data[9]= 
+{
+ 0.005 // cut at 0.004 for now (aim to 0.005 when reproduce templates)
+, 0.011883000 // [bin 1-5] merged 
+, 0.024155000 // bin [6-7]
+, 0.034399000 
+, 0.049013000
+, 0.069840000
+, 0.099570000
+, 0.141980000
+, 0.202700000
+};
 
 
 //mB
