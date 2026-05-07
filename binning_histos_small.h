@@ -1,3 +1,8 @@
+// needed headers
+#include "TH2D.h"
+#include "TAxis.h"
+
+
 // Define binnings
 
 //dr
@@ -7,8 +12,8 @@ Int_t dr_bins = bins_dr;
 Double_t dr_binsVector[dr_binsVectorSize];
 void build_dr_bins()
 {   
- const Double_t start = 0.002;
- const Double_t end   = 0.4;
+ const Double_t start = 0.005;
+ const Double_t end   = 1.0;
 
     Double_t log_start = std::log(start);
     Double_t log_end   = std::log(end);
@@ -25,11 +30,10 @@ Double_t dr_max = dr_binsVector[bins_dr];
 
 //Values for histogram filling
 Double_t dr_shiftbin = 0.00001;
-Double_t dr_min_fill = 0.0021;
-Double_t dr_max_fill = 0.39;
+Double_t dr_max_fill = 0.99;
 
 //mB
-const Int_t mb_binsVectorSize = 9;
+const Int_t mb_binsVectorSize = 13;
 Int_t mb_bins = mb_binsVectorSize - 1;
 Double_t mb_binsVector[mb_binsVectorSize] = {
     0., 
@@ -40,14 +44,19 @@ Double_t mb_binsVector[mb_binsVectorSize] = {
     5.,
     6.,
     7.,
+    8,
+    9,
+    10,
+    11,
+    12,
 };
 Double_t mb_min = mb_binsVector[0];
 Double_t mb_max = mb_binsVector[mb_bins];
-Int_t bins_mb = 7;
+Int_t bins_mb = 12;
 Double_t mb_max_fill = 6.9;
 
 //EEC
-const Int_t eec_binsVectorSize = 6;
+const Int_t eec_binsVectorSize = 12;
 Int_t bins_eec = eec_binsVectorSize - 1;
 Int_t eec_bins = bins_eec;
 Double_t eec_binsVector[eec_binsVectorSize] = {
@@ -57,33 +66,35 @@ Double_t eec_binsVector[eec_binsVectorSize] = {
     300.,
     400.,
     500.,
-    /*    600.,
+     600.,
     700.,
     800.,
     900.,
-    1000., */
+    1000., 
+    1e+8
 };
 Double_t eec_max = eec_binsVector[bins_eec];
 Double_t eec_min = eec_binsVector[0];
 Double_t eec_step = (eec_max-eec_min)/bins_eec;
-Double_t eec_max_fill = 499;
+Double_t eec_max_fill = 1e+8 -1;
 
 //Jet Pt
-const Int_t jtpt_binsVectorSize = 4;
+const Int_t jtpt_binsVectorSize = 5;
 Int_t jtpt_bins = jtpt_binsVectorSize - 1;
 Double_t jtpt_binsVector[jtpt_binsVectorSize] = {
     80., 
     100., 
     120.,
-    140.
+    140.,
+    200
 };
 Double_t jtpt_min = jtpt_binsVector[0];
 Double_t jtpt_max = jtpt_binsVector[jtpt_bins];
 
 
-Int_t bins_pt = 3;
+Int_t bins_pt = 4;
 Double_t pt_min = 80;
-Double_t pt_max = 140;
+Double_t pt_max = 200;
 
 //Get the dimension label
 Int_t mb_dim = 0;
