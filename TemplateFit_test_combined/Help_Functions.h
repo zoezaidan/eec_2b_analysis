@@ -36,7 +36,9 @@
 
 // name for outpur directory (in path) 
 TString sDirname = "TemplateFitOutput_Rebinned"; // Must use before Help_Functions.h
-// for test rebinning: add _Rebinned
+// -- For systematic uncertainti study 
+enum Variation {NOMINAL, VARIED0B_UP, VARIED0B_DOWN, NVAR}; // add other variations before NVAR to keep the size 
+TString varNames[NVAR] = {"nominal", "var0B_2", "var0B_0"};
 
 
 std::unique_ptr<TCanvas> draw_template_fit_result(
@@ -45,7 +47,162 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     TString &dataset,
     TString &folder,
     TString &pT_selection,
-     Int_t pt_bin = 0);
+    Int_t pt_bin,
+    Variation ivar,
+    bool rebin_dr 
+    );
+
+TLegend* CreateLegend(
+    double x1, double y1, double x2, double y2,
+    const std::vector<TObject*>& objects,
+    const std::vector<std::string>& options,
+    const std::vector<std::string>& labels = {});
+
+
+// ------------
+// ------------------
+void draw_variation_uncertainity(TFile *foutputPlots, TFile *fsys, int ibin_pt){
+    //// Can be modified for more variations //// 
+    // -- compute relative uncertaintiy to nominal value. 
+
+    
+
+        if (!foutputPlots || foutputPlots->IsZombie()) {
+        std::cout << "Error opening file!" << std::endl;
+        return;
+        }
+        // For legends 
+        double pt_first = 0, pt_last = 0;
+            if (!ibin_pt){pt_first = jtpt_binsVector[0];  pt_last = jtpt_binsVector[jtpt_bins];} 
+            else{pt_first = jtpt_binsVector[ibin_pt-1]; pt_last = jtpt_binsVector[ibin_pt]; }
+
+
+        // Read extracted EEC(2B) 
+        TH1D* h[NVAR];
+        for (int ivar = 0; ivar < NVAR; ivar++)
+        {
+
+            // using EEC plots 
+            // TString hname =  Form("heec_sigfrac_%s", varNames[ivar].Data());
+            // Do it using Signal fraction histogram 
+            TString hname =  Form("h_dr_%d_%s", ibin_pt, varNames[ivar].Data());
+
+            TH1D* htemp =  (TH1D*) foutputPlots->Get(Form("%s", hname.Data()));
+                if (!htemp) { std::cout << "Missing histogram: " << hname << std::endl; continue;}
+            h[ivar] = (TH1D*) htemp->Clone(Form("%s", hname.Data()));
+                h[ivar]->SetTitle(varNames[ivar].Data());
+            if (!h[ivar]) {  std::cout << "Missing histogram: " << hname << std::endl; h[ivar] = nullptr; continue; }
+            h[ivar]->SetDirectory(0); 
+        }
+
+    auto c_syst = new TCanvas(Form("c_syst_%d", ibin_pt),"", 900, 900); // 900, 1100
+    c_syst->cd();
+    c_syst->SetTitle("");
+
+    // set hists styles and colors 
+    h[NOMINAL]->SetMarkerStyle(47); // solid x 
+    h[NOMINAL]->SetMarkerColor(kBlack);
+    h[NOMINAL]->SetLineColor(kBlack);
+
+    h[1]->SetMarkerStyle(22);// up triangle
+    h[2]->SetMarkerStyle(23); // down
+    h[1]->SetMarkerColor(kOrange +2);   h[1]->SetLineColor(kOrange +2);
+    h[2]->SetMarkerColor(kGreen+2 );  h[2]->SetLineColor(kGreen+2);
+
+        // --- Pads
+        TPad *pad1 = new TPad("pad1", "pad1", 0, 0.40, 1, 1.0);
+        TPad *pad2 = new TPad("pad2", "pad2", 0, 0.00, 1, 0.40);
+            pad1->SetBottomMargin(0.015); // 0.07
+            pad1->SetLeftMargin(0.15); // for y axis title space 
+            // pad2->SetTopMargin(0.02);     // bottom pad (very small)
+            pad2->SetBottomMargin(0.20);  // keep space for x-axis labels
+            pad2->SetLeftMargin(0.15);  
+
+            pad1->Draw();
+            pad2->Draw(); 
+            pad1->cd();
+                pad1->SetLogx();
+                pad1->SetTickx(1);
+                pad1->SetTicky(1);
+                // Draw: nominal, and variation histograms 
+                pad1->SetTitle("");
+                h[NOMINAL]->GetXaxis()->SetTitle(0);
+                h[NOMINAL]->GetXaxis()->SetLabelSize(0);
+                h[NOMINAL]->GetYaxis()->SetTitleSize(0.05);
+                h[NOMINAL]->GetYaxis()->SetLabelSize(0.05);
+                h[NOMINAL]->SetTitle("");
+                h[NOMINAL]->GetYaxis()->SetTitle("Signal fraction");
+                h[NOMINAL]->Draw("PE");
+                // add the variation histograms
+                h[1] ->Draw("PE same");
+                h[2] ->Draw("PE same");
+                TLegend* leg_all = CreateLegend(0.2, 0.55, 0.45, 0.85, 
+                { h[NOMINAL], h[1], h[2]},
+                {"LP", "LP", "LP"},
+                { varNames[0].Data() ,varNames[1].Data(), varNames[2].Data()} 
+                );
+                leg_all->SetHeader(Form("%g < p_{T} < %g GeV", pt_first, pt_last), "L"); //centered 
+                leg_all->Draw("same");
+
+            // Lower panel: Draw envelop 
+             pad2->cd();  
+                pad2->SetLogx(); 
+                pad2->SetTickx(1);
+                pad2->SetTicky(1);
+                pad2->SetTitle("");
+                // Compute relative uncertintiy to the nominal value 
+                TH1* rel_1 = (TH1*) h[1]->Clone(Form("rel_1_%s_%s", h[1]->GetName(), h[NOMINAL]->GetName())); rel_1->Reset();  rel_1->Add(h[1], h[NOMINAL], 1, -1);  rel_1->Divide(rel_1, h[NOMINAL]);
+                TH1* rel_2 = (TH1*) h[2]->Clone(Form("rel_2_%s_%s", h[2]->GetName(), h[NOMINAL]->GetName())); rel_2->Reset();  rel_2->Add(h[2], h[NOMINAL], 1, -1);  rel_2->Divide(rel_2, h[NOMINAL]);
+                // Get the enevlope of uncertainity 
+                TH1* h_env = (TH1D*) h[NOMINAL]->Clone(Form("h_env_%s_%s", h[1]->GetName(), h[2]->GetName()));
+                    h_env->GetYaxis()->SetTitle("Relative uncertainity");
+                TH1* h_envDraw = (TH1D*) h[1]->Clone(Form("h_envDraw_%s_%s", h[1]->GetName(), h[2]->GetName()));   h_envDraw->Reset();  
+                    h_envDraw->SetMarkerSize(0); // to draw just error box 
+                for (int bin = 1; bin <= h[NOMINAL]->GetNbinsX(); bin++) {
+                        double dev1 = fabs(rel_1->GetBinContent(bin));
+                        double dev2 = fabs(rel_2->GetBinContent(bin));
+                        double env_size =  std::max(dev1, dev2);
+                        h_envDraw->SetBinError(bin, env_size);  // zero content 
+                        h_env->SetBinContent(bin, env_size); // to save 
+                }
+
+                h_envDraw->SetFillColor(kGray+1);
+                h_envDraw->SetFillStyle(3001);
+                h_envDraw->SetTitle("");
+                h_envDraw->GetYaxis()->SetTitle("Relative uncert.");
+                h_envDraw->GetXaxis()->SetTitle("#DeltaR");
+                h_envDraw->GetXaxis()->SetTitleSize(0.08);
+                h_envDraw->GetYaxis()->SetTitleSize(0.05);
+                h_envDraw->GetXaxis()->SetLabelSize(0.08);
+                h_envDraw->GetYaxis()->SetLabelSize(0.04);
+
+                // -- Try improve auto range: henv->Max() gives 1 ! 
+                h_envDraw->SetMaximum(0.2);
+                h_envDraw->SetMinimum(-0.2);
+                h_envDraw->Draw("E2");// error bars as rectangle 
+                  rel_1->SetLineWidth(0);// force remove line 
+                  rel_2->SetLineWidth(0);//
+                rel_1->Draw("P0 same");
+                rel_2->Draw("P0 same");
+                // Zero line
+                TLine* line = new TLine(
+                    h_env->GetXaxis()->GetXmin(),0,
+                    h_env->GetXaxis()->GetXmax(),0 );
+                line->SetLineStyle(2);
+                line->Draw("same");
+
+                c_syst-> Update();
+                c_syst->Modified();
+
+    // -- Save Canvas: 
+    c_syst->Print(Form("%s/Systematic_vary0B_ptbin%d.png", sDirname.Data(), ibin_pt));
+
+    // Save systematic uncertintiy:
+    fsys->cd();
+        h_env->Write(Form("hsys_unc_vary0B_ptbin%d", ibin_pt), TObject::kWriteDelete);
+        c_syst->Write(Form("canvas_allhistsforSys_vary0b_ptbin%d", ibin_pt), TObject::kWriteDelete);
+}
+
 
 // -----------------------
 TH3D* CutAndRebinY(TH3D* h3, double yMin, int newNyBins, const double* newyBins, const double* xBins, const double* zBins)
@@ -137,124 +294,6 @@ TH3D* CutAndRebinY(TH3D* h3, double yMin, int newNyBins, const double* newyBins,
     return hNew;
 }
 
-
-// TH3D* CutMergeAndRebinY(TH3D* h3,
-//                         const double* xBins,
-//                         const double* newyBins,
-//                         const double* zBins,
-//                         int newNyBins)
-// {
-//     if (!h3 || !newyBins || newNyBins < 2) return nullptr;
-
-//     TAxis* yA = h3->GetYaxis();
-
-//     // =====================================================
-//     // STEP 1: CUT
-//     // =====================================================
-//     double yCut = 0.004079;
-
-//     int startBin = 1;
-//     for (int i = 1; i <= yA->GetNbins(); i++) {
-//         if (yA->GetBinUpEdge(i) > yCut) {
-//             startBin = i;
-//             break;
-//         }
-//     }
-
-//     int endBin = yA->GetNbins();
-
-//     // =====================================================
-//     // STEP 2: CREATE FINAL HIST DIRECTLY (NO ROOT REBIN)
-//     // =====================================================
-//     TH3D* hFinal = new TH3D(
-//         "hFinal",
-//         h3->GetTitle(),
-
-//         h3->GetNbinsX(),
-//         xBins,
-
-//         newNyBins,
-//         newyBins,
-
-//         h3->GetNbinsZ(),
-//         zBins
-//     );
-
-//     hFinal->Sumw2();
-
-//     TAxis* yNew = hFinal->GetYaxis();
-
-//     // =====================================================
-//     // STEP 3: FILL DIRECTLY INTO FINAL HIST
-//     // =====================================================
-//     for (int ix = 1; ix <= h3->GetNbinsX(); ix++) {
-//         for (int iz = 1; iz <= h3->GetNbinsZ(); iz++) {
-
-//             for (int iy = startBin; iy <= endBin; iy++) {
-
-//                 double c = h3->GetBinContent(ix, iy, iz);
-//                 double e = h3->GetBinError(ix, iy, iz);
-
-//                 if (c == 0 && e == 0) continue;
-
-//                 double yLow  = yA->GetBinLowEdge(iy);
-//                 double yHigh = yA->GetBinUpEdge(iy);
-
-//                 // distribute into variable bins
-//                 for (int j = 1; j <= newNyBins; j++) {
-
-//                     double nLow  = yNew->GetBinLowEdge(j);
-//                     double nHigh = yNew->GetBinUpEdge(j);
-
-//                     double overlap = std::min(yHigh, nHigh)
-//                                    - std::max(yLow, nLow);
-
-//                     if (overlap <= 0) continue;
-
-//                     double frac = overlap / (yHigh - yLow);
-
-//                     int bin = hFinal->GetBin(ix, j, iz);
-
-//                     hFinal->AddBinContent(bin, c * frac);
-
-//                     hFinal->SetBinError(bin,
-//                         std::sqrt(
-//                             std::pow(hFinal->GetBinError(bin),2) +
-//                             std::pow(e * frac,2)
-//                         )
-//                     );
-//                 }
-//             }
-//         }
-//     }
-
-//     return hFinal;
-// }
-
-
-// 
-// //Rebin the dr axis to make the bins start later
-// void FuncRebin_dr(TH3D* &h){
-
-//     Int_t first_bin = 3;
-//     Int_t bins_dr = h->GetNbinsY();
-//     Int_t bins_mb = h->GetNbinsX();
-//     Int_t bins_pt = h->GetNbinsZ();
-
-//     for(Int_t ibin_pt = 1; ibin_pt <= bins_pt; ibin_pt++){
-//         for(Int_t imb_bin = 1; imb_bin <= bins_mb; imb_bin++){
-//             Float_t first_bin_content = 0;
-//             // for(Int_t ibin_dr = 1; ibin_dr <= first_bin; ibin_dr++){
-//             //     first_bin_content += h->GetBinContent(imb_bin, ibin_dr, ibin_pt);
-//             // }
-
-//             first_bin_content  = h->GetBinContent(imb_bin, first_bin, ibin_pt); // cut 
-//             h->GetYaxis()->SetRange(first_bin, bins_dr);
-//             h->SetBinContent(imb_bin, first_bin, ibin_pt, first_bin_content);
-//         }
-//     }
-// }
-
 // -----------------------
 TLegend* CreateLegend(
     double x1, double y1, double x2, double y2,
@@ -286,7 +325,7 @@ TLegend* CreateLegend(
 }
 
 // -----------------------
-void DrawCommonTextTopRight(TPad*pad,  int ibin_dr, int ibin_pt, const double* newyBins, bool useDeaultLegend =true,const char* extra="") {
+void DrawCommonTextTopRight(TPad* pad,  int ibin_dr, int ibin_pt, const double* newyBins,const int N_bins_dr ,bool useDeaultLegend =true,const char* extra="") {
     /*Draw dr range, pt range + default Build Legend*/    
     // you can pass dirctly a canvas pointer 
     // Pass ybins array: to include changes when rebinning dr axis
@@ -320,24 +359,26 @@ void DrawCommonTextTopRight(TPad*pad,  int ibin_dr, int ibin_pt, const double* n
     double pt_last = 0;
     double dr_first = 0;
     double dr_last = 0;
-    if(!ibin_dr){dr_first = 0; dr_last = 1;} // converted to infintiy 
-        else { dr_first =  newyBins[ibin_dr -1]; dr_last  = newyBins[ibin_dr];}
+    if(!ibin_dr ){dr_first = newyBins[0]; dr_last = -1;} // integrated bin to infinity 
+    else if (ibin_dr == N_bins_dr) { dr_first =  newyBins[ibin_dr -1];  dr_last = -1;} // last binto infintiy 
+        else { dr_first =  newyBins[ibin_dr -1]; dr_last  = newyBins[ibin_dr];} // normal 
+    
 
     if (!ibin_pt){pt_first = jtpt_binsVector[0];  pt_last = jtpt_binsVector[jtpt_bins];} 
         else{pt_first = jtpt_binsVector[ibin_pt-1]; pt_last = jtpt_binsVector[ibin_pt]; }
 
         // cout << "pt bin #"<< ibin_pt << "pt first and last are : " << pt_first << ", " << pt_last << endl;
 
-    if (dr_last == 1.0) latex.DrawLatex(x, y, Form("%g < #DeltaR < #infty", dr_first));
+    if (dr_last < 0.0) latex.DrawLatex(x, y, Form("%g < #DeltaR < #infty", dr_first)); // we use lower cut(no underflow)
     else latex.DrawLatex(x, y, Form("%g < #DeltaR < %g", dr_first, dr_last));
     latex.DrawLatex(x, y - 0.04, Form("%g < p_{T} < %g GeV", pt_first, pt_last));
     latex.DrawLatex(x, y - 0.08, extra);
 }
 
 // -----------------------
-void AddRatioPlot(TH1* h1, TH1* h2) {
+void AddRatioPlot(TH1* h1, TH1* h2, const char* drawoption="EP", int linecolor = kBlack) {
     // draw ratio of two hists
-    TH1* ratio = (TH1*)h1->Clone("ratio");
+    TH1* ratio = (TH1*)h1->Clone(Form("ratio_%s_%s", h1->GetName(), h2->GetName() ));
     ratio->Reset();
     ratio->Divide(h1, h2);
 
@@ -362,8 +403,8 @@ void AddRatioPlot(TH1* h1, TH1* h2) {
         ratio->GetXaxis()->SetTitleOffset(0.8);
 
     ratio->SetMarkerStyle(20);
-    ratio->SetLineColor(kBlack);
-    ratio->Draw("EP");
+    ratio->SetLineColor(linecolor);
+    ratio->Draw(drawoption);
 
     // unity line
     TLine* line = new TLine(
@@ -383,6 +424,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     TString &folder,
     TString &pT_selection,
     Int_t ibin_pt,
+    Variation ivar = NOMINAL,
     bool rebin_dr = true)
 {
     // For trvial tests 
@@ -392,7 +434,8 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     gStyle->SetOptStat(0);
 
     // -- output directory 
-    TString sresultDir = Form("%s/FitResult_Summary_S_B_fractions", sDirname.Data());// aprent already exist
+    // TString sresultDir = Form("%s/FitResult_Summary_S_B_fractions", sDirname.Data());
+    TString sresultDir = Form("%s/FitResult_Summary_S_B_fractions/%s", sDirname.Data(), varNames[ivar].Data());
     gSystem->mkdir(sresultDir, kTRUE); 
 
     //Get fractions for the jtpt bin ibin_pt
@@ -406,7 +449,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     TH1D *hbkg;
     TH1D *hbkg_true;
     TString sname_canvas;
-        sname_canvas = Form("c_%s_ptbin_%d%s", dataset.Data(), ibin_pt,  trivialMC_label.Data());
+        sname_canvas = Form("c_SBfrac_%s_ptbin_%d_%s_%s", dataset.Data(), ibin_pt, varNames[ivar].Data(), trivialMC_label.Data());
 
     // -- Read input TH2D  summary of signa and background fractions 
     //signal fraction
@@ -566,10 +609,9 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
 
     // ---------- 
     // -- Another canvas: for each pt, draw only differntial bins, without integarted dr result + axis is absolute Dr values
-    auto c_drval = std::make_unique<TCanvas>(Form("drval_%s", sname_canvas.Data()),"Template fit result vs. dr intervals", 900, 1100);// 800 x 800
+    auto c_drval = std::make_unique<TCanvas>(Form("%s_drval", sname_canvas.Data()),"Template fit result vs. dr intervals", 900, 1100);// 800 x 800
         gROOT->GetListOfCanvases()->Remove(c_drval.get()); // to save it later 
         c_drval->SetTitle("");
-        // c_drval->SetLogx();
 
         // --- Pads
         TPad *pad1_val = new TPad("pad1_val", "pad1_val", 0, 0.30, 1, 1.0);
@@ -579,7 +621,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
         // -- signal
         Int_t N_dr_bins; // 
         const double* binsvector = nullptr;
-        if (rebin_dr) { binsvector = dr_binsVector_wider; N_dr_bins = bins_dr_wider;}
+        if (rebin_dr){binsvector = dr_binsVector_wider; N_dr_bins = bins_dr_wider;}
         else { binsvector = dr_binsVector; N_dr_bins = bins_dr;}
 
 
@@ -716,7 +758,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
             leg2_val->Draw("same");
 
             c_drval->SaveAs( folder + sresultDir + "/" + trivialMC_label + "sign_frac_result_differentialDronly_" + dataset + "_" + ptbin_name + ".png");
-                c_drval->SaveAs( folder + sresultDir + "/" + trivialMC_label + "sign_frac_result_differentialDronly_" + dataset + "_" + ptbin_name + ".pdf");
+            c_drval->SaveAs( folder + sresultDir + "/" + trivialMC_label + "sign_frac_result_differentialDronly_" + dataset + "_" + ptbin_name + ".pdf");
 
 
     // -- Write plotted canvas to output file 
@@ -727,8 +769,20 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     foutputPlots->cd();
     c->Write();
     c_drval->Write();
-    foutputPlots->Write();
 
+    // Write 1D: S and B fraction histograms directly 
+
+    for (auto h: {h, h_dr,hbkg, hbkg_dr}){ 
+        h->SetName(Form("%s_%d_%s", h->GetName(), ibin_pt, varNames[ivar].Data()));
+        h->Write( h->GetName(), TObject::kWriteDelete);
+    }
+
+    for (auto h: {htrue, htrue_dr, hbkg_true, hbkg_dr})
+    {
+       h->Write();
+    }
+
+    foutputPlots->Write();
 
     file->Close(); delete file;
     return c;
