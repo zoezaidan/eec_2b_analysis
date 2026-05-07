@@ -598,6 +598,7 @@ void filter_b_bb(TString filename, TString output_folder, TString output_hist, T
     if(!isMC && dataType == -1){
       if(!((t.HLT_HIAK4PFJet60_v1 == 1 && t.HLT_HIAK4PFJet80_v1 == 0 && t.HLT_HIAK4PFJet100_v1 == 0) ||
 	   (t.HLT_HIAK4PFJet40_v1 == 1 && t.HLT_HIAK4PFJet60_v1 == 0 && t.HLT_HIAK4PFJet80_v1 == 0 && t.HLT_HIAK4PFJet100_v1 == 0))) continue;
+     double prescale_pf40 = 33.917210;
     }
 
     //select HLT events with at least 40 GeV if MC
@@ -897,6 +898,7 @@ void make_templates(TString filename, TString output_folder, TString output_hist
       else if (!isMC && dataType == -1) {
       if (t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1) continue; 
       if (!(t.HLT_HIAK4PFJet40_v1 || t.HLT_HIAK4PFJet60_v1 )) continue;
+      double prescale_pf40 = 33.917210;
     }
     else if (isMC) {if (!(t.HLT_HIAK4PFJet40_v1)) continue;}
 
@@ -918,15 +920,9 @@ void make_templates(TString filename, TString output_folder, TString output_hist
       double eec  = std::pow(pt1 * pt2, n);
       double jtpt = t.jtpt[ijet];
       double mB   = reco_sv[0].M() + reco_sv[1].M();
-      if (mB > mb_max_fill) mB = mb_max_fill;  // fold overflow into last bin
-
-
-
-      std::cout << "weight: " << weight_tree << std::endl;
-      std::cout << "eec: " << eec << std::endl;
 
       //Fix the under/overflow
-      if(dr < dr_min) dr = dr_min_fill;
+      //if(dr < dr_min) dr = dr_min_fill;
       if(dr >= dr_max) dr = dr_max_fill;
       if(mB >= mb_max) mB = mb_max_fill;
 
@@ -934,6 +930,8 @@ void make_templates(TString filename, TString output_folder, TString output_hist
 
       std::cout << "weight: " << weight_tree << std::endl;
       std::cout << "eec: " << eec << std::endl;
+
+      if (dataType == -1) eec *= prescale_pf40; // apply prescale for lowEG data
 
       if (isMC) {
         // use truth to classify: fill separate 0b, b and bb templates
