@@ -6,7 +6,7 @@
 // Define binnings
 
 //dr
-const Int_t dr_binsVectorSize = 16;
+const Int_t dr_binsVectorSize = 9;
 Int_t bins_dr = dr_binsVectorSize - 1;
 Int_t dr_bins = bins_dr;
 Double_t dr_binsVector[dr_binsVectorSize];
@@ -33,7 +33,7 @@ Double_t dr_shiftbin = 0.00001;
 Double_t dr_max_fill = 0.99;
 
 //mB
-const Int_t mb_binsVectorSize = 13;
+const Int_t mb_binsVectorSize = 11;
 Int_t mb_bins = mb_binsVectorSize - 1;
 Double_t mb_binsVector[mb_binsVectorSize] = {
     0., 
@@ -47,13 +47,11 @@ Double_t mb_binsVector[mb_binsVectorSize] = {
     8,
     9,
     10,
-    11,
-    12,
 };
 Double_t mb_min = mb_binsVector[0];
 Double_t mb_max = mb_binsVector[mb_bins];
-Int_t bins_mb = 12;
-Double_t mb_max_fill = 6.9;
+Int_t bins_mb = 10;
+Double_t mb_max_fill = 9.9;
 
 //EEC
 const Int_t eec_binsVectorSize = 12;
@@ -66,7 +64,7 @@ Double_t eec_binsVector[eec_binsVectorSize] = {
     300.,
     400.,
     500.,
-     600.,
+    600.,
     700.,
     800.,
     900.,

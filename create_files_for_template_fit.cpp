@@ -45,7 +45,7 @@ void printvtx (const Vertex& vertex,
 }
 //Skip MC events that have a too large weight to stabilize the distribution                                                          
 bool skipMC(double pt, double pthat) {
-  if (pthat<0.35*pt) return true;                                                                                                  
+  if (pthat<0.4*pt) return true;                                                                                                  
   return false;
 }                                                                                                                                  
                                                                                                                                      
@@ -558,7 +558,8 @@ void filter_b_bb(TString filename, TString output_folder, TString output_hist, T
       "HLT_HIAK4PFJet40_v1", "HLT_HIAK4PFJet60_v1", "HLT_HIAK4PFJet80_v1", "HLT_HIAK4PFJet100_v1"};
     t.SetBranchStatus(active_branches, 1);
   
-   
+  double prescale_pf40 = 33.917210;
+
   // Plots or histograms
   TH3D *h3D_2b = new TH3D("h3D_2b", "#DeltaR;EEC",bins_mb, mb_binsVector, bins_dr, dr_binsVector,jtpt_bins, jtpt_binsVector);
   TH3D *h3D_1b = new TH3D("h3D_1b", "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector,jtpt_bins, jtpt_binsVector);    
@@ -598,7 +599,7 @@ void filter_b_bb(TString filename, TString output_folder, TString output_hist, T
     if(!isMC && dataType == -1){
       if(!((t.HLT_HIAK4PFJet60_v1 == 1 && t.HLT_HIAK4PFJet80_v1 == 0 && t.HLT_HIAK4PFJet100_v1 == 0) ||
 	   (t.HLT_HIAK4PFJet40_v1 == 1 && t.HLT_HIAK4PFJet60_v1 == 0 && t.HLT_HIAK4PFJet80_v1 == 0 && t.HLT_HIAK4PFJet100_v1 == 0))) continue;
-     double prescale_pf40 = 33.917210;
+     
     }
 
     //select HLT events with at least 40 GeV if MC
@@ -714,6 +715,7 @@ if (t.jtNbHad[ijet] == 0){
 
 void filter_b_bb_as_data_and_mc(TString filename_bjet, TString output_folder, TString output_hist, TString domain, Float_t pT_low, Float_t pT_high, Int_t n, bool btag, bool isMC) {
   
+  double prescale_pf40 = 33.917210;
   // true level information aggregated to partial Bs
   tTree t;
   t.Init(filename_bjet, isMC);
@@ -842,7 +844,7 @@ void make_templates(TString filename, TString output_folder, TString output_hist
   t.SetBranchStatus("*", 0);
 
   double agg_fail = 0, nb_sv = 0, sv_fail = 0, merge_fail = 0;
-
+  double prescale_pf40 = 33.917210;
   std::vector<TString> active_branches = {
     // reco branches — identical for data and MC
     "jtpt", "jteta", "nref", "jtNtrk", "jtNsvtx", "discr_particleNet_BvsAll",
@@ -898,7 +900,7 @@ void make_templates(TString filename, TString output_folder, TString output_hist
       else if (!isMC && dataType == -1) {
       if (t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1) continue; 
       if (!(t.HLT_HIAK4PFJet40_v1 || t.HLT_HIAK4PFJet60_v1 )) continue;
-      double prescale_pf40 = 33.917210;
+      
     }
     else if (isMC) {if (!(t.HLT_HIAK4PFJet40_v1)) continue;}
 
@@ -989,28 +991,28 @@ if (!isMC && dataType > 1) {
 
 if(dataType == -1){//________________________________data______________________________
   filename = "/data_CMS/cms/kalipoliti/bJet2017G/LowEGJet/aggrTMVA_fixedMassBug/all_merged_HiForestMiniAOD.root";
-  output_hist = "template_for_fit_histos_3D_LowEG_f";
+  output_hist = "MAY_WP0898_template_for_fit_histos_3D_LowEG_f";
   isMC = false;
   cout<<"you chose data Low" <<endl;
   }
 
 else if(dataType == 0) {
   filename = "/data_CMS/cms/kalipoliti/bJet2017G/HighEGJet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
-  output_hist = "template_for_fit_histos_3D_HighEG_f";
+  output_hist = "MAY_WP0898_template_for_fit_histos_3D_HighEG_f";
   isMC = false;
   cout<<"you chose data High" <<endl;       
   }      
                                                                                                                                                                                                                                                                         
 else if(dataType == 1){//________________________________bjet______________________________
   filename = "/data_CMS/cms/kalipoliti/qcdMC/bjet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
-  output_hist = "template_for_fit_histos_3D_bjet_f";
+  output_hist = "MAY_WP0898_template_for_fit_histos_3D_bjet_f";
   std::cout << "Creating files for template fit for bjet sample" << std::endl;
   cout<<"you chose bjet MC" <<endl;
   }
 
 else if(dataType == 2){//________________________________dijet______________________________
   filename = "/data_CMS/cms/kalipoliti/qcdMC/dijet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root"; 
-  output_hist = "template_for_fit_histos_3D_qcd_f";
+  output_hist = "MAY_template_for_fit_histos_3D_qcd_f";
   std::cout << "Creating files for template fit for qcd sample" << std::endl;
   cout<<"you chose qcd MC" <<endl;
   }
