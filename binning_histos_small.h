@@ -10,14 +10,14 @@ Int_t bins_dr_data = 8;
 Double_t dr_binsVector_data[9]= 
 {
  0.005 // cut at 0.004 for now (aim to 0.005 when reproduce templates)
-, 0.011883000 // [bin 1-5] merged 
-, 0.024155000 // bin [6-7]
-, 0.034399000 
-, 0.049013000
-, 0.069840000
-, 0.099570000
-, 0.141980000
-, 0.202700000
+, 0.011883 // [bin 1-5] merged 
+, 0.024155 // bin [6-7]
+, 0.034399 
+, 0.049013
+, 0.069840
+, 0.099570
+, 0.141980
+, 0.202700
 };
 
 /*const Int_t dr_binsVectorSize = 9;
@@ -44,10 +44,13 @@ Double_t dr_min = dr_binsVector[0];
 Double_t dr_max = dr_binsVector[bins_dr];
 
 
-
 //Values for histogram filling
 Double_t dr_shiftbin = 0.00001;
-Double_t dr_max_fill = 0.99;
+Double_t dr_max_fill = 0.202699;
+
+//Values for histogram filling
+//Double_t dr_shiftbin = 0.00001;
+//Double_t dr_max_fill = 0.99;
 
 //mB
 const Int_t mb_binsVectorSize = 11;
