@@ -46,7 +46,7 @@ Double_t dr_max = dr_binsVector[bins_dr];
 
 //Values for histogram filling
 Double_t dr_shiftbin = 0.00001;
-Double_t dr_max_fill = 0.202699;
+Double_t dr_max_fill = 0.2020;
 
 //Values for histogram filling
 //Double_t dr_shiftbin = 0.00001;
@@ -97,20 +97,19 @@ Double_t eec_step = (eec_max-eec_min)/bins_eec;
 Double_t eec_max_fill = 1e+8 -1;
 
 //Jet Pt
-const Int_t jtpt_binsVectorSize = 5;
+const Int_t jtpt_binsVectorSize = 4;
 Int_t jtpt_bins = jtpt_binsVectorSize - 1;
 Double_t jtpt_binsVector[jtpt_binsVectorSize] = {
     80., 
     100., 
     120.,
-    140.,
     200
 };
 Double_t jtpt_min = jtpt_binsVector[0];
 Double_t jtpt_max = jtpt_binsVector[jtpt_bins];
 
 
-Int_t bins_pt = 4;
+Int_t bins_pt = 3;
 Double_t pt_min = 80;
 Double_t pt_max = 200;
 
