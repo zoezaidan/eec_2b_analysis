@@ -616,7 +616,7 @@ void filter_b_bb(TString filename, TString output_folder, TString output_hist, T
       if (std::abs(t.refeta[ijet]) > 1.9) continue;
       if ((isMC) && skipMC(t.refpt[ijet], t.pthat)) continue;
       if (t.refpt[ijet] < pT_low || t.refpt[ijet] > pT_high) continue;
-      if (btag && t.discr_particleNet_BvsAll[ijet] <= 0.99) continue;
+      if (btag && t.discr_particleNet_BvsAll[ijet] <= 0.898) continue;
       
      
 
@@ -779,7 +779,7 @@ void filter_b_bb_as_data_and_mc(TString filename_bjet, TString output_folder, TS
       if (std::abs(t.jteta[ijet]) > 1.9) continue;
       if (isMC && skipMC(t.jtpt[ijet], t.pthat)) continue;
       if (t.jtpt[ijet] < pT_low || t.jtpt[ijet] > pT_high) continue;
-      if (btag && t.discr_particleNet_BvsAll[ijet] <= 0.99) continue;
+      if (btag && t.discr_particleNet_BvsAll[ijet] <= 0.898) continue;
 
       // classify by number of reconstructed secondary vertices (same for data and MC)
       int nSV = t.jtNsvtx[ijet];
@@ -910,7 +910,7 @@ void make_templates(TString filename, TString output_folder, TString output_hist
       if (std::abs(t.jteta[ijet]) > 1.9) continue;
       if (isMC && skipMC(t.jtpt[ijet], t.pthat)) continue;
       if (t.jtpt[ijet] < pT_low || t.jtpt[ijet] > pT_high) continue;
-      if (btag && t.discr_particleNet_BvsAll[ijet] <= 0.99) continue;
+      if (btag && t.discr_particleNet_BvsAll[ijet] <= 0.898) continue;
 
       // reco SV reconstruction — same for data and MC
       vector<ROOT::Math::PtEtaPhiMVector> reco_sv = makeSvtxs_withBDT(t, ijet, ient, agg_fail, nb_sv, sv_fail, merge_fail, nullptr, nullptr);
