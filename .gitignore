@@ -9,6 +9,7 @@
 
 # PDFs and plots
 *.pdf
+*.png
 
 # Logs
 *.log
