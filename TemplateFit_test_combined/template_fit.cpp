@@ -1,7 +1,7 @@
 
 
 #include "tTree.h"
-#include "binning_histos_all.h"
+#include "binning_histos_small.h"
 #include "Help_Functions.h"
 #include "Draw_EEC.h"
 
@@ -104,79 +104,12 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
     h3D_bb_bjet->Write();
     h3D_b->Write(); h3D_bb->Write(); h3D_nob->Write(); 
 
-
-    // ------------ Rebining here ------------------------
-    bool rebin_dr = true;
-    double lowcut = 0.004079000 + 1e-03; // start at 0.004 for now, if I use +1e-03 to force Find bin find the correct bin! if I use 1e-04 it also fail1!!!!! 
     const double* yBins = nullptr; //dr array 
     int N_bins_dr = 0; 
-    if (rebin_dr) {
-        N_bins_dr = bins_dr_wider;
-        yBins = dr_binsVector_wider;
-        // cout << "new dr bins = "<< N_bins_dr << endl;   
-          // rebinning with lower cut: x and z bins are same
-            // cout << "data hist inetegral in range dr [0.004-0.141980000] before rebin = " << h3D_data->Integral(1, mb_bins, 3, 5, 1, 3, "width") << endl; // only from 0.004 
-            // before rebinning 
-         // TH1D* htest1 = (TH1D*) h3D_data->ProjectionX("test1", 8, 8, 1, 1); // slice drbin = 3
-         //    cout << "this slice bin is "<< dr_binsVector[7]<< ", " << dr_binsVector[8] << endl; 
-         //    cout << "before: this slice integral = " << htest1->Integral() << endl;
-        // TH3D* h3D_data_new  = CutMergeAndRebinY(h3D_data, mb_binsVector, yBins, jtpt_binsVector, N_bins_dr);
-
-        TH3D* h3D_data_new  = CutAndRebinY(h3D_data, lowcut, N_bins_dr, yBins, mb_binsVector, jtpt_binsVector);
-        h3D_data = h3D_data_new; 
-            // cout << "After rebinning: data hist inetegral in range dr [0.004-0.141980000] before rebin = " << h3D_data_new->Integral(1, mb_bins, 1, 1, 1, 3, "width") << endl; // only from 0.004 
-            // cout << "Draw slice in dr [bin3, bin3] = " << dr_binsVector_wider[2] << ","  <<  dr_binsVector_wider[3] << endl;
-                // TH1D* htest = (TH1D*) h3D_data->ProjectionX("test", 3, 3, 1, 1); // slice drbin = 3
-                // // // htest->Draw();
-                // cout << "this slice bin is "<< dr_binsVector_wider[2]<< ", " << dr_binsVector_wider[3] << endl; 
-                // cout << "after: this slice integral = " << htest->Integral() << endl;
-
-        // -- the other templates 
-        // Add the reinning for others 
-        TH3D* h3D_bb_bjet_new  = CutAndRebinY(h3D_bb_bjet, lowcut, N_bins_dr, yBins, mb_binsVector, jtpt_binsVector);
-            h3D_bb_bjet = h3D_bb_bjet_new;        
-        TH3D* h3D_b_bjet_new  = CutAndRebinY(h3D_b_bjet, lowcut, N_bins_dr, yBins, mb_binsVector, jtpt_binsVector);
-            h3D_b_bjet = h3D_b_bjet_new;    
-
-        TH3D* h3D_bb_new  = CutAndRebinY(h3D_bb, lowcut, N_bins_dr, yBins, mb_binsVector, jtpt_binsVector);
-            h3D_bb = h3D_bb_new;        
-        TH3D* h3D_b_new  = CutAndRebinY(h3D_b, lowcut, N_bins_dr, yBins, mb_binsVector, jtpt_binsVector);
-            h3D_b = h3D_b_new;   
-        TH3D* h3D_nob_new  = CutAndRebinY(h3D_nob, lowcut, N_bins_dr, yBins, mb_binsVector, jtpt_binsVector);
-            h3D_nob = h3D_nob_new; 
-
-        // test 
-        // cout <<"data Integral after rebinning + pointer modification = " << h3D_data->Integral() << endl;
-
-        // -- Update the style of rebinned
-        h3D_data->SetTitle("Data");
-        h3D_data->SetMarkerStyle(20);
-        h3D_data->SetMarkerColor(kBlack);
-        h3D_data->SetLineColor(kBlack);
-        h3D_data->SetLineWidth(3);
-        // bjet 
-        h3D_b_bjet->SetTitle("1B (bjet)");h3D_bb_bjet->SetTitle("2B (bjet)");
-        h3D_b_bjet->SetFillColor(kMagenta-5); h3D_b_bjet->SetLineColor(kMagenta-5);        
-        h3D_bb_bjet->SetFillColor(kMagenta-3); h3D_bb_bjet->SetLineColor(kMagenta-3);
-        // qcd
-        h3D_b->SetTitle("1B (qcd)");h3D_bb->SetTitle("2B (qcd)"); h3D_nob ->SetTitle("0B (qcd)");
-        h3D_b->SetFillColor(kBlue-4); h3D_b->SetLineColor(kBlue-4);        
-        h3D_bb->SetFillColor(kBlue-6); h3D_bb->SetLineColor(kBlue-6); 
-        h3D_nob->SetFillColor(kRed); h3D_nob->SetLineColor(kRed); 
-
-        // ------- Write files after rebinning + deattaching the new hist: does not work! 
-        // -- WORK in progress ------
-        fout->cd();
-        h3D_data->SetDirectory(fout);
-        h3D_data->Write();
-        h3D_b_bjet->Write(); h3D_bb_bjet->Write();
-        h3D_b->Write(); h3D_bb->Write(); h3D_nob->Write(); 
-        // ------------------------
-    }
-    else {
-        N_bins_dr = bins_dr;
-        yBins = dr_binsVector; 
-    }
+   
+    N_bins_dr = bins_dr;
+    yBins = dr_binsVector; 
+    
 
     // return;
 
@@ -904,8 +837,8 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
 void template_fit(){
 
     //Get data and mc labels
-    TString pT_selection = "80_140";// full range 
-    TString folder = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/TemplateFit_test_combined/";
+    TString pT_selection = "80_200";// full range 
+    TString folder = "/home/llr/cms/zaidan/analysis_lise/eec_2b_analysis/TemplateFit_test_combined/";
 
     // Add LowEG data 
     bool alsoLowEG = true;
@@ -923,12 +856,12 @@ void template_fit(){
 
     // --  using result of Zoe code and condor result 
     alsoLowEG = true;
-    TString dataset_HG = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/data_MC_samples_Zoe_14April/template_for_fit_histos_3D_HighEG_btag.root"; 
-    TString dataset_LG = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/data_MC_samples_Zoe_14April/template_for_fit_histos_3D_LowEG_btag.root"; 
+    TString dataset_HG = " /data_CMS/cms/zaidan/analysis_lise/pulido/small_bins/template_for_fit_histos_3D_HighEG_btag_0990_small_bins.root"; 
+    TString dataset_LG = " /data_CMS/cms/zaidan/analysis_lise/pulido/small_bins/template_for_fit_histos_3D_LowEG_btag_0990_small_bins.root"; 
         TString dataname = "All";
-        TString templates_dijet = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/data_MC_samples_Zoe_14April/template_for_fit_histos_3D_qcd_btag.root";
-        TString templates_bjet = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/data_MC_samples_Zoe_14April/template_for_fit_histos_3D_bjet_btag.root";
-        TString fout_name = "TemplateFits_histos_3d_" + pT_selection +  ".root";
+        TString templates_dijet = " /data_CMS/cms/zaidan/analysis_lise/pulido/small_bins/template_for_fit_histos_3D_qcd_btag_0990_small_bins.root";
+        TString templates_bjet = " /data_CMS/cms/zaidan/analysis_lise/pulido/small_bins/template_for_fit_histos_3D_bjet_btag_0990_small_bins.root";
+        TString fout_name = "2026_05_15_TemplateFits_histos_3d_" + pT_selection +  ".root";
         // -- without variations
             // do_template_fit_combined (dataset_HG,dataset_LG,templates_dijet, templates_bjet,  pT_selection, folder, fout_name, alsoLowEG); 
 
@@ -945,7 +878,7 @@ void template_fit(){
             // for(Int_t ibin_pt = 0; ibin_pt <= 1; ibin_pt++) {  // test 
             for(Int_t ibin_pt = 0; ibin_pt <= bins_pt; ibin_pt++){
                 /// Draw S/B fractions 
-                draw_template_fit_result(newfout_name, foutputPlots_dijet, dataname, folder, pT_selection, ibin_pt, (Variation) ivar, true); 
+                draw_template_fit_result(newfout_name, foutputPlots_dijet, dataname, folder, pT_selection, ibin_pt, (Variation) ivar); 
                 /// Draw EEC 
                 draw_eec_simple(newfout_name, foutputPlots_dijet ,folder, ibin_pt, (Variation) ivar);
 
