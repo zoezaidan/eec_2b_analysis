@@ -18,20 +18,183 @@
 #include "binning_histos_small.h"
 #include <iostream>
 #include <vector>
-#include <cstdlib> // For std::abs
-#include <cmath>    // For std::abs (integer types)
+#include <cstdlib>
+#include <cmath>
+#include <map>
+#include <unordered_map>
+#include <random>
 #include "TFile.h"
 #include "tTree.h"
 #include "TString.h"
 #include "TH1D.h"
 #include "TH2D.h"
 #include "TH3D.h"
+#include <Math/Vector4D.h>
+#include "Math/VectorUtil.h"
 
 //Skips MC events with too large event weight
 bool skipMC(double jtpt, double refpt, double pthat) {
-    if (!(refpt>0)) return true;    
+    if (!(refpt>0)) return true;
     if (pthat<0.35*jtpt) return true;
     return false;
+}
+
+// ---- Helpers for double-b template fit response matrix ----
+
+struct Vertex {
+    ROOT::Math::PtEtaPhiMVector p4;
+    std::vector<ROOT::Math::PtEtaPhiMVector> tracks;
+    std::vector<int> trkMatchSta;
+    std::vector<int> trkSvtxId;
+};
+
+auto deltaR2 = [](const ROOT::Math::PtEtaPhiMVector &a,
+                  const ROOT::Math::PtEtaPhiMVector &b) {
+    double dEta = a.Eta() - b.Eta();
+    double dPhi = std::remainder(a.Phi() - b.Phi(), 2*M_PI);
+    return dEta*dEta + dPhi*dPhi;
+};
+
+// Reconstructs gen b hadrons for jet ijet from refTrk* branches.
+// Tracks with refTrkSta >= 100 are grouped by unique status value (one b hadron per group).
+void PartialBsAggregation(std::vector<ROOT::Math::PtEtaPhiMVector>& hadrons_4vec,
+                          std::vector<Int_t>& hadrons_stat, tTree& t, Int_t ijet) {
+    hadrons_4vec.clear();
+    hadrons_stat.clear();
+    for (Int_t itrk = 0; itrk < t.nrefTrk; itrk++) {
+        if (t.refTrkJetId[itrk] != ijet) continue;
+        if (t.refTrkPt[itrk] < 1) continue;
+        double mass = 0.0;
+        int pid = std::abs(t.refTrkPdgId[itrk]);
+        if      (pid == 211)  mass = 0.139570;
+        else if (pid == 13)   mass = 0.105658;
+        else if (pid == 11)   mass = 0.000510;
+        else if (pid == 2212) mass = 0.938272;
+        else if (pid == 321)  mass = 0.493677;
+        else if (pid == 3112) mass = 1.19744;
+        else if (pid == 3222) mass = 1.18937;
+        else if (pid == 3312) mass = 1.32171;
+        else if (pid == 3334) mass = 1.67245;
+        else { std::cout << "PDG:" << pid << std::endl; continue; }
+        ROOT::Math::PtEtaPhiMVector v(t.refTrkPt[itrk], t.refTrkEta[itrk], t.refTrkPhi[itrk], mass);
+        Int_t status = t.refTrkSta[itrk];
+        if (status < 100) continue;
+        auto it = std::find(hadrons_stat.begin(), hadrons_stat.end(), status);
+        if (it == hadrons_stat.end()) {
+            hadrons_stat.push_back(status);
+            hadrons_4vec.push_back(v);
+        } else {
+            hadrons_4vec[std::distance(hadrons_stat.begin(), it)] += v;
+        }
+    }
+}
+
+// Merges a list of Vertex objects down to exactly 2 by iteratively combining
+// the closest pair in (eta, phi).
+void groupVertexes1(std::vector<Vertex>& vertices) {
+    if (vertices.size() < 2) return;
+    while (vertices.size() > 2) {
+        double min_dist = std::numeric_limits<double>::infinity();
+        size_t idx1 = 0, idx2 = 1;
+        for (size_t i = 0; i < vertices.size(); ++i) {
+            for (size_t j = i + 1; j < vertices.size(); ++j) {
+                double dEta = vertices[i].p4.Eta() - vertices[j].p4.Eta();
+                double dPhi = std::remainder(vertices[i].p4.Phi() - vertices[j].p4.Phi(), 2*M_PI);
+                double dist = dEta*dEta + dPhi*dPhi;
+                if (dist < min_dist) { min_dist = dist; idx1 = i; idx2 = j; }
+            }
+        }
+        vertices[idx1].p4 += vertices[idx2].p4;
+        auto &t1 = vertices[idx1].tracks;    auto &t2 = vertices[idx2].tracks;
+        auto &s1 = vertices[idx1].trkMatchSta; auto &s2 = vertices[idx2].trkMatchSta;
+        auto &v1 = vertices[idx1].trkSvtxId;  auto &v2 = vertices[idx2].trkSvtxId;
+        t1.insert(t1.end(), t2.begin(), t2.end());
+        s1.insert(s1.end(), s2.begin(), s2.end());
+        v1.insert(v1.end(), v2.begin(), v2.end());
+        vertices.erase(vertices.begin() + idx2);
+    }
+}
+
+// Reconstructs two reco secondary vertices for jet ijet using a BDT score cut > 0.365.
+// Returns the summed 4-vectors of the two SVs, or an empty vector if fewer than 2 SVs found.
+vector<ROOT::Math::PtEtaPhiMVector> makeSvtxs_withBDT(
+    tTree& t, Int_t& ijet, Long64_t& ient,
+    double& agg_fail, double& nb_sv, double& sv_fail, double& merge_fail,
+    TH1D* h_score_bkg, TH1D* h_score_sg)
+{
+    std::unordered_map<Int_t, std::vector<ROOT::Math::PtEtaPhiMVector>> secVtxs;
+    std::unordered_map<Int_t, std::vector<int>> secVtxsMatchSta;
+    vector<ROOT::Math::PtEtaPhiMVector> empty;
+    std::vector<ROOT::Math::PtEtaPhiMVector> no_sv_list;
+    std::vector<int> no_sv_sta_list;
+    no_sv_list.reserve(t.ntrk);
+    no_sv_sta_list.reserve(t.ntrk);
+
+    for (Int_t itrk = 0; itrk < t.ntrk; itrk++) {
+        if (t.trkJetId[itrk] != ijet) continue;
+        if (t.trkPt[itrk] < 1) continue;
+        if (t.trkBdtScore[itrk] <= 0.365) continue;
+        ROOT::Math::PtEtaPhiMVector v1;
+        v1.SetEta(t.trkEta[itrk]); v1.SetPt(t.trkPt[itrk]); v1.SetPhi(t.trkPhi[itrk]);
+        int pid = std::abs(t.trkPdgId[itrk]);
+        if      (pid == 211)  v1.SetM(0.139570);
+        else if (pid == 13)   v1.SetM(0.105658);
+        else if (pid == 11)   v1.SetM(0.000510);
+        else if (pid == 2212) v1.SetM(0.938272);
+        else if (pid == 321)  v1.SetM(0.493677);
+        else if (pid == 3112) v1.SetM(1.19744);
+        else if (pid == 3222) v1.SetM(1.18937);
+        else if (pid == 3312) v1.SetM(1.32171);
+        else if (pid == 3334) v1.SetM(1.67245);
+        else                  v1.SetM(0.139570);
+        if (t.trkSvtxId[itrk] < 0) {
+            no_sv_list.push_back(v1); no_sv_sta_list.push_back(t.trkMatchSta[itrk]);
+        } else {
+            secVtxs[t.trkSvtxId[itrk]].push_back(v1);
+            secVtxsMatchSta[t.trkSvtxId[itrk]].push_back(t.trkMatchSta[itrk]);
+        }
+    }
+    if (secVtxs.size() < 2) { nb_sv += 1; return empty; }
+
+    std::vector<Vertex> vertices;
+    for (auto &it : secVtxs) {
+        int svId = it.first;
+        auto& v = secVtxsMatchSta[svId];
+        if (std::adjacent_find(v.begin(), v.end(), std::not_equal_to<int>()) != v.end()) sv_fail += 1.0;
+        Vertex vtx;
+        vtx.p4 = ROOT::Math::PtEtaPhiMVector();
+        for (size_t i = 0; i < it.second.size(); ++i) {
+            vtx.p4 += it.second[i];
+            vtx.tracks.push_back(it.second[i]);
+            vtx.trkMatchSta.push_back(v[i]);
+            vtx.trkSvtxId.push_back(svId);
+        }
+        vertices.push_back(std::move(vtx));
+    }
+    if (vertices.size() > 2) groupVertexes1(vertices);
+
+    auto &vertex0 = vertices[0]; auto &vertex1 = vertices[1];
+    auto check_purity = [&](Vertex& vtx) {
+        std::map<int,int> cm;
+        for (int s : vtx.trkMatchSta) cm[s]++;
+        int mx = 0; for (auto& kv : cm) if (kv.second > mx) mx = kv.second;
+        if (double(mx)/vtx.tracks.size() != 1) merge_fail += 1;
+    };
+    check_purity(vertex0); check_purity(vertex1);
+
+    int i = 0;
+    for (const auto& v1 : no_sv_list) {
+        double d0 = deltaR2(v1, vertex0.p4), d1 = deltaR2(v1, vertex1.p4);
+        if (d0 < d1) {
+            vertex0.p4 += v1;
+            if (no_sv_sta_list[i] != vertex0.trkMatchSta[0]) agg_fail += 1;
+        } else if (d1 < d0) {
+            vertex1.p4 += v1;
+            if (no_sv_sta_list[i] != vertex1.trkMatchSta[0]) agg_fail += 1;
+        }
+        i++;
+    }
+    return {vertices[0].p4, vertices[1].p4};
 }
 
 //Set of functions given by Lida but not used, needed for systematics/some tests
@@ -2490,30 +2653,262 @@ void get_eec_dr_migration(TString &filename, TString &sample, TString &label, TS
 
 }
 
-void create_response(Int_t &beg_event, Int_t &end_event){
-  TString datasets{"dijet"}; //{"bjet"};//, "dijet"};
-    
-  TString folder = "/data_CMS/cms/zaidan/eec_trees/fran_bins/";               //$mydata/eec_trees/merged_trees/";
-  Float_t pT_low = 80;
-  Float_t pT_high = 140;
-  TString pT_selection = "80_140";
-  bool btag =false;
-  Int_t n=1;
+// Creates a 3D response matrix in (mB, dr_SV, jtpt) for unfolding the bb template
+// fit distributions. One entry per jet (not per track pair).
+//
+// Reco level : makeSvtxs_withBDT -> two reconstructed SVs
+// Gen level  : PartialBsAggregation -> all gen b hadrons from refTrk* branches;
+//              the pair with the LARGEST EEC weight (pt_i * pt_j)^n is chosen.
+//
+// Purity   = (reco_pass && gen_pass) / reco_pass  [binned in reco observables]
+// Efficiency = (reco_pass && gen_pass) / gen_pass [binned in gen observables]
+// reco_pass uses reco jet kinematics (jtpt, jteta, btag, reco SVs, reco mB and dr).
+// gen_pass  uses gen  jet kinematics (refpt, refeta) and gen observable range.
+//
+// No fakes: the jet always has a real gen b-hadron pair — only migration corrections needed.
+void create_response_templatefit(
+    TString  filename,
+    TString  output_folder,
+    TString  output_hist,
+    Float_t  pT_low,
+    Float_t  pT_high,
+    Int_t    n,
+    bool     btag,
+    Long64_t ev_first = 0,
+    Long64_t ev_last  = -1)
+{
+    TString fout_name = output_folder + output_hist + (btag ? "_btag" : "_nobtag") + ".root";
 
-  //Create labels
-  std::vector<TString> labels_vec{"b1"};//, "moreb", "other","mc"};
+    tTree t;
+    t.Init(filename, /*isMC=*/true);
+    t.SetBranchStatus("*", 0);
+    std::vector<TString> active_branches = {
+        // reco
+        "jtpt", "jteta", "nref", "jtNsvtx", "discr_particleNet_BvsAll",
+        "ntrk", "trkJetId", "trkBdtScore", "trkPdgId", "trkMatchPdgId", "trkMatchSta",
+        "trkPt", "trkEta", "trkPhi", "trkSvtxId",
+        "nsvtx", "svtxJetId", "svtxNtrk", "svtxm", "svtxmcorr", "svtxpt",
+        "svtxdl", "svtxdls", "svtxdl2d", "svtxdls2d", "svtxnormchi2",
+        "HLT_HIAK4PFJet40_v1",
+        // gen / MC
+        "weight", "pthat", "jtNbHad",
+        "refpt", "refeta",
+        "nrefTrk", "refTrkJetId", "refTrkPt", "refTrkEta", "refTrkPhi",
+        "refTrkPdgId", "refTrkSta"
+    };
+    t.SetBranchStatus(active_branches, 1);
 
-  //    for(Int_t i = 0; i < datasets.size(); i++){
-  //        for(Int_t j = 0; j < labels_vec.size(); j++){
-  TString filename = "merged_trees_nocuts_matched_noaggr_n1_" + datasets + "_inclusive_"+ pT_selection + ".root";
-  std::cout << "Processing file: " << filename << std::endl;
-  //	        create_response_1D(filename,  datasets.at(i), labels_vec.at(j), folder, btag, n, pT_low, pT_high);
-  //create_response_2D(filename,  datasets.at(i), labels_vec.at(j), folder, btag, n, pT_low, pT_high);
-  //create_response_3D(filename,  datasets.at(i), labels_vec.at(j), folder, btag, n, pT_low, pT_high);
-  create_response_3D_inclusive(filename,  datasets, folder, btag, n, pT_low, pT_high, beg_event, end_event);
-    
-  //get_eec_dr_migration(filename, datasets.at(i), labels_vec.at(j), folder, btag);
+    std::random_device rand_dev;
+    std::mt19937 generator(rand_dev());
+    std::uniform_real_distribution<double> distr(0., 1.);
+
+    double agg_fail = 0, nb_sv = 0, sv_fail = 0, merge_fail = 0;
+    long n_bb_jets = 0, n_reco_pass = 0, n_gen_pass = 0, n_both_pass = 0;
+
+    auto make3D = [&](const char* name) {
+        return new TH3D(name, "x=mB, y=dr_SV, z=jtpt",
+                        mb_bins, mb_binsVector, dr_bins, dr_binsVector, jtpt_bins, jtpt_binsVector);
+    };
+    TH3D *h_half0_purity_num = make3D("h_half0_purity_numerator_tf");
+    TH3D *h_half0_purity_den = make3D("h_half0_purity_denominator_tf");
+    TH3D *h_half0_eff_num    = make3D("h_half0_efficiency_numerator_tf");
+    TH3D *h_half0_eff_den    = make3D("h_half0_efficiency_denominator_tf");
+    TH3D *h_half1_purity_num = make3D("h_half1_purity_numerator_tf");
+    TH3D *h_half1_purity_den = make3D("h_half1_purity_denominator_tf");
+    TH3D *h_half1_eff_num    = make3D("h_half1_efficiency_numerator_tf");
+    TH3D *h_half1_eff_den    = make3D("h_half1_efficiency_denominator_tf");
+
+    RooUnfoldResponse *response_half0 = new RooUnfoldResponse(h_half0_purity_den, h_half0_eff_den, "response_tf_half0", "tf response half0");
+    RooUnfoldResponse *response_half1 = new RooUnfoldResponse(h_half1_purity_den, h_half1_eff_den, "response_tf_half1", "tf response half1");
+    RooUnfoldResponse *response_full  = new RooUnfoldResponse(h_half0_purity_den, h_half0_eff_den, "response_tf_full",  "tf response full");
+
+    Long64_t n_events = t.GetEntries();
+    if (ev_last < 0 || ev_last > n_events) ev_last = n_events;
+    std::cout << "Processing events [" << ev_first << ", " << ev_last << ") of " << n_events << std::endl;
+
+    for (Long64_t ient = ev_first; ient < ev_last; ient++) {
+        if (ient % 50000 == 0)
+            std::cout << "\rProcessing: " << 100.0 * ient / n_events << " %" << std::flush;
+        t.GetEntry(ient);
+
+        double weight_tree = t.weight;
+        if (!(t.HLT_HIAK4PFJet40_v1)) continue;
+
+        for (Int_t ijet = 0; ijet < t.nref; ijet++) {
+
+            if (skipMC(t.jtpt[ijet], t.refpt[ijet], t.pthat)) continue;
+            if (t.jtNbHad[ijet] < 2) continue;
+            n_bb_jets++;
+
+            // ---- Gen b hadrons ----
+            std::vector<ROOT::Math::PtEtaPhiMVector> gen_bh;
+            std::vector<Int_t> gen_bh_sta;
+            PartialBsAggregation(gen_bh, gen_bh_sta, t, ijet);
+            if (gen_bh.size() < 2) continue;
+
+            // Pick gen pair with largest EEC weight (pt_i * pt_j)^n
+            int best_i = 0, best_j = 1;
+            double best_pt_prod = -1;
+            for (size_t gi = 0; gi < gen_bh.size(); gi++)
+                for (size_t gj = gi+1; gj < gen_bh.size(); gj++) {
+                    double pp = gen_bh[gi].Pt() * gen_bh[gj].Pt();
+                    if (pp > best_pt_prod) { best_pt_prod = pp; best_i = gi; best_j = gj; }
+                }
+            double eec_gen = std::pow(gen_bh[best_i].Pt() * gen_bh[best_j].Pt(), n);
+            double mB_gen  = gen_bh[best_i].M() + gen_bh[best_j].M();
+            double dr_gen  = t.calc_dr(gen_bh[best_i].Eta(), gen_bh[best_i].Phi(),
+                                       gen_bh[best_j].Eta(), gen_bh[best_j].Phi());
+            double jpt_gen = t.refpt[ijet];
+
+            // ---- Reco SVs ----
+            vector<ROOT::Math::PtEtaPhiMVector> reco_sv =
+                makeSvtxs_withBDT(t, ijet, ient, agg_fail, nb_sv, sv_fail, merge_fail, nullptr, nullptr);
+
+            double mB_reco = -1, dr_reco = -1, eec_reco = -1;
+            double jpt_reco = t.jtpt[ijet];
+            bool reco_sv_ok = (reco_sv.size() >= 2);
+            if (reco_sv_ok) {
+                mB_reco  = reco_sv[0].M() + reco_sv[1].M();
+                dr_reco  = t.calc_dr(reco_sv[0].Eta(), reco_sv[0].Phi(),
+                                     reco_sv[1].Eta(), reco_sv[1].Phi());
+                eec_reco = std::pow(reco_sv[0].Pt() * reco_sv[1].Pt(), n);
+            }
+
+            // Overflow protection
+            double mB_reco_fill = mB_reco, dr_reco_fill = dr_reco;
+            if (reco_sv_ok) {
+                if (mB_reco_fill >= mb_max) mB_reco_fill = mb_max_fill;
+                if (dr_reco_fill >= dr_max) dr_reco_fill = dr_max_fill;
+                if (dr_reco_fill  < dr_min) dr_reco_fill = dr_min_fill;
+            }
+            double mB_gen_fill = mB_gen, dr_gen_fill = dr_gen;
+            if (mB_gen_fill >= mb_max) mB_gen_fill = mb_max_fill;
+            if (dr_gen_fill >= dr_max)  dr_gen_fill = dr_max_fill;
+            if (dr_gen_fill  < dr_min)  dr_gen_fill = dr_min_fill;
+
+            // reco_pass: full detector-level selection
+            bool reco_pass = reco_sv_ok &&
+                             (jpt_reco >= pT_low && jpt_reco < pT_high) &&
+                             (std::abs(t.jteta[ijet]) < 1.6) &&
+                             (!btag || t.discr_particleNet_BvsAll[ijet] > 0.898) &&
+                             (mB_reco_fill >= mb_min && mB_reco_fill < mb_max) &&
+                             (dr_reco_fill >= dr_min && dr_reco_fill < dr_max);
+
+            // gen_pass: particle-level jet kinematics + gen observable range
+            bool gen_pass  = (jpt_gen >= pT_low && jpt_gen < pT_high) &&
+                             (std::abs(t.refeta[ijet]) < 1.6) &&
+                             (mB_gen_fill >= mb_min && mB_gen_fill < mb_max) &&
+                             (dr_gen_fill >= dr_min && dr_gen_fill < dr_max);
+
+            if (reco_pass) n_reco_pass++;
+            if (gen_pass)  n_gen_pass++;
+            if (reco_pass && gen_pass) n_both_pass++;
+
+            double num    = distr(generator);
+            double w_reco = weight_tree * eec_reco;
+            double w_gen  = weight_tree * eec_gen;
+
+            if (reco_pass) {
+                if (num < 0.5) h_half0_purity_den->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
+                else           h_half1_purity_den->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
+            }
+            if (gen_pass) {
+                if (num < 0.5) h_half0_eff_den->Fill(mB_gen_fill, dr_gen_fill, jpt_gen, w_gen);
+                else           h_half1_eff_den->Fill(mB_gen_fill, dr_gen_fill, jpt_gen, w_gen);
+            }
+            if (reco_pass && gen_pass) {
+                if (num < 0.5) {
+                    h_half0_purity_num->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
+                    h_half0_eff_num   ->Fill(mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_gen);
+                    response_half0->Fill(mB_reco_fill, dr_reco_fill, jpt_reco,
+                                         mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_reco);
+                } else {
+                    h_half1_purity_num->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
+                    h_half1_eff_num   ->Fill(mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_gen);
+                    response_half1->Fill(mB_reco_fill, dr_reco_fill, jpt_reco,
+                                         mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_reco);
+                }
+                response_full->Fill(mB_reco_fill, dr_reco_fill, jpt_reco,
+                                     mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_reco);
+            }
+        }
+    }
+    std::cout << std::endl;
+    std::cout << "--- Jet statistics (bb jets, jtNbHad >= 2) ---" << std::endl;
+    std::cout << "  bb jets (after skipMC):      " << n_bb_jets   << std::endl;
+    std::cout << "  Passing reco cuts:           " << n_reco_pass << std::endl;
+    std::cout << "  Passing gen cuts:            " << n_gen_pass  << std::endl;
+    std::cout << "  Passing both (numerator):    " << n_both_pass << std::endl;
+    std::cout << "  Reco SV failures (< 2 SVs): " << nb_sv       << std::endl;
+    std::cout << "  SV purity failures:          " << sv_fail     << std::endl;
+    std::cout << "  SV merging failures:         " << merge_fail  << std::endl;
+    std::cout << "  No-SV track agg failures:    " << agg_fail    << std::endl;
+
+    auto divide = [](TH3D* num, TH3D* den, const char* name) -> TH3D* {
+        TH3D *h = (TH3D*) num->Clone(name);
+        h->Divide(num, den, 1., 1., "b");
+        return h;
+    };
+    TH3D *h_half0_purity = divide(h_half0_purity_num, h_half0_purity_den, "h_half0_purity_tf");
+    TH3D *h_half1_purity = divide(h_half1_purity_num, h_half1_purity_den, "h_half1_purity_tf");
+    TH3D *h_half0_eff    = divide(h_half0_eff_num,    h_half0_eff_den,    "h_half0_efficiency_tf");
+    TH3D *h_half1_eff    = divide(h_half1_eff_num,    h_half1_eff_den,    "h_half1_efficiency_tf");
+
+    TH3D *h_full_purity_num = (TH3D*) h_half0_purity_num->Clone("h_full_purity_numerator_tf");
+    h_full_purity_num->Add(h_half1_purity_num);
+    TH3D *h_full_purity_den = (TH3D*) h_half0_purity_den->Clone("h_full_purity_denominator_tf");
+    h_full_purity_den->Add(h_half1_purity_den);
+    TH3D *h_full_purity = divide(h_full_purity_num, h_full_purity_den, "h_full_purity_tf");
+
+    TH3D *h_full_eff_num = (TH3D*) h_half0_eff_num->Clone("h_full_efficiency_numerator_tf");
+    h_full_eff_num->Add(h_half1_eff_num);
+    TH3D *h_full_eff_den = (TH3D*) h_half0_eff_den->Clone("h_full_efficiency_denominator_tf");
+    h_full_eff_den->Add(h_half1_eff_den);
+    TH3D *h_full_eff = divide(h_full_eff_num, h_full_eff_den, "h_full_efficiency_tf");
+
+    std::cout << "Creating: " << fout_name << std::endl;
+    TFile *fout = new TFile(fout_name, "recreate");
+    h_half0_purity_num->Write(); h_half0_purity_den->Write(); h_half0_purity->Write();
+    h_half0_eff_num->Write();    h_half0_eff_den->Write();    h_half0_eff->Write();
+    response_half0->Write();
+    h_half1_purity_num->Write(); h_half1_purity_den->Write(); h_half1_purity->Write();
+    h_half1_eff_num->Write();    h_half1_eff_den->Write();    h_half1_eff->Write();
+    response_half1->Write();
+    h_full_purity_num->Write(); h_full_purity_den->Write(); h_full_purity->Write();
+    h_full_eff_num->Write();    h_full_eff_den->Write();    h_full_eff->Write();
+    response_full->Write();
+    fout->Close();
+    delete fout;
 }
 
-//  }
-//}
+void create_response(Int_t beg_event = 0, Int_t end_event = -1){
+
+  Float_t pT_low  = 80;
+  Float_t pT_high = 200;
+  bool    btag    = true;
+  Int_t   n       = 1;
+
+  // ---- Single-b EEC response (existing functions, preprocessed flat trees) ----
+  TString datasets     = "dijet"; // or "bjet"
+  TString pT_selection = "80_200";
+  TString eec_folder   = "/data_CMS/cms/zaidan/analysis_lise/undfolding/";
+  TString eec_filename = "merged_trees_matched_" + datasets + pT_selection + ".root";
+
+  //create_response_1D(eec_filename, datasets, TString("b1"), eec_folder, btag, n, pT_low, pT_high);
+  //create_response_2D(eec_filename, datasets, TString("b1"), eec_folder, btag, n, pT_low, pT_high);
+  //create_response_3D(eec_filename, datasets, TString("b1"), eec_folder, btag, n, pT_low, pT_high);
+  //create_response_3D_inclusive(eec_filename, datasets, eec_folder, btag, n, pT_low, pT_high, beg_event, end_event);
+
+  // ---- Double-b template fit response (raw MC tTree format) ----
+  TString tf_output_folder = "/data_CMS/cms/zaidan/analysis_lise/";
+
+  // bjet MC
+  TString bjet_file = "/data_CMS/cms/kalipoliti/qcdMC/bjet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
+  create_response_templatefit(bjet_file, tf_output_folder, "response_templatefit_n1_bjet",
+                              pT_low, pT_high, n, btag, beg_event, end_event);
+
+  // dijet MC
+  //TString dijet_file = "/data_CMS/cms/kalipoliti/qcdMC/dijet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
+  //create_response_templatefit(dijet_file, tf_output_folder, "response_templatefit_n1_dijet",
+  //                            pT_low, pT_high, n, btag, beg_event, end_event);
+}
