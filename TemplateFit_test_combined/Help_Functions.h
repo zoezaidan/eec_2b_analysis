@@ -48,8 +48,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     TString &folder,
     TString &pT_selection,
     Int_t pt_bin,
-    Variation ivar,
-    bool rebin_dr 
+    Variation ivar
     );
 
 TLegend* CreateLegend(
@@ -362,12 +361,14 @@ void DrawCommonTextTopRight(TPad* pad,  int ibin_dr, int ibin_pt, const double* 
     if(!ibin_dr ){dr_first = newyBins[0]; dr_last = -1;} // integrated bin to infinity 
     else if (ibin_dr == N_bins_dr) { dr_first =  newyBins[ibin_dr -1];  dr_last = -1;} // last binto infintiy 
         else { dr_first =  newyBins[ibin_dr -1]; dr_last  = newyBins[ibin_dr];} // normal 
-    
+
+    cout << "HOLA dr bin #"<< ibin_dr << "first and last are : " << dr_first << ", " << dr_last << endl;
+
 
     if (!ibin_pt){pt_first = jtpt_binsVector[0];  pt_last = jtpt_binsVector[jtpt_bins];} 
         else{pt_first = jtpt_binsVector[ibin_pt-1]; pt_last = jtpt_binsVector[ibin_pt]; }
 
-        // cout << "pt bin #"<< ibin_pt << "pt first and last are : " << pt_first << ", " << pt_last << endl;
+    cout << "pt bin #"<< ibin_pt << "pt first and last are : " << pt_first << ", " << pt_last << endl;
 
     if (dr_last < 0.0) latex.DrawLatex(x, y, Form("%g < #DeltaR < #infty", dr_first)); // we use lower cut(no underflow)
     else latex.DrawLatex(x, y, Form("%g < #DeltaR < %g", dr_first, dr_last));
@@ -424,8 +425,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     TString &folder,
     TString &pT_selection,
     Int_t ibin_pt,
-    Variation ivar = NOMINAL,
-    bool rebin_dr = true)
+    Variation ivar = NOMINAL)
 {
     // For trvial tests 
     TString trivialMC_label = fout_name.Contains("trivialMC") ? "_trivialMC": "";
@@ -621,8 +621,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
         // -- signal
         Int_t N_dr_bins; // 
         const double* binsvector = nullptr;
-        if (rebin_dr){binsvector = dr_binsVector_wider; N_dr_bins = bins_dr_wider;}
-        else { binsvector = dr_binsVector; N_dr_bins = bins_dr;}
+        binsvector = dr_binsVector; N_dr_bins = bins_dr;
 
 
         TH1D* h_dr = new TH1D("h_dr", "h_dr", N_dr_bins, binsvector); 
