@@ -126,7 +126,7 @@ Double_t jtpt_binsVector[jtpt_binsVectorSize] = {
     80., 
     100., 
     120.,
-    140.
+    200
 };
 Double_t jtpt_min = jtpt_binsVector[0];
 Double_t jtpt_max = jtpt_binsVector[jtpt_bins];
@@ -134,7 +134,7 @@ Double_t jtpt_max = jtpt_binsVector[jtpt_bins];
 
 Int_t bins_pt = 3;
 Double_t pt_min = 80;
-Double_t pt_max = 140;
+Double_t pt_max = 200;
 
 //Get the dimension label
 Int_t mb_dim = 0;
