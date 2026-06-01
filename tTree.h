@@ -390,6 +390,8 @@ void tTree::Init(TString rootf, bool isMC)
 {
    
   TFile *fin = TFile::Open(rootf);
+  if (!fin ->IsOpen()){cout << "Root input file fail to Open!! "<< endl; return;}
+   
    if(!isMC) tree = (TTree*) fin->Get("akCs4PFJetAnalyzer/t");
    else tree = (TTree*) fin->Get("ak4PFJetAnalyzer/t");
    

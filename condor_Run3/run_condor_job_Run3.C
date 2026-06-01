@@ -11,6 +11,10 @@ void run_condor_job_Run3(Int_t job_idx, Int_t n_jobs, Int_t dataType,
                     Int_t btag_int, Int_t isMC_int, Int_t fileindex) {
 
 
+  std::cout << "ENTERED run_condor_job_Run3()" << std::endl;
+  std::cout << "JOBID = " << job_idx << std::endl;
+
+
   bool btag = (btag_int != 0);
   bool isMC = (isMC_int != 0);
 
@@ -53,22 +57,27 @@ void run_condor_job_Run3(Int_t job_idx, Int_t n_jobs, Int_t dataType,
   tmp.Init(filename, isMC);
   Long64_t n_total = tmp.GetEntries();
 
+  // job_idx is global 
+  // Compute local one
+  int local_job_idx = job_idx % n_jobs; 
   Long64_t chunk   = (n_total + n_jobs - 1) / n_jobs;
-  Long64_t ev_first = (Long64_t)job_idx * chunk;
+  Long64_t ev_first = (Long64_t) local_job_idx * chunk;
   Long64_t ev_last  = std::min(ev_first + chunk, n_total);
 
-// TEST few entries 
-// -- test with one job
-  // n_total = 100000; // total events
+  // TEST few entries 
+  // -- test with one job
+  // n_total = 1000; // total events
   // ev_first = 0; 
-  // ev_last = 100000;
+  // ev_last = 1000;
 
-  std::cout << "Job " << job_idx << "/" << n_jobs
+  std::cout
+  << "  global job = " << job_idx 
+   << "  Job " << local_job_idx << "/" << n_jobs
             << "  events [" << ev_first << ", " << ev_last << ")"
             << "  total=" << n_total << std::endl;
 
 
   make_templates(filename, output_folder, output_hist, domain,
                  pT_low, pT_high, n, btag, isMC, dataType,
-                 ev_first, ev_last, job_idx);
+                 ev_first, ev_last, local_job_idx);
 }

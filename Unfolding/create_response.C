@@ -32,6 +32,10 @@
 #include <Math/Vector4D.h>
 #include "Math/VectorUtil.h"
 
+// NEW header
+#include "RooUnfoldResponse.h"
+
+
 //Skips MC events with too large event weight
 bool skipMC(double jtpt, double refpt, double pthat) {
     if (!(refpt>0)) return true;
@@ -601,7 +605,7 @@ void create_response_1D(TString &filename,  TString &dataset, TString &label, TS
             
             //checks for underflow/overflow
             if(dr_reco_j >= dr_max) dr_reco_j = dr_max_fill;
-            if(dr_reco_j < dr_min) dr_reco_j = dr_min_fill;
+            // if(dr_reco_j < dr_min) dr_reco_j = dr_min_fill;
 
             bool reco_pass_cuts_eec = (jpt_reco < jtpt_max && jpt_reco >= jtpt_min);
             bool true_pass_cuts_eec = (jpt_gen < jtpt_max && jpt_gen >= jtpt_min);
@@ -2889,7 +2893,7 @@ void create_response(Int_t beg_event = 0, Int_t end_event = -1){
   Int_t   n       = 1;
 
   // ---- Single-b EEC response (existing functions, preprocessed flat trees) ----
-  TString datasets     = "dijet"; // or "bjet"
+  TString datasets     = "bjet"; // or "bjet"
   TString pT_selection = "80_200";
   TString eec_folder   = "/data_CMS/cms/zaidan/analysis_lise/undfolding/";
   TString eec_filename = "merged_trees_matched_" + datasets + pT_selection + ".root";
@@ -2903,7 +2907,8 @@ void create_response(Int_t beg_event = 0, Int_t end_event = -1){
   TString tf_output_folder = "/data_CMS/cms/zaidan/analysis_lise/";
 
   // bjet MC
-  TString bjet_file = "/data_CMS/cms/kalipoliti/qcdMC/bjet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
+  cout << "Hello SALAM " << endl;
+  TString bjet_file = "/data_CMS/cms/shatat/CMSAnalysis/eec_2b_analysis/Unfolding/input_ntuples/merged_HiForestMiniAOD.root";
   create_response_templatefit(bjet_file, tf_output_folder, "response_templatefit_n1_bjet",
                               pT_low, pT_high, n, btag, beg_event, end_event);
 

@@ -36,8 +36,24 @@ mkdir -p ${CONDORDIR}/logfiles
 
 cd ${CONDORDIR}
 unset CMSSW_BASE CMSSW_VERSION CMSSW_RELEASE_BASE ROOT_INCLUDE_PATH
-## Try compile first
-#root -b -q -e 'gSystem->CompileMacro("run_condor_job.C","kf"); exit(0);'
-## If use precompile --> use c+ not c++
-root -b -q -l "run_condor_job_Run3.C++(${JOBID}, ${N_JOBS}, ${DATATYPE}, ${PT_LOW}, ${PT_HIGH}, ${N}, ${BTAG}, ${ISMC}, ${FILEINDEX})"
+
+## Using manual compilation 
+### load compilaed result then run 
+
+##debug: what root reads
+cat <<EOF
+gSystem->Load("run_condor_job_Run3_C.so");
+run_condor_job_Run3(${JOBID}, ${N_JOBS}, ${DATATYPE},
+                    ${PT_LOW}, ${PT_HIGH},
+                    ${N}, ${BTAG}, ${ISMC}, ${FILEINDEX});
+.q
+EOF
+
+### Run here  
+root -l -b \
+-e 'gSystem->Load("./run_condor_job_Run3_C.so");' \
+-e 'run_condor_job_Run3('"${JOBID}"','"${N_JOBS}"','"${DATATYPE}"','"${PT_LOW}"','"${PT_HIGH}"','"${N}"','"${BTAG}"','"${ISMC}"','"${FILEINDEX}"');'
+# to check if root works sok, it exit 0 
+echo "ROOT exit code = $?"
+
 
