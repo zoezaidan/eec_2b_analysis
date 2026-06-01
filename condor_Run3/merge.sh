@@ -14,8 +14,9 @@ OUTPUT_HIST=$1   # e.g. Run3_WP90_template_for_fit_histos_3D_qcd
 LABEL=$2         # btag or nobtag
 N_JOBS=$3	 # 100    
 
-OUTPUT_FOLDER="/home/shatat/shatatLLR/CMSAnalysis/eec_2b_analysis/condor_Run3/MergedJobResult"
-MERGED="${OUTPUT_FOLDER}/MergedAllFiles_${OUTPUT_HIST}_${LABEL}.root"
+OUTPUT_FOLDER="/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/condor_Run3/JobResult"
+MERGED_OUTPUT_FOLDER="/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/condor_Run3/MergedJobResult"
+MERGED="${MERGED_OUTPUT_FOLDER}/MergedAllFiles_${OUTPUT_HIST}_${LABEL}.root"
 
 FILES=""
 for FILEINDEX in $(seq 0 9); do

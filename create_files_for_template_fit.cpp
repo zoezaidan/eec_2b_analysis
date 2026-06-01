@@ -886,6 +886,9 @@ void make_templates(TString filename, TString output_folder, TString output_hist
   if (ev_first < 0) ev_first = 0;
   std::cout << "Processing events [" << ev_first << ", " << ev_last << ") of " << n_events << std::endl;
 
+  //// -- for test
+  ev_last= 1e+05;
+
   for (Long64_t ient = ev_first; ient < ev_last; ient++) {
     if (ient % 50000 == 0)
       std::cout << "\rProcessing: " << 100.0 * ient / n_events << " %" << std::flush;
@@ -902,7 +905,7 @@ void make_templates(TString filename, TString output_folder, TString output_hist
       if (!(t.HLT_HIAK4PFJet40_v1 || t.HLT_HIAK4PFJet60_v1 )) continue;
       
     }
-    else if (isMC) {if (!(t.HLT_HIAK4PFJet40_v1)) continue;}
+    // else if (isMC) {if (!(t.HLT_HIAK4PFJet40_v1)) continue;}
 
     for (Int_t ijet = 0; ijet < t.nref; ijet++) {
 
@@ -910,7 +913,7 @@ void make_templates(TString filename, TString output_folder, TString output_hist
       if (std::abs(t.jteta[ijet]) > 1.9) continue;
       if (isMC && skipMC(t.jtpt[ijet], t.pthat)) continue;
       if (t.jtpt[ijet] < pT_low || t.jtpt[ijet] > pT_high) continue;
-      if (btag && t.discr_particleNet_BvsAll[ijet] <= 0.898) continue;
+      // if (btag && t.discr_particleNet_BvsAll[ijet] <= 0.898) continue;
 
       // reco SV reconstruction — same for data and MC
       vector<ROOT::Math::PtEtaPhiMVector> reco_sv = makeSvtxs_withBDT(t, ijet, ient, agg_fail, nb_sv, sv_fail, merge_fail, nullptr, nullptr);
@@ -950,7 +953,7 @@ void make_templates(TString filename, TString output_folder, TString output_hist
 
   TString label = btag ? "_btag" : "_nobtag";
   TString job_suffix = (job_idx >= 0) ? Form("_job%d", job_idx) : "";
-  TFile outFile((output_folder + output_hist + label + job_suffix + domain).Data(), "RECREATE");
+  TFile outFile((output_folder + output_hist + job_suffix +  label + domain).Data(), "RECREATE");
   if (isMC) {
     h3D_0b->Write();
     h3D_b->Write();
@@ -970,11 +973,15 @@ void make_templates(TString filename, TString output_folder, TString output_hist
 //Step 2: filter bb from b, but split the sample in 2 and treat one as data and one as MC (to be used as template fit input)
 
 
-void create_files_for_template_fit(Int_t dataType = 1, Float_t pT_low = 80, Float_t pT_high = 140, Int_t n = 1, bool btag = true, bool isMC = true){
+void create_files_for_template_fit(Int_t dataType = 1, Float_t pT_low = 80, Float_t pT_high = 200, Int_t n = 1, bool btag = true, bool isMC = true){
  
+// -- for Run3 MC tests 
+dataType =2;
+
+
 TString filename;
 TString output_hist;
-TString output_folder = "/data_CMS/cms/zaidan/analysis_lise/";
+TString output_folder = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/";
 TString domain = ".root";
 
 //sanity check
@@ -987,8 +994,6 @@ if (!isMC && dataType > 1) {
   return;}
 
  
-
-
 if(dataType == -1){//________________________________data______________________________
   filename = "/data_CMS/cms/kalipoliti/bJet2017G/LowEGJet/aggrTMVA_fixedMassBug/all_merged_HiForestMiniAOD.root";
   output_hist = "MAY_WP0898_template_for_fit_histos_3D_LowEG_f";
@@ -1011,8 +1016,14 @@ else if(dataType == 1){//________________________________bjet___________________
   }
 
 else if(dataType == 2){//________________________________dijet______________________________
-  filename = "/data_CMS/cms/kalipoliti/qcdMC/dijet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root"; 
-  output_hist = "MAY_template_for_fit_histos_3D_qcd_f";
+  // filename = "/data_CMS/cms/kalipoliti/qcdMC/dijet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root"; 
+  // output_hist = "MAY_template_for_fit_histos_3D_qcd_f";
+
+// -- Test Run3 MC one sample file 
+filename = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/condor_Run3/dataset_test/merged_HiForestMiniAOD.root"; 
+output_hist = Form("Run3_WP0898_template_for_fit_histos_3D_qcd_file_0");
+
+
   std::cout << "Creating files for template fit for qcd sample" << std::endl;
   cout<<"you chose qcd MC" <<endl;
   }
