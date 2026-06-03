@@ -97,6 +97,11 @@ public :
    Int_t           HLT_AK4PFJet80_v8;
    Int_t           HLT_AK4PFJet100_v8;
    Int_t           HLT_HIAK4PFJet120_v1;
+   // Run 3: b tag discriminating variables 
+   Float_t         discr_unifiedParticleTransformer_probb[500]; // [nref]
+   Float_t         discr_unifiedParticleTransformer_problepb[500]; // [nref]
+   Float_t         discr_unifiedParticleTransformer_probbb[500]; // [nref]
+
 
    //Prescale
    //Double_t        prescale_pf40;
@@ -274,6 +279,11 @@ public :
    TBranch        *b_HLT_AK4PFJet80_v8;
    TBranch        *b_HLT_AK4PFJet100_v8;
    TBranch        *b_HLT_HIAK4PFJet120_v1;
+   // Run 3: btag variables branches 
+   TBranch        *b_discr_unifiedParticleTransformer_probb;
+   TBranch        *b_discr_unifiedParticleTransformer_problepb;
+   TBranch        *b_discr_unifiedParticleTransformer_probbb;
+
 
    //Prescale
    //TBranch        *b_prescale_pf40;
@@ -417,8 +427,12 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
    tree->SetBranchAddress("nvtx", &nvtx, &b_nvtx);
    tree->SetBranchAddress("rawpt", rawpt, &b_rawpt);
    tree->SetBranchAddress("jtpt", jtpt, &b_jtpt);
-   //if(isMC)tree->SetBranchAddress("jtpt_gen", jtpt_gen, &b_jtpt_gen);
+   // if(isMC)tree->SetBranchAddress("jtpt_gen", jtpt_gen, &b_jtpt_gen);
+
+// --- Suggestion: Run 2 only ------------------	
    tree->SetBranchAddress("discr_particleNet_BvsAll", discr_particleNet_BvsAll, &b_discr_particleNet_BvsAll);
+// --- Suggestion: Run 2 only ------------------	
+
    tree->SetBranchAddress("jteta", jteta, &b_jteta);
    tree->SetBranchAddress("jty", jty, &b_jty);
    tree->SetBranchAddress("jtphi", jtphi, &b_jtphi);
@@ -450,11 +464,19 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
    tree->SetBranchAddress("trkY", trkY, &b_trkY);
    tree->SetBranchAddress("trkIp3d", trkIp3d, &b_trkIp3d);
    tree->SetBranchAddress("trkIp3dSig", trkIp3dSig, &b_trkIp3dSig);
+	
+// --- suggestion Run 2 only ---------	
    tree->SetBranchAddress("trkDistToAxisSig", trkDistToAxisSig, &b_trkDistToAxisSig);
+// ----------------------------------------	
+	
    tree->SetBranchAddress("trkDistToAxis", trkDistToAxis, &b_trkDistToAxis);
    tree->SetBranchAddress("trkMatchSta", trkMatchSta, &b_trkMatchSta);
    tree->SetBranchAddress("trkBdtScore", trkBdtScore, &b_trkBdtScore); //
+	
+// --- suggestion Run 2 only ---------	
    tree->SetBranchAddress("FNscore", FNscore, &b_FNscore); //
+// ----------------------------------------	
+
    tree->SetBranchAddress("jtNsvtx", jtNsvtx, &b_jtNsvtx);
    tree->SetBranchAddress("nsvtx", &nsvtx, &b_nsvtx);
    tree->SetBranchAddress("svtxJetId", svtxJetId, &b_svtxJetId);
@@ -482,8 +504,10 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
    tree->SetBranchAddress("jtDiscDeepFlavourBB", jtDiscDeepFlavourBB, &b_jtDiscDeepFlavourBB);
    tree->SetBranchAddress("jtDiscDeepFlavourLEPB", jtDiscDeepFlavourLEPB, &b_jtDiscDeepFlavourLEPB);
    */
+
+	tree->SetBranchAddress("discr_pfJP", discr_pfJP, &b_discr_pfJP); // exist for both Run 2 and 3
+// ---- sggestion: Run 2 ONLY ----------------------------------------------------------------	
    tree->SetBranchAddress("discr_deepCSV", discr_deepCSV, &b_discr_deepCSV);
-   tree->SetBranchAddress("discr_pfJP", discr_pfJP, &b_discr_pfJP);
    tree->SetBranchAddress("discr_deepFlavour_b", discr_deepFlavour_b, &b_discr_deepFlavour_b);
    tree->SetBranchAddress("discr_deepFlavour_bb", discr_deepFlavour_bb, &b_discr_deepFlavour_bb);
    tree->SetBranchAddress("discr_deepFlavour_lepb", discr_deepFlavour_lepb, &b_discr_deepFlavour_lepb);
@@ -500,23 +524,32 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
 
    tree->SetBranchAddress("jtmB", jtmB, &b_jtmB);
    tree->SetBranchAddress("jtBpt", jtBpt, &b_jtBpt);
+// -------------------------------------------------------------------------	
    tree->SetBranchAddress("jtptCh", jtptCh, &b_jtptCh);
-
    tree->SetBranchAddress("trkMass", trkMass, &b_trkMass);
 
+// --------------------- Sugestion: Limit the HLT to Run 2 only --------------------------------	
    //HLT (Run 2)
    tree->SetBranchAddress("HLT_HIAK4PFJet100_v1", &HLT_HIAK4PFJet100_v1, &b_HLT_HIAK4PFJet100_v1);
    tree->SetBranchAddress("HLT_HIAK4PFJet80_v1", &HLT_HIAK4PFJet80_v1, &b_HLT_HIAK4PFJet80_v1);
    tree->SetBranchAddress("HLT_HIAK4PFJet60_v1", &HLT_HIAK4PFJet60_v1, &b_HLT_HIAK4PFJet60_v1);
    tree->SetBranchAddress("HLT_HIAK4PFJet40_v1", &HLT_HIAK4PFJet40_v1, &b_HLT_HIAK4PFJet40_v1);
    tree->SetBranchAddress("HLT_HIAK4PFJet30_v1", &HLT_HIAK4PFJet30_v1, &b_HLT_HIAK4PFJet30_v1);
+// ------------------------------------------------------------------------------------------------
+	
 
-   // HLT (Run 3 — set only when RunN==3; Run 3 files also keep the HIAK4 prescale triggers)
+// HLT (Run 3 — set only when RunN==3; Run 3 files also keep the HIAK4 prescale triggers)
+// ----- Are you sure that Run3 allow the old HLT branches of Run 2 ? (I dont think so, since Run2 trigger names does not exist anymore). See Run 2 Triggers suggestion above.	
    if (RunN == 3) {
      tree->SetBranchAddress("HLT_AK4PFJet60_v8",    &HLT_AK4PFJet60_v8,    &b_HLT_AK4PFJet60_v8);
      tree->SetBranchAddress("HLT_AK4PFJet80_v8",    &HLT_AK4PFJet80_v8,    &b_HLT_AK4PFJet80_v8);
      tree->SetBranchAddress("HLT_AK4PFJet100_v8",   &HLT_AK4PFJet100_v8,   &b_HLT_AK4PFJet100_v8);
      tree->SetBranchAddress("HLT_HIAK4PFJet120_v1", &HLT_HIAK4PFJet120_v1, &b_HLT_HIAK4PFJet120_v1);
+     
+	tree->SetBranchAddress("discr_unifiedParticleTransformer_probb", discr_unifiedParticleTransformer_probb, &b_discr_unifiedParticleTransformer_probb);
+    tree->SetBranchAddress("discr_unifiedParticleTransformer_problepb", discr_unifiedParticleTransformer_problepb, &b_discr_unifiedParticleTransformer_probb);
+    tree->SetBranchAddress("discr_unifiedParticleTransformer_probbb", discr_unifiedParticleTransformer_probbb, &b_discr_unifiedParticleTransformer_probbb);
+   
    }
    
    //Prescale
@@ -549,13 +582,16 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
      tree->SetBranchAddress("genm", genm, &b_genm);
      tree->SetBranchAddress("gendphijt", gendphijt, &b_gendphijt);
      tree->SetBranchAddress("gendrjt", gendrjt, &b_gendrjt);
-     tree->SetBranchAddress("jtHadFlav", jtHadFlav, &b_jtHadFlav);
+// --- Suggestion to include these lines for Run 2 ONLY [jtHadFlav,jtParFlav] -----------------------
+	 tree->SetBranchAddress("jtHadFlav", jtHadFlav, &b_jtHadFlav);
      tree->SetBranchAddress("jtParFlav", jtParFlav, &b_jtParFlav);
-     tree->SetBranchAddress("jtNbHad", jtNbHad, &b_jtNbHad);
+// ----------------------------------------------------------------------------     
+	 tree->SetBranchAddress("jtNbHad", jtNbHad, &b_jtNbHad);
      tree->SetBranchAddress("jtNcHad", jtNcHad, &b_jtNcHad);
      tree->SetBranchAddress("jtNbPar", jtNbPar, &b_jtNbPar);
      tree->SetBranchAddress("jtNcPar", jtNcPar, &b_jtNcPar);
-  
+     
+// --- Suggestion to include these lines for Run 2 ONLY [rsjt1Pt - refBpt] ------
      tree->SetBranchAddress("rsjt1Pt", rsjt1Pt, &b_rsjt1Pt);
      tree->SetBranchAddress("rsjt1Eta", rsjt1Eta, &b_rsjt1Eta);
      tree->SetBranchAddress("rsjt1Phi", rsjt1Phi, &b_rsjt1Phi);
@@ -568,6 +604,7 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
    
      tree->SetBranchAddress("refmB", refmB, &b_refmB);
      tree->SetBranchAddress("refBpt", refBpt, &b_refBpt);
+// --------------------------------------------------------------	   
      tree->SetBranchAddress("refptCh", refptCh, &b_refptCh);
      tree->SetBranchAddress("refNtrk", refNtrk, &b_refNtrk);
      
@@ -615,6 +652,9 @@ void tTree::plot_rgzgkt(TString foutname, Float_t bTagWP = 0.9)
         tree->SetBranchStatus(activeBranchName, 1);
     }
 
+	/* 
+	/ --- Do we really need these histograms ?  -----
+		
     // Create histograms
 
     // ln(0.4/rg)
@@ -805,7 +845,7 @@ void tTree::plot_rgzgkt(TString foutname, Float_t bTagWP = 0.9)
             }
         } // jet loop
     } // entry loop
-
+	
     // Save histograms
     std::cout << "\n(Re)creating file " << foutname << std::endl;
     TFile *fout = new TFile(foutname, "recreate");
@@ -825,6 +865,10 @@ void tTree::plot_rgzgkt(TString foutname, Float_t bTagWP = 0.9)
 
     fout->Close();
 }
+
+--- END of COMMENTED histpgram script ----
+*/
+
 
 Float_t tTree::calc_dr(Float_t eta1, Float_t phi1, Float_t eta2, Float_t phi2) {
     ROOT::Math::PtEtaPhiMVector v1;
