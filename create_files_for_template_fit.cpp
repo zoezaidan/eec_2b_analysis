@@ -921,7 +921,7 @@ void make_templates(Int_t RunN, TString filename, TString output_folder, TString
       if (!isMC) {
         if ( !(t.HLT_AK4PFJet60_v8 || t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8)) continue;
       }
-	  else if (is MC){
+	  else if (isMC){
 		  if(!t.HLT_AK4PFJet60_v8) continue;
 	  }
     }
