@@ -850,17 +850,22 @@ void make_templates(Int_t RunN, TString filename, TString output_folder, TString
 
   double prescale_pf40 = (RunN == 2) ? 33.917210 : 6.2336493;
   std::vector<TString> active_branches = {
-    "jtpt", "jteta", "nref", "jtNtrk", "jtNsvtx", "discr_particleNet_BvsAll",
+    "jtpt", "jteta", "nref", "jtNtrk", "jtNsvtx",
     "ntrk", "trkJetId", "trkBdtScore", "trkPdgId", "trkMatchPdgId", "trkMatchSta", "trkPt", "trkEta", "trkPhi",
     "trkSvtxId", "nsvtx", "svtxJetId", "svtxNtrk", "svtxm", "svtxmcorr", "svtxpt",
     "svtxdl", "svtxdls", "svtxdl2d", "svtxdls2d", "svtxnormchi2"};
   if (RunN == 2) {
     active_branches.insert(active_branches.end(), {
-      "HLT_HIAK4PFJet40_v1", "HLT_HIAK4PFJet60_v1", "HLT_HIAK4PFJet80_v1", "HLT_HIAK4PFJet100_v1"});
+      "HLT_HIAK4PFJet40_v1", "HLT_HIAK4PFJet60_v1", "HLT_HIAK4PFJet80_v1", "HLT_HIAK4PFJet100_v1", 
+	  "discr_particleNet_BvsAll"
+		});
   } else if (RunN == 3) {
     active_branches.insert(active_branches.end(), {
       "HLT_AK4PFJet60_v8", "HLT_AK4PFJet80_v8", "HLT_AK4PFJet100_v8",
-      "HLT_HIAK4PFJet60_v1", "HLT_HIAK4PFJet80_v1", "HLT_HIAK4PFJet100_v1", "HLT_HIAK4PFJet120_v1"});
+      "HLT_HIAK4PFJet60_v1", "HLT_HIAK4PFJet80_v1", "HLT_HIAK4PFJet100_v1", "HLT_HIAK4PFJet120_v1",
+	  "discr_unifiedParticleTransformer_probb", "discr_unifiedParticleTransformer_problepb", 
+       "discr_unifiedParticleTransformer_probbb" 	
+		});
   }
   if (isMC) {
     active_branches.insert(active_branches.end(), {"weight", "pthat", "jtNbHad"});
