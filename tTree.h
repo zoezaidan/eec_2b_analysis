@@ -85,12 +85,18 @@ public :
    Int_t           refTrkSta[500];   //[ntrk]
    Float_t         refTrkMass[500];
 
-   //HLT selection
+   //HLT selection (Run 2)
    Int_t           HLT_HIAK4PFJet100_v1;
    Int_t           HLT_HIAK4PFJet80_v1;
    Int_t           HLT_HIAK4PFJet60_v1;
    Int_t           HLT_HIAK4PFJet40_v1;
    Int_t           HLT_HIAK4PFJet30_v1;
+
+   // HLT selection (Run 3)
+   Int_t           HLT_AK4PFJet60_v8;
+   Int_t           HLT_AK4PFJet80_v8;
+   Int_t           HLT_AK4PFJet100_v8;
+   Int_t           HLT_HIAK4PFJet120_v1;
 
    //Prescale
    //Double_t        prescale_pf40;
@@ -256,12 +262,18 @@ public :
    TBranch        *b_trkMass;
    TBranch        *b_nrefTrk;
 
-   //HLT branches
+   //HLT branches (Run 2)
    TBranch        *b_HLT_HIAK4PFJet100_v1;
    TBranch        *b_HLT_HIAK4PFJet80_v1;
    TBranch        *b_HLT_HIAK4PFJet60_v1;
    TBranch        *b_HLT_HIAK4PFJet40_v1;
    TBranch        *b_HLT_HIAK4PFJet30_v1;
+
+   // HLT branches (Run 3)
+   TBranch        *b_HLT_AK4PFJet60_v8;
+   TBranch        *b_HLT_AK4PFJet80_v8;
+   TBranch        *b_HLT_AK4PFJet100_v8;
+   TBranch        *b_HLT_HIAK4PFJet120_v1;
 
    //Prescale
    //TBranch        *b_prescale_pf40;
@@ -353,7 +365,7 @@ public :
   ~tTree();
   Int_t GetEntry(Long64_t entry);
   Long64_t GetEntries();
-  void Init(TString, bool);
+  void Init(TString, bool, Int_t RunN = 2);
   void SetBranchStatus(TString branchName, Int_t status);
   void SetBranchStatus(std::vector<TString> branchNames, Int_t status);
   void plot_rgzgkt(TString foutname, Float_t bTagWP);
@@ -386,7 +398,7 @@ Long64_t tTree::GetEntries()
    return tree->GetEntries();
 }
 
-void tTree::Init(TString rootf, bool isMC)
+void tTree::Init(TString rootf, bool isMC, Int_t RunN)
 {
    
   TFile *fin = TFile::Open(rootf);
@@ -492,12 +504,20 @@ void tTree::Init(TString rootf, bool isMC)
 
    tree->SetBranchAddress("trkMass", trkMass, &b_trkMass);
 
-   //HLT
+   //HLT (Run 2)
    tree->SetBranchAddress("HLT_HIAK4PFJet100_v1", &HLT_HIAK4PFJet100_v1, &b_HLT_HIAK4PFJet100_v1);
    tree->SetBranchAddress("HLT_HIAK4PFJet80_v1", &HLT_HIAK4PFJet80_v1, &b_HLT_HIAK4PFJet80_v1);
    tree->SetBranchAddress("HLT_HIAK4PFJet60_v1", &HLT_HIAK4PFJet60_v1, &b_HLT_HIAK4PFJet60_v1);
    tree->SetBranchAddress("HLT_HIAK4PFJet40_v1", &HLT_HIAK4PFJet40_v1, &b_HLT_HIAK4PFJet40_v1);
    tree->SetBranchAddress("HLT_HIAK4PFJet30_v1", &HLT_HIAK4PFJet30_v1, &b_HLT_HIAK4PFJet30_v1);
+
+   // HLT (Run 3 — set only when RunN==3; Run 3 files also keep the HIAK4 prescale triggers)
+   if (RunN == 3) {
+     tree->SetBranchAddress("HLT_AK4PFJet60_v8",    &HLT_AK4PFJet60_v8,    &b_HLT_AK4PFJet60_v8);
+     tree->SetBranchAddress("HLT_AK4PFJet80_v8",    &HLT_AK4PFJet80_v8,    &b_HLT_AK4PFJet80_v8);
+     tree->SetBranchAddress("HLT_AK4PFJet100_v8",   &HLT_AK4PFJet100_v8,   &b_HLT_AK4PFJet100_v8);
+     tree->SetBranchAddress("HLT_HIAK4PFJet120_v1", &HLT_HIAK4PFJet120_v1, &b_HLT_HIAK4PFJet120_v1);
+   }
    
    //Prescale
    //tree->SetBranchAddress("prescale_pf40", &prescale_pf40, &b_prescale_pf40);

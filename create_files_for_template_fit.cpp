@@ -530,11 +530,11 @@ vector<ROOT::Math::PtEtaPhiMVector> makeSvtxs_withBDT(
 
 
 // - - - - - - - - - - -  USING FUNCTIONS  - - - - - - - - - - -
-void filter_b_bb(TString filename, TString output_folder, TString output_hist, TString domain, Float_t pT_low, Float_t pT_high, Int_t n, bool btag, bool isMC, Int_t dataType) {
+void filter_b_bb(Int_t RunN,TString filename, TString output_folder, TString output_hist, TString domain, Float_t pT_low, Float_t pT_high, Int_t n, bool btag, bool isMC, Int_t dataType) {
   
   // true level information aggregated to partial Bs
   tTree t;
-  t.Init(filename, isMC);
+  t.Init(filename, isMC, RunN);
   t.SetBranchStatus("*", 0);
     double lt2sv = 0 ;
     double totjt = 0;
@@ -558,7 +558,8 @@ void filter_b_bb(TString filename, TString output_folder, TString output_hist, T
       "HLT_HIAK4PFJet40_v1", "HLT_HIAK4PFJet60_v1", "HLT_HIAK4PFJet80_v1", "HLT_HIAK4PFJet100_v1"};
     t.SetBranchStatus(active_branches, 1);
   
-  double prescale_pf40 = 33.917210;
+  if (RunN == 2) double prescale_pf40 = 33.917210;
+  if (RunN == 3) double prescale_pf40 = 6.2336493; ;
 
   // Plots or histograms
   TH3D *h3D_2b = new TH3D("h3D_2b", "#DeltaR;EEC",bins_mb, mb_binsVector, bins_dr, dr_binsVector,jtpt_bins, jtpt_binsVector);
@@ -713,12 +714,14 @@ if (t.jtNbHad[ijet] == 0){
 }
 
 
-void filter_b_bb_as_data_and_mc(TString filename_bjet, TString output_folder, TString output_hist, TString domain, Float_t pT_low, Float_t pT_high, Int_t n, bool btag, bool isMC) {
+void filter_b_bb_as_data_and_mc(Int_t RunN, TString filename_bjet, TString output_folder, TString output_hist, TString domain, Float_t pT_low, Float_t pT_high, Int_t n, bool btag, bool isMC) {
   
-  double prescale_pf40 = 33.917210;
+  if (RunN == 2) double prescale_pf40 = 33.917210;
+  if (RunN == 3) double prescale_pf40 = 6.2336493; ;
+
   // true level information aggregated to partial Bs
   tTree t;
-  t.Init(filename_bjet, isMC);
+  t.Init(filename_bjet, isMC, RunN);
   t.SetBranchStatus("*", 0);
   double agg_fail = 0;
   double nb_sv=0 ;
@@ -835,27 +838,32 @@ void filter_b_bb_as_data_and_mc(TString filename_bjet, TString output_folder, TS
 // Build templates for the template fit.
 // MC:   fills h3D_b (jtNbHad==1) and h3D_bb (jtNbHad==2) using reco-level cuts and reco SV reconstruction.
 // Data: fills h3D_data with the same reco logic — no truth classification.
-void make_templates(TString filename, TString output_folder, TString output_hist, TString domain,
+void make_templates(Int_t RunN, TString filename, TString output_folder, TString output_hist, TString domain,
                     Float_t pT_low, Float_t pT_high, Int_t n, bool btag, bool isMC, Int_t dataType,
                     Long64_t ev_first = 0, Long64_t ev_last = -1, Int_t job_idx = -1) {
 
   tTree t;
-  t.Init(filename, isMC);
+  t.Init(filename, isMC, RunN);
   t.SetBranchStatus("*", 0);
 
   double agg_fail = 0, nb_sv = 0, sv_fail = 0, merge_fail = 0;
-  double prescale_pf40 = 33.917210;
+
+  double prescale_pf40 = (RunN == 2) ? 33.917210 : 6.2336493;
   std::vector<TString> active_branches = {
-    // reco branches — identical for data and MC
     "jtpt", "jteta", "nref", "jtNtrk", "jtNsvtx", "discr_particleNet_BvsAll",
     "ntrk", "trkJetId", "trkBdtScore", "trkPdgId", "trkMatchPdgId", "trkMatchSta", "trkPt", "trkEta", "trkPhi",
     "trkSvtxId", "nsvtx", "svtxJetId", "svtxNtrk", "svtxm", "svtxmcorr", "svtxpt",
-    "svtxdl", "svtxdls", "svtxdl2d", "svtxdls2d", "svtxnormchi2",
-    "HLT_HIAK4PFJet40_v1", "HLT_HIAK4PFJet60_v1", "HLT_HIAK4PFJet80_v1", "HLT_HIAK4PFJet100_v1"};
+    "svtxdl", "svtxdls", "svtxdl2d", "svtxdls2d", "svtxnormchi2"};
+  if (RunN == 2) {
+    active_branches.insert(active_branches.end(), {
+      "HLT_HIAK4PFJet40_v1", "HLT_HIAK4PFJet60_v1", "HLT_HIAK4PFJet80_v1", "HLT_HIAK4PFJet100_v1"});
+  } else if (RunN == 3) {
+    active_branches.insert(active_branches.end(), {
+      "HLT_AK4PFJet60_v8", "HLT_AK4PFJet80_v8", "HLT_AK4PFJet100_v8",
+      "HLT_HIAK4PFJet60_v1", "HLT_HIAK4PFJet80_v1", "HLT_HIAK4PFJet100_v1", "HLT_HIAK4PFJet120_v1"});
+  }
   if (isMC) {
-    // MC-only: event weight, pthat for skipMC, and truth b-hadron count for template classification
-    std::vector<TString> mc_branches = {"weight", "pthat", "jtNbHad"};
-    active_branches.insert(active_branches.end(), mc_branches.begin(), mc_branches.end());
+    active_branches.insert(active_branches.end(), {"weight", "pthat", "jtNbHad"});
   }
   t.SetBranchStatus(active_branches, 1);
 
@@ -893,16 +901,22 @@ void make_templates(TString filename, TString output_folder, TString output_hist
 
     double weight_tree = isMC ? t.weight : 1.0;
 
+    if (RunN == 2){
     // trigger selection
     if (!isMC && dataType == 0) {
       if (!(t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) continue; }
-    
       else if (!isMC && dataType == -1) {
       if (t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1) continue; 
-      if (!(t.HLT_HIAK4PFJet40_v1 || t.HLT_HIAK4PFJet60_v1 )) continue;
-      
+      if (!(t.HLT_HIAK4PFJet40_v1 || t.HLT_HIAK4PFJet60_v1 )) continue;   
     }
-    else if (isMC) {if (!(t.HLT_HIAK4PFJet40_v1)) continue;}
+    else if (isMC) {if (!(t.HLT_HIAK4PFJet40_v1)) continue;}}
+
+
+    if (RunN == 3){ 
+      if (!isMC) {
+        if ( !(t.HLT_AK4PFJet60_v8 || t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8)) continue;
+      }
+    }
 
     for (Int_t ijet = 0; ijet < t.nref; ijet++) {
 
@@ -930,10 +944,14 @@ void make_templates(TString filename, TString output_folder, TString output_hist
 
 
 
-      std::cout << "weight: " << weight_tree << std::endl;
-      std::cout << "eec: " << eec << std::endl;
+      //std::cout << "weight: " << weight_tree << std::endl;
+      //std::cout << "eec: " << eec << std::endl;
 
-      if (dataType == -1) eec *= prescale_pf40; // apply prescale for lowEG data
+      if (RunN == 2 && !isMC && t.HLT_HIAK4PFJet40_v1 && !(t.HLT_HIAK4PFJet60_v1 || t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) 
+      {eec *= prescale_pf40;} 
+
+      if (RunN == 3 && !isMC && t.HLT_HIAK4PFJet60_v1 && !(t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1 || t.HLT_HIAK4PFJet120_v1)) 
+      {eec *= prescale_pf40;} 
 
       if (isMC) {
         // use truth to classify: fill separate 0b, b and bb templates
@@ -970,64 +988,102 @@ void make_templates(TString filename, TString output_folder, TString output_hist
 //Step 2: filter bb from b, but split the sample in 2 and treat one as data and one as MC (to be used as template fit input)
 
 
-void create_files_for_template_fit(Int_t dataType = 1, Float_t pT_low = 80, Float_t pT_high = 140, Int_t n = 1, bool btag = true, bool isMC = true){
+void create_files_for_template_fit(Int_t RunN = 2, Int_t dataType = 1, Float_t pT_low = 80, Float_t pT_high = 200, Int_t n = 1, bool btag = true, bool isMC = true){
  
-TString filename;
-TString output_hist;
-TString output_folder = "/data_CMS/cms/zaidan/analysis_lise/";
-TString domain = ".root";
+  TString filename;
+  TString output_hist;
+  TString output_folder;
+  TString domain = ".root";
+  TString RunN_str = (RunN == 2) ? "Run2" : (RunN == 3) ? "Run3" : "UnknownRun";
 
-//sanity check
-if (isMC && dataType < 1) {
-  std::cerr << "Invalid data type for MC sample" << std::endl;
-  return;}
+  if(RunN == 2) {output_folder = "/data_CMS/cms/zaidan/analysis_lise/Run2/";
+    //sanity check
 
-if (!isMC && dataType > 1) {
-  std::cerr << "Invalid data type for data sample" << std::endl;
-  return;}
+    cout<<"---->>>> RUN 2" <<endl;
 
- 
+    if (isMC && dataType < 1) {
+      std::cerr << "Invalid data type for MC sample" << std::endl;
+      return;}
+
+    if (!isMC && dataType > 1) {
+      std::cerr << "Invalid data type for data sample" << std::endl;
+      return;}
+
+    if(dataType == -1){//________________________________data______________________________
+      filename = "/data_CMS/cms/kalipoliti/bJet2017G/LowEGJet/aggrTMVA_fixedMassBug/all_merged_HiForestMiniAOD.root";
+      output_hist = RunN_str + "secondbinsplitting_MAY_WP0898_template_for_fit_histos_3D_LowEG_f";
+      isMC = false;
+      cout<<"you chose data Low" <<endl;
+      }
+
+    else if(dataType == 0) {
+      filename = "/data_CMS/cms/kalipoliti/bJet2017G/HighEGJet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
+      output_hist = RunN_str + "secondbinsplitting_MAY_WP0898_template_for_fit_histos_3D_HighEG_f";
+      isMC = false;
+      cout<<"you chose data High" <<endl;       
+      }      
+                                                                                                                                                                                                                                                                            
+    else if(dataType == 1){//________________________________bjet______________________________
+      filename = "/data_CMS/cms/kalipoliti/qcdMC/bjet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
+      output_hist = RunN_str + "secondbinsplitting_MAY_WP0898_template_for_fit_histos_3D_bjet_f";
+      std::cout << "Creating files for template fit for bjet sample" << std::endl;
+      cout<<"you chose bjet MC" <<endl;
+      }
+
+    else if(dataType == 2){//________________________________dijet______________________________
+      filename = "/data_CMS/cms/kalipoliti/qcdMC/dijet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root"; 
+      output_hist = RunN_str + "secondbinsplitting_MAY_WP0898_template_for_fit_histos_3D_qcd_f";
+      std::cout << "Creating files for template fit for qcd sample" << std::endl;
+      cout<<"you chose qcd MC" <<endl;
+      }
+
+    else{
+      cout<<"undefined data type"<<endl;
+      return; 
+      }
+    }
+
+  if(RunN == 3) {output_folder = "/data_CMS/cms/zaidan/analysis_lise/Run3/";
+    cout<<"---->>>> RUN 3" <<endl;
+    //sanity check
+    if (isMC && dataType < 1) {
+      std::cerr << "Invalid data type for MC sample" << std::endl;
+      return;}
+
+    if (!isMC && dataType > 1) {
+      std::cerr << "Invalid data type for data sample" << std::endl;
+      return;}
 
 
-if(dataType == -1){//________________________________data______________________________
-  filename = "/data_CMS/cms/kalipoliti/bJet2017G/LowEGJet/aggrTMVA_fixedMassBug/all_merged_HiForestMiniAOD.root";
-  output_hist = "MAY_WP0898_template_for_fit_histos_3D_LowEG_f";
-  isMC = false;
-  cout<<"you chose data Low" <<endl;
-  }
+    else if(dataType == 0) {
+      filename = "/eos/grif/cms/llr/store/user/mnguyen//bJetAggRun3/PPRefHardProbes[0-4]/bJetAgg_2024PPRef_HardProbes[0-4]/merged_HiForestMiniAOD.root";
+      output_hist = RunN_str + "secondbinsplitting_MAY_WP0898_template_for_fit_histos_3D_HighEG_f";
+      isMC = false;
+      cout<<"you chose data" <<endl;       
+      }      
+                                                                                                                                                                                                                                                                            
+    else if(dataType == 1){//________________________________bjet______________________________
+      filename = "";
+      output_hist = RunN_str + "secondbinsplitting_MAY_WP0898_template_for_fit_histos_3D_bjet_f";
+      std::cout << "Creating files for template fit for bjet sample" << std::endl;
+      cout<<"you chose bjet MC" <<endl;
+      }
 
-else if(dataType == 0) {
-  filename = "/data_CMS/cms/kalipoliti/bJet2017G/HighEGJet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
-  output_hist = "MAY_WP0898_template_for_fit_histos_3D_HighEG_f";
-  isMC = false;
-  cout<<"you chose data High" <<endl;       
-  }      
-                                                                                                                                                                                                                                                                        
-else if(dataType == 1){//________________________________bjet______________________________
-  filename = "/data_CMS/cms/kalipoliti/qcdMC/bjet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
-  output_hist = "MAY_WP0898_template_for_fit_histos_3D_bjet_f";
-  std::cout << "Creating files for template fit for bjet sample" << std::endl;
-  cout<<"you chose bjet MC" <<endl;
-  }
-
-else if(dataType == 2){//________________________________dijet______________________________
-  filename = "/data_CMS/cms/kalipoliti/qcdMC/dijet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root"; 
-  output_hist = "MAY_template_for_fit_histos_3D_qcd_f";
-  std::cout << "Creating files for template fit for qcd sample" << std::endl;
-  cout<<"you chose qcd MC" <<endl;
-  }
-
+    else if(dataType == 2){//________________________________dijet______________________________
+      filename = "eos/grif/cms/llr/store/user/mnguyen//bJetAggRun3/QCD_pThat-15to1200_TuneCP5_5p36TeV_pythia8/bJetAgg_2024PPRef_QCD/[0-9]/merged_HiForestMiniAOD.root";
+      output_hist = RunN_str + "secondbinsplitting_MAY_WP0898_template_for_fit_histos_3D_qcd_f";
+      std::cout << "Creating files for template fit for qcd sample" << std::endl;
+      cout<<"you chose qcd MC" <<endl;
+      }
+    
+    else{
+          cout<<"undefined data type"<<endl;
+          return; 
+          }
+        }
 
 
-else{
-  cout<<" undefined data type"<<endl;
-  return; 
-  }
-
-
-
-
-  make_templates(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC, dataType);
+  make_templates(RunN, filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC, dataType);
   //filter_b_bb(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC, dataType);
   //filter_b_bb_as_data_and_mc(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC);
 
