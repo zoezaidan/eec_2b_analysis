@@ -365,7 +365,7 @@ void create_response_1D(TString &filename,  TString &dataset, TString &label, TS
     TH2D *h_half1_efficiency_denominator_eecpt = new TH2D("h_half1_efficiency_denominator_eecpt", "x=dr, y=jtpt", dr_bins, dr_binsVector, jtpt_bins, jtpt_binsVector);
 
     RooUnfoldResponse *response_half0_eecpt = new RooUnfoldResponse(h_half0_purity_denominator_eecpt, h_half0_efficiency_denominator_eecpt, "response_eecpt_half0", "response for 2d: eec and jet pt"); 
-    RooUnfoldResponse *response_half1_eecpt = new RooUnfoldResponse(h_half0_purity_denominator_eecpt, h_half0_efficiency_denominator_eecpt, "response_eecpt_half1", "response for 2d: eec and jet pt"); 
+    RooUnfoldResponse *response_half1_eecpt = new RooUnfoldResponse(h_half1_purity_denominator_eecpt, h_half1_efficiency_denominator_eecpt, "response_eecpt_half1", "response for 2d: eec and jet pt");
     RooUnfoldResponse *response_full_eecpt = new RooUnfoldResponse(h_half0_purity_denominator_eecpt, h_half0_efficiency_denominator_eecpt, "response_full_eecpt", "response for 2d: eec and jet pt"); 
 
     // rg jk resampling histogram definiton (Lida)
@@ -601,7 +601,7 @@ void create_response_1D(TString &filename,  TString &dataset, TString &label, TS
             
             //checks for underflow/overflow
             if(dr_reco_j >= dr_max) dr_reco_j = dr_max_fill;
-            if(dr_reco_j < dr_min) dr_reco_j = dr_min_fill;
+            //if(dr_reco_j < dr_min) dr_reco_j = dr_min_fill;
 
             bool reco_pass_cuts_eec = (jpt_reco < jtpt_max && jpt_reco >= jtpt_min);
             bool true_pass_cuts_eec = (jpt_gen < jtpt_max && jpt_gen >= jtpt_min);
@@ -723,6 +723,9 @@ void create_response_1D(TString &filename,  TString &dataset, TString &label, TS
     TH2D *h_full_efficiency_eecpt = (TH2D *) h_full_efficiency_numerator_eecpt->Clone("h_full_efficiency_eecpt");
     h_full_efficiency_eecpt->Divide(h_full_efficiency_numerator_eecpt, h_full_efficiency_denominator_eecpt, 1., 1., "b");
 
+    fin->Close();
+    delete fin;
+
     // Create output file
     std::cout << "Creating file: " << folder+fout_name << std::endl;
     TFile *fout = new TFile(folder+fout_name, "recreate");
@@ -842,7 +845,7 @@ void create_response_2D(TString &filename,  TString &dataset, TString &label, TS
     TH2D *h_half1_efficiency_denominator_eecpt = new TH2D("h_half1_efficiency_denominator_eecpt", "x=dr, y=jtpt", dr_bins, dr_binsVector, jtpt_bins, jtpt_binsVector);
 
     RooUnfoldResponse *response_half0_eecpt = new RooUnfoldResponse(h_half0_purity_denominator_eecpt, h_half0_efficiency_denominator_eecpt, "response_eecpt_half0", "response for 2d: eec and jet pt"); 
-    RooUnfoldResponse *response_half1_eecpt = new RooUnfoldResponse(h_half0_purity_denominator_eecpt, h_half0_efficiency_denominator_eecpt, "response_eecpt_half1", "response for 2d: eec and jet pt"); 
+    RooUnfoldResponse *response_half1_eecpt = new RooUnfoldResponse(h_half1_purity_denominator_eecpt, h_half1_efficiency_denominator_eecpt, "response_eecpt_half1", "response for 2d: eec and jet pt");
     RooUnfoldResponse *response_full_eecpt = new RooUnfoldResponse(h_half0_purity_denominator_eecpt, h_half0_efficiency_denominator_eecpt, "response_full_eecpt", "response for 2d: eec and jet pt"); 
 
     // rg jk resampling histogram definiton (Lida)
@@ -1071,14 +1074,14 @@ void create_response_2D(TString &filename,  TString &dataset, TString &label, TS
             
             //checks for underflow/overflow
             if(dr_reco_j >= dr_max) dr_reco_j = dr_max_fill;
-            if(dr_reco_j < dr_min) dr_reco_j = dr_min_fill;
+            //if(dr_reco_j < dr_min) dr_reco_j = dr_min_fill;
 
             
             if(dr_gen_j >= dr_max) dr_gen_j = dr_max_fill;
-            if(dr_gen_j < dr_min) dr_gen_j = dr_min_fill;
+            //if(dr_gen_j < dr_min) dr_gen_j = dr_min_fill;
 
-            bool reco_pass_cuts_eec = (jpt_reco < jtpt_max && jpt_reco >= jtpt_min && dr_reco_j < dr_max && dr_reco_j >= dr_min);
-            bool true_pass_cuts_eec = (jpt_gen < jtpt_max && jpt_gen >= jtpt_min && dr_gen_j < dr_max && dr_gen_j >= dr_min);
+            bool reco_pass_cuts_eec = (jpt_reco < jtpt_max && jpt_reco >= jtpt_min && dr_reco_j < dr_max ); // && dr_reco_j >= dr_min);
+            bool true_pass_cuts_eec = (jpt_gen < jtpt_max && jpt_gen >= jtpt_min && dr_gen_j < dr_max ); // && dr_gen_j >= dr_min);
 
             if (true_pass_cuts_eec && reco_pass_cuts_eec) {
                 fill_jk_resampling(histos_efficiency_numerator_eecpt, num, dr_gen_j, jpt_gen, weight*eec_reco_j);
@@ -1113,11 +1116,10 @@ void create_response_2D(TString &filename,  TString &dataset, TString &label, TS
             
             //checks for underflow/overflow
             if(dr_reco_j >= dr_max) dr_reco_j = dr_max_fill;
-            if(dr_reco_j < dr_min) dr_reco_j = dr_min_fill;
+            //if(dr_reco_j < dr_min) dr_reco_j = dr_min_fill;
 
 
-            bool reco_pass_cuts_eec = (jpt_reco < jtpt_max && jpt_reco >= jtpt_min && dr_reco_j < dr_max && dr_reco_j >= dr_min);
-
+            bool reco_pass_cuts_eec = (jpt_reco < jtpt_max && jpt_reco >= jtpt_min && dr_reco_j < dr_max ); // && dr_reco_j >= dr_min);
 
             // fill purity
             if (reco_pass_cuts_eec) {
@@ -1141,9 +1143,9 @@ void create_response_2D(TString &filename,  TString &dataset, TString &label, TS
             
             //checks for underflow/overflow            
             if(dr_gen_j >= dr_max) dr_gen_j = dr_max_fill;
-            if(dr_gen_j < dr_min) dr_gen_j = dr_min_fill;
+            //if(dr_gen_j < dr_min) dr_gen_j = dr_min_fill;
 
-            bool true_pass_cuts_eec = (jpt_gen < jtpt_max && jpt_gen >= jtpt_min && dr_gen_j < dr_max && dr_gen_j >= dr_min);
+            bool true_pass_cuts_eec = (jpt_gen < jtpt_max && jpt_gen >= jtpt_min && dr_gen_j < dr_max ); // && dr_gen_j >= dr_min);
 
 
 
@@ -1240,6 +1242,9 @@ void create_response_2D(TString &filename,  TString &dataset, TString &label, TS
     h_full_efficiency_denominator_eecpt->Add(h_half1_efficiency_denominator_eecpt);
     TH2D *h_full_efficiency_eecpt = (TH2D *) h_full_efficiency_numerator_eecpt->Clone("h_full_efficiency_eecpt");
     h_full_efficiency_eecpt->Divide(h_full_efficiency_numerator_eecpt, h_full_efficiency_denominator_eecpt, 1., 1., "b");
+
+    fin->Close();
+    delete fin;
 
     // Create output file
     std::cout << "Creating file: " << folder+fout_name << std::endl;
@@ -1372,7 +1377,7 @@ void create_response_3D(TString &filename,  TString &sample, TString &label, TSt
     TH3D *h_notmatched_gen = new TH3D("h_notmatched_gen", "h_notmatched_gen", dr_bins, dr_binsVector, eec_bins, eec_binsVector, jtpt_bins, jtpt_binsVector);
 
     RooUnfoldResponse *response_half0_eecpt = new RooUnfoldResponse(h_half0_purity_denominator_eecpt, h_half0_efficiency_denominator_eecpt, "response_eecpt_half0", "response for 3d: eec and jet pt"); 
-    RooUnfoldResponse *response_half1_eecpt = new RooUnfoldResponse(h_half0_purity_denominator_eecpt, h_half0_efficiency_denominator_eecpt, "response_eecpt_half1", "response for 3d: eec and jet pt"); 
+    RooUnfoldResponse *response_half1_eecpt = new RooUnfoldResponse(h_half1_purity_denominator_eecpt, h_half1_efficiency_denominator_eecpt, "response_eecpt_half1", "response for 3d: eec and jet pt");
     RooUnfoldResponse *response_full_eecpt = new RooUnfoldResponse(h_half0_purity_denominator_eecpt, h_half0_efficiency_denominator_eecpt, "response_full_eecpt", "response for 3d: eec and jet pt"); 
 
 
@@ -1617,14 +1622,14 @@ void create_response_3D(TString &filename,  TString &sample, TString &label, TSt
             //checks for underflow/overflow
             if(dr_reco_j >= dr_max) dr_reco_j = dr_max_fill;
             if(dr_gen_j >= dr_max) dr_gen_j = dr_max_fill;
-            if(dr_reco_j < dr_min) dr_reco_j = dr_min_fill;
-            if(dr_gen_j < dr_min) dr_gen_j = dr_min_fill;
+            //if(dr_reco_j < dr_min) dr_reco_j = dr_min_fill;
+            //if(dr_gen_j < dr_min) dr_gen_j = dr_min_fill;
             if(eec_reco_j >= eec_max) eec_reco_j = eec_max_fill;
             if(eec_gen_j >= eec_max) eec_gen_j = eec_max_fill;
 
             //Entries are/aren't passing cuts at gen or reco level
-            bool reco_pass_cuts_eec = (jpt_reco < jtpt_max && jpt_reco >= jtpt_min && dr_reco_j < dr_max && dr_reco_j >= dr_min && eec_reco_j < eec_max && eec_reco_j >= eec_min);
-            bool true_pass_cuts_eec = (jpt_gen < jtpt_max && jpt_gen >= jtpt_min && dr_gen_j < dr_max && dr_gen_j >= dr_min && eec_gen_j < eec_max && eec_gen_j >= eec_min);
+            bool reco_pass_cuts_eec = (jpt_reco < jtpt_max && jpt_reco >= jtpt_min && dr_reco_j < dr_max  && eec_reco_j < eec_max && eec_reco_j >= eec_min); //&& dr_reco_j >= dr_min
+            bool true_pass_cuts_eec = (jpt_gen < jtpt_max && jpt_gen >= jtpt_min && dr_gen_j < dr_max  && eec_gen_j < eec_max && eec_gen_j >= eec_min); //&& dr_gen_j >= dr_min
 
 
             // fill eec histograms
@@ -1668,12 +1673,11 @@ void create_response_3D(TString &filename,  TString &sample, TString &label, TSt
             
             //checks for underflow/overflow
             if(dr_reco_j >= dr_max) dr_reco_j = dr_max_fill;
-            if(dr_reco_j < dr_min) dr_reco_j = dr_min_fill;
+            //if(dr_reco_j < dr_min) dr_reco_j = dr_min_fill;
             if(eec_reco_j >= eec_max) eec_reco_j = eec_max_fill;
 
             //Check if cuts at reco are passed
-            bool reco_pass_cuts_eec = (jpt_reco < jtpt_max && jpt_reco >= jtpt_min && dr_reco_j < dr_max && dr_reco_j >= dr_min && eec_reco_j < eec_max && eec_reco_j >= eec_min);
-            
+            bool reco_pass_cuts_eec = (jpt_reco < jtpt_max && jpt_reco >= jtpt_min && dr_reco_j < dr_max  && eec_reco_j < eec_max && eec_reco_j >= eec_min); //&& dr_reco_j >= dr_min
 
             // fill purity
             
@@ -1703,7 +1707,7 @@ void create_response_3D(TString &filename,  TString &sample, TString &label, TSt
             
             //checks for underflow/overflow            
             if(dr_gen_j >= dr_max) dr_gen_j = dr_max_fill;
-            if(dr_gen_j < dr_min) dr_gen_j = dr_min_fill;
+            //if(dr_gen_j < dr_min) dr_gen_j = dr_min_fill;
             if(eec_gen_j >= eec_max) eec_gen_j = eec_max_fill;
 
             //Checks if cuts are passed at gen
@@ -1810,6 +1814,9 @@ void create_response_3D(TString &filename,  TString &sample, TString &label, TSt
     TH3D *h_full_efficiency_eecpt = (TH3D *) h_full_efficiency_numerator_eecpt->Clone("h_full_efficiency_eecpt");
     h_full_efficiency_eecpt->Divide(h_full_efficiency_numerator_eecpt, h_full_efficiency_denominator_eecpt, 1., 1., "b");
 
+    fin->Close();
+    delete fin;
+
     // Create output file
     std::cout << "Creating file: " << folder+fout_name << std::endl;
     TFile *fout = new TFile(folder+fout_name, "recreate");
@@ -1874,7 +1881,7 @@ void create_response_3D(TString &filename,  TString &sample, TString &label, TSt
 
 //Creates a 3D response matrix and purity/efficiency corrections from a tree for the inclusive sample
 //(or generally for any sample where the tree is split into different files)
-void create_response_3D_inclusive(TString &sample, TString &label, TString &folder, bool btag, Int_t &n, Float_t &pT_low, Float_t &pT_high)
+void create_response_3D_inclusive(TString &sample, TString &label, TString &folder, bool btag, Int_t &n, Float_t &pT_low, Float_t &pT_high, Long64_t beg_event = 0, Long64_t end_event = -1)
 {  
 
     //Create the fout name depending on the selection
@@ -1919,7 +1926,7 @@ void create_response_3D_inclusive(TString &sample, TString &label, TString &fold
     TH3D *h_notmatched_gen = new TH3D("h_notmatched_gen", "h_notmatched_gen", dr_bins, dr_binsVector, eec_bins, eec_binsVector, jtpt_bins, jtpt_binsVector);
 
     RooUnfoldResponse *response_half0_eecpt = new RooUnfoldResponse(h_half0_purity_denominator_eecpt, h_half0_efficiency_denominator_eecpt, "response_eecpt_half0", "response for 3d: eec and jet pt"); 
-    RooUnfoldResponse *response_half1_eecpt = new RooUnfoldResponse(h_half0_purity_denominator_eecpt, h_half0_efficiency_denominator_eecpt, "response_eecpt_half1", "response for 3d: eec and jet pt"); 
+    RooUnfoldResponse *response_half1_eecpt = new RooUnfoldResponse(h_half1_purity_denominator_eecpt, h_half1_efficiency_denominator_eecpt, "response_eecpt_half1", "response for 3d: eec and jet pt");
     RooUnfoldResponse *response_full_eecpt = new RooUnfoldResponse(h_half0_purity_denominator_eecpt, h_half0_efficiency_denominator_eecpt, "response_full_eecpt", "response for 3d: eec and jet pt"); 
 
 
@@ -2106,6 +2113,7 @@ void create_response_3D_inclusive(TString &sample, TString &label, TString &fold
 
 
         Long64_t nentries = tree->GetEntries();
+        if (end_event < 0 || end_event > nentries) end_event = nentries;
         std::cout << "Entries: " << nentries << " for i = "<< i << std::endl;
         for (Long64_t ient = beg_event; ient < end_event; ient++) {
             if (ient%1000000==0) cout << "ient=" << ient << std::endl; 
@@ -2164,13 +2172,13 @@ void create_response_3D_inclusive(TString &sample, TString &label, TString &fold
                 //checks for underflow/overflow
                 if(dr_reco_j >= dr_max) dr_reco_j = dr_max_fill;
                 if(dr_gen_j >= dr_max) dr_gen_j = dr_max_fill;
-                if(dr_reco_j < dr_min) dr_reco_j = dr_min_fill;
-                if(dr_gen_j < dr_min) dr_gen_j = dr_min_fill;
+               // if(dr_reco_j < dr_min) dr_reco_j = dr_min_fill;
+                //if(dr_gen_j < dr_min) dr_gen_j = dr_min_fill;
                 if(eec_reco_j >= eec_max) eec_reco_j = eec_max_fill;
                 if(eec_gen_j >= eec_max) eec_gen_j = eec_max_fill;
     
-                bool reco_pass_cuts_eec = (jpt_reco < jtpt_max && jpt_reco >= jtpt_min && dr_reco_j < dr_max && dr_reco_j >= dr_min && eec_reco_j < eec_max && eec_reco_j >= eec_min);
-                bool true_pass_cuts_eec = (jpt_gen < jtpt_max && jpt_gen >= jtpt_min && dr_gen_j < dr_max && dr_gen_j >= dr_min && eec_gen_j < eec_max && eec_gen_j >= eec_min);
+                bool reco_pass_cuts_eec = (jpt_reco < jtpt_max && jpt_reco >= jtpt_min && dr_reco_j < dr_max  && eec_reco_j < eec_max && eec_reco_j >= eec_min); //&& dr_reco_j >= dr_min
+                bool true_pass_cuts_eec = (jpt_gen < jtpt_max && jpt_gen >= jtpt_min && dr_gen_j < dr_max  && eec_gen_j < eec_max && eec_gen_j >= eec_min); //&& dr_gen_j >= dr_min
     
     
                 // fill eec histograms
@@ -2214,11 +2222,10 @@ void create_response_3D_inclusive(TString &sample, TString &label, TString &fold
                 
                 //checks for underflow/overflow
                 if(dr_reco_j >= dr_max) dr_reco_j = dr_max_fill;
-                if(dr_reco_j < dr_min) dr_reco_j = dr_min_fill;
+                //if(dr_reco_j < dr_min) dr_reco_j = dr_min_fill;
                 if(eec_reco_j >= eec_max) eec_reco_j = eec_max_fill;
     
-                bool reco_pass_cuts_eec = (jpt_reco < jtpt_max && jpt_reco >= jtpt_min && dr_reco_j < dr_max && dr_reco_j >= dr_min && eec_reco_j < eec_max && eec_reco_j >= eec_min);
-                
+                bool reco_pass_cuts_eec = (jpt_reco < jtpt_max && jpt_reco >= jtpt_min && dr_reco_j < dr_max  && eec_reco_j < eec_max && eec_reco_j >= eec_min); //&& dr_reco_j >= dr_min
     
                 // fill purity
                 
@@ -2246,10 +2253,10 @@ void create_response_3D_inclusive(TString &sample, TString &label, TString &fold
                 
                 //checks for underflow/overflow            
                 if(dr_gen_j >= dr_max) dr_gen_j = dr_max_fill;
-                if(dr_gen_j < dr_min) dr_gen_j = dr_min_fill;
+                //if(dr_gen_j < dr_min) dr_gen_j = dr_min_fill;
                 if(eec_gen_j >= eec_max) eec_gen_j = eec_max_fill;
     
-                bool true_pass_cuts_eec = (jpt_gen < jtpt_max && jpt_gen >= jtpt_min && dr_gen_j < dr_max && dr_gen_j >= dr_min && eec_gen_j < eec_max && eec_gen_j >= eec_min);
+                bool true_pass_cuts_eec = (jpt_gen < jtpt_max && jpt_gen >= jtpt_min && dr_gen_j < dr_max  && eec_gen_j < eec_max && eec_gen_j >= eec_min); //&& dr_gen_j >= dr_min
     
     
     
@@ -2265,10 +2272,12 @@ void create_response_3D_inclusive(TString &sample, TString &label, TString &fold
                 }
             }// pair entry loop
         } // tree entry loop
+        fin->Close();
+        delete fin;
     }
 
     // Create purity and efficiency histograms
-    TH3D *h0_purity_eecpt, 
+    TH3D *h0_purity_eecpt,
         *h1_purity_eecpt,
         *h2_purity_eecpt,
         *h3_purity_eecpt,
@@ -2635,6 +2644,9 @@ void get_eec_dr_migration(TString &filename, TString &sample, TString &label, TS
     TString observable = "dr";
     draw_migration(response_dr, observable, filename, sample, label, folder);
 
+    fin->Close();
+    delete fin;
+
     //Save dr migration histograms
     TString fout_dr_name = "dr_migration_hist_" + sample + "_" + label + ".root";
     TFile *fout_dr = new TFile(folder + fout_dr_name, "recreate");
@@ -2679,6 +2691,19 @@ void create_response_templatefit(
 {
     TString fout_name = output_folder + output_hist + (btag ? "_btag" : "_nobtag") + ".root";
 
+    // Re-derive bin counts from const sizes (Cling init-order workaround for non-const globals)
+    Int_t n_mb = mb_binsVectorSize - 1;   // same as mb_bins in binning_histos_small.h
+    Int_t n_dr = dr_binsVectorSize - 1;   // same as dr_bins
+    Int_t n_pt = jtpt_binsVectorSize - 1; // same as jtpt_bins
+    Double_t mb_min = mb_binsVector[0];
+    Double_t mb_max = mb_binsVector[n_mb];
+    Double_t mb_max_fill = 9.9;
+    Double_t dr_min = dr_binsVector[0];
+    Double_t dr_max = dr_binsVector[n_dr];
+    std::cout << "Histogram binning: mB=" << n_mb << " dr=" << n_dr << " jtpt=" << n_pt << std::endl;
+    std::cout << "mb range: [" << mb_min << ", " << mb_max << "], fill cap=" << mb_max_fill << std::endl;
+    std::cout << "dr range: [" << dr_min << ", " << dr_max << "]" << std::endl;
+
     tTree t;
     t.Init(filename, /*isMC=*/true);
     t.SetBranchStatus("*", 0);
@@ -2704,19 +2729,23 @@ void create_response_templatefit(
 
     double agg_fail = 0, nb_sv = 0, sv_fail = 0, merge_fail = 0;
     long n_bb_jets = 0, n_reco_pass = 0, n_gen_pass = 0, n_both_pass = 0;
+    long n_gen_bh_ok = 0;  // jets passing gen_bh.size() >= 2
+    // per-condition failure counters for reco_pass
+    long n_fail_reco_sv   = 0, n_fail_reco_pt  = 0, n_fail_reco_eta = 0;
+    long n_fail_reco_btag = 0, n_fail_reco_mb  = 0, n_fail_reco_dr  = 0;
+    // per-condition failure counters for gen_pass
+    long n_fail_gen_pt  = 0, n_fail_gen_eta = 0;
+    long n_fail_gen_mb  = 0, n_fail_gen_dr  = 0;
+    int  n_debug_printed = 0;
 
-    auto make3D = [&](const char* name) {
-        return new TH3D(name, "x=mB, y=dr_SV, z=jtpt",
-                        mb_bins, mb_binsVector, dr_bins, dr_binsVector, jtpt_bins, jtpt_binsVector);
-    };
-    TH3D *h_half0_purity_num = make3D("h_half0_purity_numerator_tf");
-    TH3D *h_half0_purity_den = make3D("h_half0_purity_denominator_tf");
-    TH3D *h_half0_eff_num    = make3D("h_half0_efficiency_numerator_tf");
-    TH3D *h_half0_eff_den    = make3D("h_half0_efficiency_denominator_tf");
-    TH3D *h_half1_purity_num = make3D("h_half1_purity_numerator_tf");
-    TH3D *h_half1_purity_den = make3D("h_half1_purity_denominator_tf");
-    TH3D *h_half1_eff_num    = make3D("h_half1_efficiency_numerator_tf");
-    TH3D *h_half1_eff_den    = make3D("h_half1_efficiency_denominator_tf");
+    TH3D *h_half0_purity_num = new TH3D("h_half0_purity_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH3D *h_half0_purity_den = new TH3D("h_half0_purity_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH3D *h_half0_eff_num    = new TH3D("h_half0_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH3D *h_half0_eff_den    = new TH3D("h_half0_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH3D *h_half1_purity_num = new TH3D("h_half1_purity_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH3D *h_half1_purity_den = new TH3D("h_half1_purity_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH3D *h_half1_eff_num    = new TH3D("h_half1_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH3D *h_half1_eff_den    = new TH3D("h_half1_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
 
     RooUnfoldResponse *response_half0 = new RooUnfoldResponse(h_half0_purity_den, h_half0_eff_den, "response_tf_half0", "tf response half0");
     RooUnfoldResponse *response_half1 = new RooUnfoldResponse(h_half1_purity_den, h_half1_eff_den, "response_tf_half1", "tf response half1");
@@ -2745,6 +2774,7 @@ void create_response_templatefit(
             std::vector<Int_t> gen_bh_sta;
             PartialBsAggregation(gen_bh, gen_bh_sta, t, ijet);
             if (gen_bh.size() < 2) continue;
+            n_gen_bh_ok++;
 
             // Pick gen pair with largest EEC weight (pt_i * pt_j)^n
             int best_i = 0, best_j = 1;
@@ -2779,12 +2809,12 @@ void create_response_templatefit(
             if (reco_sv_ok) {
                 if (mB_reco_fill >= mb_max) mB_reco_fill = mb_max_fill;
                 if (dr_reco_fill >= dr_max) dr_reco_fill = dr_max_fill;
-                if (dr_reco_fill  < dr_min) dr_reco_fill = dr_min_fill;
+                //if (dr_reco_fill  < dr_min) dr_reco_fill = dr_min_fill;
             }
             double mB_gen_fill = mB_gen, dr_gen_fill = dr_gen;
             if (mB_gen_fill >= mb_max) mB_gen_fill = mb_max_fill;
             if (dr_gen_fill >= dr_max)  dr_gen_fill = dr_max_fill;
-            if (dr_gen_fill  < dr_min)  dr_gen_fill = dr_min_fill;
+            //if (dr_gen_fill  < dr_min)  dr_gen_fill = dr_min_fill;
 
             // reco_pass: full detector-level selection
             bool reco_pass = reco_sv_ok &&
@@ -2792,17 +2822,72 @@ void create_response_templatefit(
                              (std::abs(t.jteta[ijet]) < 1.6) &&
                              (!btag || t.discr_particleNet_BvsAll[ijet] > 0.898) &&
                              (mB_reco_fill >= mb_min && mB_reco_fill < mb_max) &&
-                             (dr_reco_fill >= dr_min && dr_reco_fill < dr_max);
+                             (dr_reco_fill < dr_max);//dr_reco_fill >= dr_min && 
+
+            //std::cout << "reco_sv_ok: " << reco_sv_ok << std::endl;
+            //if (reco_sv_ok) {std::cout << "jpt_reco: " << jpt_reco << std::endl;}
+            //if (reco_sv_ok && (jpt_reco >= pT_low && jpt_reco < pT_high)) {
+                         //std::cout << "jteta_reco: " << t.jteta[ijet] << std::endl; }
+            //if (reco_sv_ok && (jpt_reco >= pT_low && jpt_reco < pT_high) && (std::abs(t.jteta[ijet]) < 1.6)) {
+             //std::cout << "btag: " << (t.discr_particleNet_BvsAll[ijet] ) << std::endl;}  
+            
+            //if (reco_sv_ok && (jpt_reco >= pT_low && jpt_reco < pT_high) && (std::abs(t.jteta[ijet]) < 1.6) && (!btag || t.discr_particleNet_BvsAll[ijet] > 0.898)){
+             //std::cout << "mB_reco: " << mb_min << " " << mB_reco_fill << " " << mb_max << std::endl;
+            //}
+            //if (reco_sv_ok && (jpt_reco >= pT_low && jpt_reco < pT_high) && (std::abs(t.jteta[ijet]) < 1.6) && (!btag || t.discr_particleNet_BvsAll[ijet] > 0.898 ) && (mB_reco_fill >= mb_min && mB_reco_fill < mb_max)){
+                //std::cout << "dr_reco: " << dr_reco << "MAX" <<dr_max << std::endl;}
 
             // gen_pass: particle-level jet kinematics + gen observable range
             bool gen_pass  = (jpt_gen >= pT_low && jpt_gen < pT_high) &&
                              (std::abs(t.refeta[ijet]) < 1.6) &&
                              (mB_gen_fill >= mb_min && mB_gen_fill < mb_max) &&
-                             (dr_gen_fill >= dr_min && dr_gen_fill < dr_max);
+                             (dr_gen_fill < dr_max); //dr_gen_fill >= dr_min && 
+
+
+            //std::cout << "gen_pass: " << gen_pass << std::endl;
+            //std::cout << "jpt_gen: " << jpt_gen << std::endl;
+            //std::cout << "pT_low: " << pT_low << ", pT_high: " << pT_high << std::endl;
+            //std::cout << "refeta_gen: " << t.refeta[ijet] << std::endl;
+            //std::cout << "mB_gen: " << mB_gen << std::endl;
+            //std::cout << "mB_low: " << mb_min << ", mB_high: " << mb_max << std::endl;
+            //std::cout << "dr_gen: " << dr_gen << std::endl;
 
             if (reco_pass) n_reco_pass++;
             if (gen_pass)  n_gen_pass++;
             if (reco_pass && gen_pass) n_both_pass++;
+
+            // --- per-condition failure tallies ---
+            if (!reco_sv_ok)                                      n_fail_reco_sv++;
+            else if (!(jpt_reco >= pT_low && jpt_reco < pT_high)) n_fail_reco_pt++;
+            else if (!(std::abs(t.jteta[ijet]) < 1.6))           n_fail_reco_eta++;
+            else if (btag && !(t.discr_particleNet_BvsAll[ijet] > 0.898)) n_fail_reco_btag++;
+            else if (!(mB_reco_fill >= mb_min && mB_reco_fill < mb_max))  n_fail_reco_mb++;
+            else if (!(dr_reco_fill < dr_max))                    n_fail_reco_dr++;
+
+            if (!(jpt_gen >= pT_low && jpt_gen < pT_high))       n_fail_gen_pt++;
+            else if (!(std::abs(t.refeta[ijet]) < 1.6))          n_fail_gen_eta++;
+            else if (!(mB_gen_fill >= mb_min && mB_gen_fill < mb_max))    n_fail_gen_mb++;
+            else if (!(dr_gen_fill < dr_max))                     n_fail_gen_dr++;
+
+            // --- debug: print first 10 jets that reach cut evaluation ---
+            if (n_debug_printed < 10) {
+                std::cout << "[DBG jet " << n_debug_printed << "]"
+                    << " jpt_reco=" << jpt_reco
+                    << " jpt_gen="  << jpt_gen
+                    << " jteta="    << t.jteta[ijet]
+                    << " refeta="   << t.refeta[ijet]
+                    << " discr="    << t.discr_particleNet_BvsAll[ijet]
+                    << " mB_reco="  << mB_reco
+                    << " dr_reco="  << dr_reco
+                    << " mB_gen="   << mB_gen
+                    << " dr_gen="   << dr_gen
+                    << " reco_sv="  << reco_sv.size()
+                    << " gen_bh="   << gen_bh.size()
+                    << " reco_pass=" << reco_pass
+                    << " gen_pass="  << gen_pass
+                    << std::endl;
+                n_debug_printed++;
+            }
 
             double num    = distr(generator);
             double w_reco = weight_tree * eec_reco;
@@ -2835,14 +2920,27 @@ void create_response_templatefit(
     }
     std::cout << std::endl;
     std::cout << "--- Jet statistics (bb jets, jtNbHad >= 2) ---" << std::endl;
-    std::cout << "  bb jets (after skipMC):      " << n_bb_jets   << std::endl;
-    std::cout << "  Passing reco cuts:           " << n_reco_pass << std::endl;
-    std::cout << "  Passing gen cuts:            " << n_gen_pass  << std::endl;
-    std::cout << "  Passing both (numerator):    " << n_both_pass << std::endl;
-    std::cout << "  Reco SV failures (< 2 SVs): " << nb_sv       << std::endl;
-    std::cout << "  SV purity failures:          " << sv_fail     << std::endl;
-    std::cout << "  SV merging failures:         " << merge_fail  << std::endl;
-    std::cout << "  No-SV track agg failures:    " << agg_fail    << std::endl;
+    std::cout << "  bb jets (after skipMC):      " << n_bb_jets    << std::endl;
+    std::cout << "  Gen bh ok (>= 2 gen bh):     " << n_gen_bh_ok  << std::endl;
+    std::cout << "  Passing reco cuts:           " << n_reco_pass  << std::endl;
+    std::cout << "  Passing gen cuts:            " << n_gen_pass   << std::endl;
+    std::cout << "  Passing both (numerator):    " << n_both_pass  << std::endl;
+    std::cout << "  Reco SV failures (< 2 SVs): " << nb_sv        << std::endl;
+    std::cout << "  SV purity failures:          " << sv_fail      << std::endl;
+    std::cout << "  SV merging failures:         " << merge_fail   << std::endl;
+    std::cout << "  No-SV track agg failures:    " << agg_fail     << std::endl;
+    std::cout << "--- Reco-pass per-condition failures (first failing cond shown) ---" << std::endl;
+    std::cout << "  fail reco_sv_ok:   " << n_fail_reco_sv   << std::endl;
+    std::cout << "  fail reco jpt:     " << n_fail_reco_pt   << std::endl;
+    std::cout << "  fail reco eta:     " << n_fail_reco_eta  << std::endl;
+    std::cout << "  fail reco btag:    " << n_fail_reco_btag << std::endl;
+    std::cout << "  fail reco mB:      " << n_fail_reco_mb   << std::endl;
+    std::cout << "  fail reco dr:      " << n_fail_reco_dr   << std::endl;
+    std::cout << "--- Gen-pass per-condition failures (first failing cond shown) ---" << std::endl;
+    std::cout << "  fail gen jpt:      " << n_fail_gen_pt    << std::endl;
+    std::cout << "  fail gen eta:      " << n_fail_gen_eta   << std::endl;
+    std::cout << "  fail gen mB:       " << n_fail_gen_mb    << std::endl;
+    std::cout << "  fail gen dr:       " << n_fail_gen_dr    << std::endl;
 
     auto divide = [](TH3D* num, TH3D* den, const char* name) -> TH3D* {
         TH3D *h = (TH3D*) num->Clone(name);
@@ -2882,6 +2980,7 @@ void create_response_templatefit(
 }
 
 void create_response(Int_t beg_event = 0, Int_t end_event = -1){
+  gSystem->Load("libGenVector.so");
 
   Float_t pT_low  = 80;
   Float_t pT_high = 200;
