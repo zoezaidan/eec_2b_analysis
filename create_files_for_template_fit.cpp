@@ -3812,60 +3812,6 @@ void create_response_templatefit(
     delete fout;
 }
 
-void create_response(Int_t beg_event = 0, Int_t end_event = -1){
-  gSystem->Load("libGenVector.so");
-
-  Float_t pT_low  = 80;
-  Float_t pT_high = 200;
-  bool    btag    = true;
-  Int_t   n       = 1;
-
-  // ---- Single-b EEC response (existing functions, preprocessed flat trees) ----
-  TString datasets     = "dijet"; // or "bjet"
-  TString pT_selection = "80_200";
-  TString eec_folder   = "/data_CMS/cms/zaidan/analysis_lise/undfolding/";
-  TString eec_filename = "merged_trees_matched_" + datasets + pT_selection + ".root";
-
-  //create_response_1D(eec_filename, datasets, TString("b1"), eec_folder, btag, n, pT_low, pT_high);
-  //create_response_2D(eec_filename, datasets, TString("b1"), eec_folder, btag, n, pT_low, pT_high);
-  //create_response_3D(eec_filename, datasets, TString("b1"), eec_folder, btag, n, pT_low, pT_high);
-  //create_response_3D_inclusive(eec_filename, datasets, eec_folder, btag, n, pT_low, pT_high, beg_event, end_event);
-
-  // ---- Double-b template fit response (raw MC tTree format) ----
-  TString tf_output_folder = "/data_CMS/cms/zaidan/analysis_lise/";
-
-  // bjet MC
-  TString bjet_file = "/data_CMS/cms/kalipoliti/qcdMC/bjet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
-  create_response_templatefit(bjet_file, tf_output_folder, "response_templatefit_n1_bjet",
-                              pT_low, pT_high, n, btag, beg_event, end_event);
-
-  // dijet MC
-  //TString dijet_file = "/data_CMS/cms/kalipoliti/qcdMC/dijet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
-  //create_response_templatefit(dijet_file, tf_output_folder, "response_templatefit_n1_dijet",
-  //                            pT_low, pT_high, n, btag, beg_event, end_event);
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 //Step 1: filter bb from b. Only MC
@@ -3873,7 +3819,8 @@ void create_response(Int_t beg_event = 0, Int_t end_event = -1){
 
 
 void create_files_for_template_fit(Int_t RunN = 2, Int_t dataType = 1, Float_t pT_low = 80, Float_t pT_high = 200, Int_t n = 1, bool btag = true, bool isMC = true){
- 
+ //gSystem->Load("libGenVector.so");
+
   TString filename;
   TString output_hist;
   TString output_folder;
