@@ -561,19 +561,18 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
 
 
 
-// HLT (Run 3 — set only when RunN==3; Run 3 files also keep the HIAK4 prescale triggers)
-// ----- Are you sure that Run3 allow the old HLT branches of Run 2 ? (I dont think so, since Run2 trigger names does not exist anymore). See Run 2 Triggers suggestion above.	
+// HLT
    if (RunN == 3) {
      tree->SetBranchAddress("HLT_AK4PFJet60_v8",    &HLT_AK4PFJet60_v8,    &b_HLT_AK4PFJet60_v8);
      tree->SetBranchAddress("HLT_AK4PFJet80_v8",    &HLT_AK4PFJet80_v8,    &b_HLT_AK4PFJet80_v8);
      tree->SetBranchAddress("HLT_AK4PFJet100_v8",   &HLT_AK4PFJet100_v8,   &b_HLT_AK4PFJet100_v8);
      tree->SetBranchAddress("HLT_AK4PFJet120_v8",   &HLT_AK4PFJet120_v8,   &b_HLT_AK4PFJet120_v8);
-	  tree->SetBranchAddress("discr_unifiedParticleTransformer_probb", discr_unifiedParticleTransformer_probb, &b_discr_unifiedParticleTransformer_probb);
+	 tree->SetBranchAddress("discr_unifiedParticleTransformer_probb", discr_unifiedParticleTransformer_probb, &b_discr_unifiedParticleTransformer_probb);
      tree->SetBranchAddress("discr_unifiedParticleTransformer_problepb", discr_unifiedParticleTransformer_problepb, &b_discr_unifiedParticleTransformer_problepb);
      tree->SetBranchAddress("discr_unifiedParticleTransformer_probbb", discr_unifiedParticleTransformer_probbb, &b_discr_unifiedParticleTransformer_probbb);
    }
    
-   if(isMC){
+   if(isMC){ // Common for Run 2 and Run 3 
      tree->SetBranchAddress("pthat", &pthat, &b_pthat);
      tree->SetBranchAddress("refpt", refpt, &b_refpt);
      tree->SetBranchAddress("refeta", refeta, &b_refeta);
@@ -600,7 +599,7 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
      tree->SetBranchAddress("gendphijt", gendphijt, &b_gendphijt);
      tree->SetBranchAddress("gendrjt", gendrjt, &b_gendrjt);
 
-	  tree->SetBranchAddress("jtNbHad", jtNbHad, &b_jtNbHad);
+	 tree->SetBranchAddress("jtNbHad", jtNbHad, &b_jtNbHad);
      tree->SetBranchAddress("jtNcHad", jtNcHad, &b_jtNcHad);
      tree->SetBranchAddress("jtNbPar", jtNbPar, &b_jtNbPar);
      tree->SetBranchAddress("jtNcPar", jtNcPar, &b_jtNcPar);
