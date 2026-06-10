@@ -1,6 +1,7 @@
 #include <TGraph.h>
 #include <TFile.h>
 #include <TTree.h>
+#include <TChain.h>
 #include <TH1D.h>
 #include <TCanvas.h>
 #include <TLegend.h>
@@ -45,9 +46,108 @@ TGraph* makeROC(TH1D* h_sig, TH1D* h_bkg) {
   return makeROC(h_sig, h_sig, h_bkg);
 }
 
+// Holder for the 5 discriminator histograms of one sample.
+struct DiscHistos {
+  TH1D *h_0b = nullptr, *h_1b = nullptr, *h_2b = nullptr, *h_2b2sv = nullptr, *h_all = nullptr;
+};
+
+// Fill discriminator histograms for the Run 3 PPRef2024 QCD MC sample.
+// The sample is split across 10 subdirectories (0..9), chained with TChain.
+// The Run 3 b-tag score is the sum of the UnifiedParticleTransformer b-like
+// probabilities (probb + problepb + probbb), mirroring create_files_for_template_fit.cpp.
+DiscHistos fillRun3QCD(Float_t pT_low, Float_t pT_high,
+                       int nbins_disc, double disc_min, double disc_max,
+                       int n_subdirs = 10) {
+  DiscHistos h;
+  h.h_0b    = new TH1D("h_disc_0b_r3",    "UParT score (0b);score;entries",          nbins_disc, disc_min, disc_max);
+  h.h_1b    = new TH1D("h_disc_1b_r3",    "UParT score (1b);score;entries",          nbins_disc, disc_min, disc_max);
+  h.h_2b    = new TH1D("h_disc_2b_r3",    "UParT score (2b);score;entries",          nbins_disc, disc_min, disc_max);
+  h.h_2b2sv = new TH1D("h_disc_2b2sv_r3", "UParT score (2b,#geq2 SV);score;entries", nbins_disc, disc_min, disc_max);
+  h.h_all   = new TH1D("h_disc_all_r3",   "UParT score (1b+2b);score;entries",       nbins_disc, disc_min, disc_max);
+  h.h_0b->Sumw2(); h.h_1b->Sumw2(); h.h_2b->Sumw2(); h.h_2b2sv->Sumw2(); h.h_all->Sumw2();
+
+  // ---- Build the TChain over the 10 subdirectories ----
+  // NB: adjust base / inner filename here if the sample layout changes.
+  const TString base      = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD";
+  const char*   innerFile = "merged_HiForestMiniAOD_v2.root";
+  if (n_subdirs < 1)  n_subdirs = 1;
+  if (n_subdirs > 10) n_subdirs = 10;
+  TChain* ch    = new TChain("ak4PFJetAnalyzer/t");
+  TChain* chHi  = new TChain("hiEvtAnalyzer/HiTree");
+  TChain* chHlt = new TChain("hltanalysis/HltTree");
+  for (int i = 0; i < n_subdirs; i++) {
+    TString f = Form("%s/%d/%s", base.Data(), i, innerFile);
+    ch->Add(f); chHi->Add(f); chHlt->Add(f);
+  }
+  std::cout << "Run3 PPRef2024 QCD: chaining subdirs 0.." << (n_subdirs - 1) << std::endl;
+  ch->AddFriend(chHi);
+  ch->AddFriend(chHlt);
+
+  // ---- Branch addresses (only what the ROC needs) ----
+  Int_t   nref = 0;
+  Float_t jtpt[500], jteta[500];
+  Int_t   jtNsvtx[500], jtNbHad[500];
+  Float_t probb[500], problepb[500], probbb[500];
+  Float_t weight = 1.f, pthat = 0.f;
+  Int_t   HLT_AK4PFJet60_v8 = 0;
+
+  ch->SetBranchStatus("*", 0);
+  auto enable = [&](const char* n, void* addr) {
+    ch->SetBranchStatus(n, 1);
+    ch->SetBranchAddress(n, addr);
+  };
+  enable("nref",    &nref);
+  enable("jtpt",    jtpt);
+  enable("jteta",   jteta);
+  enable("jtNsvtx", jtNsvtx);
+  enable("jtNbHad", jtNbHad);
+  enable("discr_unifiedParticleTransformer_probb",    probb);
+  enable("discr_unifiedParticleTransformer_problepb", problepb);
+  enable("discr_unifiedParticleTransformer_probbb",   probbb);
+  enable("weight",  &weight);
+  enable("pthat",   &pthat);
+  enable("HLT_AK4PFJet60_v8", &HLT_AK4PFJet60_v8);
+
+  Long64_t n_events = ch->GetEntries();
+  if (n_events == 0) {
+    std::cerr << "WARNING: Run3 PPRef2024 QCD chain is empty ("
+              << base << "/[0-9]/" << innerFile << "). Overlay will be skipped." << std::endl;
+    return h;
+  }
+  std::cout << "Run3 PPRef2024 QCD: " << n_events << " events" << std::endl;
+
+  for (Long64_t ient = 0; ient < n_events; ient++) {
+    if (ient % 50000 == 0)
+      std::cout << "\rProcessing Run3 QCD: " << 100.0 * ient / n_events << " %" << std::flush;
+    ch->GetEntry(ient);
+
+    if (!HLT_AK4PFJet60_v8) continue;
+
+    for (Int_t ijet = 0; ijet < nref; ijet++) {
+      if (std::abs(jteta[ijet]) > 1.9) continue;
+      if (skipMC_roc(jtpt[ijet], pthat)) continue;
+      if (jtpt[ijet] < pT_low || jtpt[ijet] > pT_high) continue;
+
+      double score = probb[ijet] + problepb[ijet] + probbb[ijet];
+      int    nbHad = jtNbHad[ijet];
+      int    nSV   = jtNsvtx[ijet];
+      double w     = weight;
+
+      if (nbHad == 0)              h.h_0b->Fill(score, w);
+      if (nbHad >= 1)              h.h_all->Fill(score, w);
+      if (nbHad == 1)              h.h_1b->Fill(score, w);
+      if (nbHad >= 2)              h.h_2b->Fill(score, w);
+      if (nbHad >= 2 && nSV >= 2)  h.h_2b2sv->Fill(score, w);
+    }
+  }
+  std::cout << std::endl;
+  return h;
+}
+
 
 void calc_btag_roc(TString filename, TString output_folder, TString output_hist,
-                   Float_t pT_low, Float_t pT_high, double target_mistag = 1e-3) {
+                   Float_t pT_low, Float_t pT_high, double target_mistag = 1e-3,
+                   bool overlay_run3_qcd = true, int run3_nfiles = 10) {
 
   tTree t;
   t.Init(filename, true);
@@ -125,6 +225,19 @@ void calc_btag_roc(TString filename, TString output_folder, TString output_hist,
   TGraph* roc_2b2sv = makeROC(h_2b2sv, h_2b, h_0b);  roc_2b2sv->SetName("roc_2b2sv");
   TGraph* roc_all   = makeROC(h_all,   h_0b);  roc_all->SetName("roc_all");
 
+  // ------- Run3 PPRef2024 QCD overlay (same curves, UParT score) -------
+  TGraph *roc_1b_r3 = nullptr, *roc_2b_r3 = nullptr, *roc_2b2sv_r3 = nullptr, *roc_all_r3 = nullptr;
+  DiscHistos r3;
+  if (overlay_run3_qcd) {
+    r3 = fillRun3QCD(pT_low, pT_high, nbins_disc, disc_min, disc_max, run3_nfiles);
+    if (r3.h_0b->Integral(0, nbins_disc + 1) > 0) {
+      roc_1b_r3    = makeROC(r3.h_1b,    r3.h_0b);           roc_1b_r3->SetName("roc_1b_r3");
+      roc_2b_r3    = makeROC(r3.h_2b,    r3.h_0b);           roc_2b_r3->SetName("roc_2b_r3");
+      roc_2b2sv_r3 = makeROC(r3.h_2b2sv, r3.h_2b, r3.h_0b);  roc_2b2sv_r3->SetName("roc_2b2sv_r3");
+      roc_all_r3   = makeROC(r3.h_all,   r3.h_0b);           roc_all_r3->SetName("roc_all_r3");
+    }
+  }
+
 
   //sanity check
   // ------- Working point at score > 0.99 -------
@@ -198,6 +311,17 @@ void calc_btag_roc(TString filename, TString output_folder, TString output_hist,
   styleGraph(roc_2b2sv, col_2b2sv, axes);
   styleGraph(roc_all,   col_all,   axes);
 
+  // Run3 overlay: same colors, dashed line to distinguish the sample.
+  auto styleGraphR3 = [](TGraph* g, Color_t col) {
+    if (!g) return;
+    g->SetLineColor(col); g->SetLineWidth(3); g->SetLineStyle(2);
+    g->SetMarkerColor(col);
+  };
+  styleGraphR3(roc_1b_r3,    col_1b);
+  styleGraphR3(roc_2b_r3,    col_2b);
+  styleGraphR3(roc_2b2sv_r3, col_2b2sv);
+  styleGraphR3(roc_all_r3,   col_all);
+
   // ------- helper lambda to dress a canvas -------
   auto drawROC = [&](TCanvas* cv, bool logy = false) {
     cv->SetGrid();
@@ -210,10 +334,9 @@ void calc_btag_roc(TString filename, TString output_folder, TString output_hist,
     roc_1b->Draw("L same");
     roc_all->Draw("L same");
 
-    // diagonal (random classifier) — start from 1e-6 on log scale to avoid log(0)
-    TLine* diag = new TLine(logy ? 1e-6 : 0, logy ? 1e-6 : 0, 1, 1);
-    diag->SetLineStyle(2); diag->SetLineColor(kGray+1);
-    diag->Draw();
+    // Run3 PPRef2024 QCD overlay (dashed)
+    auto drawIf = [](TGraph* g) { if (g && g->GetN() > 1) g->Draw("L same"); };
+    drawIf(roc_2b2sv_r3); drawIf(roc_2b_r3); drawIf(roc_1b_r3); drawIf(roc_all_r3);
 
     // target mistag WP markers — diamond (style 33), same curve colors
     if (score_at_target > -999) {
@@ -233,14 +356,21 @@ void calc_btag_roc(TString filename, TString output_folder, TString output_hist,
     }
 
     // legend — bottom-right
-    TLegend* leg = new TLegend(0.55, 0.12, 0.88, 0.45);
+    TLegend* leg = new TLegend(0.52, 0.12, 0.88, 0.50);
     leg->SetBorderSize(0);
     leg->SetFillStyle(0);
-    leg->SetTextSize(0.033);
+    leg->SetTextSize(0.030);
     leg->AddEntry(roc_1b,    "1b vs 0b",                     "l");
     leg->AddEntry(roc_2b,    "#geq 2b vs 0b",                "l");
     leg->AddEntry(roc_2b2sv, "#geq 2b (#geq 2 SV) vs 0b",  "l");
     leg->AddEntry(roc_all,   "1b + #geq 2b vs 0b",          "l");
+    // line-style key for the two samples (only if the Run3 overlay is present)
+    if (roc_2b2sv_r3 && roc_2b2sv_r3->GetN() > 1) {
+      TGraph* solid_key = new TGraph(); solid_key->SetLineColor(kBlack); solid_key->SetLineWidth(3);
+      TGraph* dash_key  = new TGraph(); dash_key->SetLineColor(kBlack);  dash_key->SetLineWidth(3); dash_key->SetLineStyle(2);
+      leg->AddEntry(solid_key, "current MC (ParticleNet BvsAll)", "l");
+      leg->AddEntry(dash_key,  "PPRef2024 QCD (UParT)",           "l");
+    }
     if (score_at_target > -999) {
       TMarker* mt_dummy = new TMarker(0, 0, 33);
       mt_dummy->SetMarkerColor(kGray+2); mt_dummy->SetMarkerSize(2.5);
@@ -274,6 +404,11 @@ void calc_btag_roc(TString filename, TString output_folder, TString output_hist,
   h_2b2sv->Write(); h_all->Write();
   roc_1b->Write();  roc_2b->Write();
   roc_2b2sv->Write(); roc_all->Write();
+  if (r3.h_0b) { r3.h_0b->Write(); r3.h_1b->Write(); r3.h_2b->Write(); r3.h_2b2sv->Write(); r3.h_all->Write(); }
+  if (roc_1b_r3)    roc_1b_r3->Write();
+  if (roc_2b_r3)    roc_2b_r3->Write();
+  if (roc_2b2sv_r3) roc_2b2sv_r3->Write();
+  if (roc_all_r3)   roc_all_r3->Write();
   c->Write();
   c_logy->Write();
   outFile.Close();
@@ -285,7 +420,8 @@ void calc_btag_roc(TString filename, TString output_folder, TString output_hist,
 }
 
 
-void btag_roc(Int_t dataType = 1, Float_t pT_low = 80, Float_t pT_high = 140, double target_mistag = 1e-3) {
+void btag_roc(Int_t dataType = 2, Float_t pT_low = 80, Float_t pT_high = 200, double target_mistag = 1e-3,
+              bool overlay_run3_qcd = true, int run3_nfiles = 10) {
 
   TString output_folder = TString(gSystem->DirName(__FILE__)) + "/";
   TString filename, output_hist;
@@ -303,6 +439,124 @@ void btag_roc(Int_t dataType = 1, Float_t pT_low = 80, Float_t pT_high = 140, do
     return;
   }
 
-  calc_btag_roc(filename, output_folder, output_hist, pT_low, pT_high, target_mistag);
+  calc_btag_roc(filename, output_folder, output_hist, pT_low, pT_high, target_mistag, overlay_run3_qcd, run3_nfiles);
   std::cout << "Done :)" << std::endl;
+}
+
+
+// ------------------------------------------------------------------------
+// Read the ROOT file produced by calc_btag_roc and draw ONE Run2-vs-Run3
+// comparison plot per category (1b, 2b, 2b+2sv, all), log-y. Each plot has its
+// own colour. Run 2 = solid, Run 3 = dashed. No event loop here — it just reads
+// back the stored TGraphs.
+//
+//   root -l -b -q -e '.L btag_roc.cpp+' -e 'plot_roc_run2_vs_run3("btag_roc_qcd.root")'
+// ------------------------------------------------------------------------
+void plot_roc_run2_vs_run3(TString rootfile = "", TString output_folder = "") {
+
+  TString dir = TString(gSystem->DirName(__FILE__)) + "/";
+  if (rootfile.IsNull())      rootfile      = dir + "btag_roc_qcd.root";
+  if (output_folder.IsNull()) output_folder = dir;
+  if (!rootfile.Contains("/")) rootfile = dir + rootfile;   // allow a bare name
+
+  TFile* f = TFile::Open(rootfile);
+  if (!f || f->IsZombie()) {
+    std::cerr << "ERROR: cannot open " << rootfile << std::endl;
+    return;
+  }
+  std::cout << "Reading ROC graphs from: " << rootfile << std::endl;
+
+  // same per-category colours as the 8-curve overlay plot
+  const Color_t col_1b    = TColor::GetColor("#7EB8D4"); // pastel blue
+  const Color_t col_2b    = TColor::GetColor("#F4A4A4"); // pastel red
+  const Color_t col_2b2sv = TColor::GetColor("#90C98F"); // pastel green
+  const Color_t col_all   = TColor::GetColor("#C3A6D8"); // pastel purple
+
+  struct Cat { const char* tag; const char* r2; const char* r3; const char* title; Color_t col; };
+  std::vector<Cat> cats = {
+    {"1b",    "roc_1b",    "roc_1b_r3",    "1b vs 0b",                   col_1b},
+    {"2b",    "roc_2b",    "roc_2b_r3",    "#geq 2b vs 0b",              col_2b},
+    {"2b2sv", "roc_2b2sv", "roc_2b2sv_r3", "#geq 2b (#geq 2 SV) vs 0b",  col_2b2sv},
+    {"all",   "roc_all",   "roc_all_r3",   "1b + #geq 2b vs 0b",         col_all},
+  };
+
+  for (const auto& cat : cats) {
+    TGraph* g2 = (TGraph*) f->Get(cat.r2);
+    TGraph* g3 = (TGraph*) f->Get(cat.r3);
+    if (!g2) {
+      std::cerr << "  missing " << cat.r2 << " in file — skipping " << cat.tag << std::endl;
+      continue;
+    }
+    bool has_r3 = (g3 && g3->GetN() > 1);
+
+    // Run 2 solid, Run 3 dashed — both in the category colour
+    g2->SetLineColor(cat.col); g2->SetLineWidth(3); g2->SetLineStyle(1); g2->SetMarkerColor(cat.col);
+    if (has_r3) { g3->SetLineColor(cat.col); g3->SetLineWidth(3); g3->SetLineStyle(2); g3->SetMarkerColor(cat.col); }
+
+    TCanvas* c = new TCanvas(Form("c_cmp_%s", cat.tag), Form("ROC %s", cat.title), 800, 700);
+    c->SetGrid();
+    c->SetLogy();
+
+    g2->SetTitle(Form("b-tag ROC: %s;signal efficiency;mistag rate", cat.title));
+    g2->Draw("AL");
+    g2->GetXaxis()->SetLimits(0, 1);
+    g2->GetYaxis()->SetRangeUser(1e-6, 1);   // log y: avoid 0
+    if (has_r3) g3->Draw("L same");
+
+    TLegend* leg = new TLegend(0.50, 0.14, 0.88, 0.30);
+    leg->SetBorderSize(0); leg->SetFillStyle(0); leg->SetTextSize(0.032);
+    leg->AddEntry(g2, "Run 2 (ParticleNet BvsAll)", "l");
+    if (has_r3) leg->AddEntry(g3, "Run 3 PPRef2024 (UParT)", "l");
+    leg->Draw();
+
+    TString out = output_folder + "btag_roc_cmp_" + cat.tag + ".pdf";
+    c->SaveAs(out.Data());
+    std::cout << "  wrote " << out << std::endl;
+    delete c;
+  }
+
+  // ---- combined overlay: all 4 categories together (log-y, no diagonal) ----
+  {
+    TCanvas* c = new TCanvas("c_cmp_overlay", "b-tag ROC overlay", 800, 700);
+    c->SetGrid();
+    c->SetLogy();
+
+    TLegend* leg = new TLegend(0.52, 0.13, 0.88, 0.40);
+    leg->SetBorderSize(0); leg->SetFillStyle(0); leg->SetTextSize(0.030);
+
+    bool first = true;
+    for (const auto& cat : cats) {
+      TGraph* g2 = (TGraph*) f->Get(cat.r2);
+      TGraph* g3 = (TGraph*) f->Get(cat.r3);
+      if (!g2) continue;
+      bool has_r3 = (g3 && g3->GetN() > 1);
+      g2->SetLineColor(cat.col); g2->SetLineWidth(3); g2->SetLineStyle(1);
+      if (has_r3) { g3->SetLineColor(cat.col); g3->SetLineWidth(3); g3->SetLineStyle(2); }
+
+      if (first) {
+        g2->SetTitle("b-tag ROC (Run2 solid, Run3 dashed);signal efficiency;mistag rate");
+        g2->Draw("AL");
+        g2->GetXaxis()->SetLimits(0, 1);
+        g2->GetYaxis()->SetRangeUser(1e-6, 1);
+        first = false;
+      } else {
+        g2->Draw("L same");
+      }
+      if (has_r3) g3->Draw("L same");
+      leg->AddEntry(g2, cat.title, "l");
+    }
+    // sample key (line style)
+    TGraph* solid_key = new TGraph(); solid_key->SetLineColor(kBlack); solid_key->SetLineWidth(3);
+    TGraph* dash_key  = new TGraph(); dash_key->SetLineColor(kBlack);  dash_key->SetLineWidth(3); dash_key->SetLineStyle(2);
+    leg->AddEntry(solid_key, "Run 2 (BvsAll)", "l");
+    leg->AddEntry(dash_key,  "Run 3 (UParT)",  "l");
+    leg->Draw();
+
+    TString out = output_folder + "btag_roc_cmp_overlay.pdf";
+    c->SaveAs(out.Data());
+    std::cout << "  wrote " << out << std::endl;
+    delete c;
+  }
+
+  f->Close();
 }
