@@ -1,7 +1,7 @@
 // might need to add the help functon header ?
 
 
-void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, Int_t ibin_pt = 2, Variation ivar = NOMINAL){
+void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bool& also_bjet, Int_t ibin_pt = 2, Variation ivar = NOMINAL){
     // input: the template fit output root file
     // folder: is the current working directory
     // The jet pt bin to draw: 0 to 3: integrated, 80 to 140 GeV. Nominal bin: 100-120 GeV, ibin_pt = 2.
@@ -74,21 +74,34 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, In
                 TH1D *h1D_0b = h3D_0b->ProjectionY(Form("h1D_0b_%d", ibin_pt), 1, mb_bins, SliceFirstbin_pt, SliceLastbin_pt);
 
             // -- Add 2B from bjets
-            TH3D* h3D_bb_bjet = (TH3D*) file->Get("h3D_bb_bjet"); if(!h3D_bb_bjet) cout << "hist does not exist" << endl;
-                TH1D *h1D_bb_bjets = h3D_bb_bjet->ProjectionY(Form("h1D_bb_bjets_%d", ibin_pt), 1, mb_bins, SliceFirstbin_pt, SliceLastbin_pt);
-
+            TH3D* h3D_bb_bjet = nullptr;
+            TH1D *h1D_bb_bjets = nullptr;
+            if(also_bjet){
+                h3D_bb_bjet = (TH3D*) file->Get("h3D_bb_bjet"); if(!h3D_bb_bjet) cout << "hist does not exist" << endl;
+                h1D_bb_bjets = h3D_bb_bjet->ProjectionY(Form("h1D_bb_bjets_%d", ibin_pt), 1, mb_bins, SliceFirstbin_pt, SliceLastbin_pt);
+            }
                 // 2B : MC = qcd + bjet
-                TH1D* h1D_bb_combined =  (TH1D*) h1D_bb->Clone("h1D_bb_combined"); h1D_bb_combined->Add(h1D_bb_bjets); h1D_bb_combined->SetName("2B (MC: qcd+bjet)");
+                TH1D* h1D_bb_combined =  (TH1D*) h1D_bb->Clone("h1D_bb_combined");
+                    if (also_bjet) {h1D_bb_combined->Add(h1D_bb_bjets); h1D_bb_combined->SetName("2B (MC: qcd+bjet)");}
+                    else { h1D_bb_combined->SetName("2B (MC: qcd)");}
                     // scale it to qcd integral
                         h1D_bb_combined->Scale(1. *h1D_bb->Integral(1, N_dr_bins, "width") /h1D_bb_combined->Integral(1, N_dr_bins, "width"));
 
             // Sum 1B + 0B as total bkg
             TH1D* h1D_b_0b = (TH1D*) h1D_b->Clone("h1D_b_0b"); h1D_b_0b->Add(h1D_0b);
-
                 // set their styles
-                h1D_bb_combined->SetFillStyle(0); h1D_bb->SetFillStyle(0); h1D_bb_bjets->SetFillStyle(0);h1D_b->SetFillStyle(0); h1D_0b->SetFillStyle(0); h1D_b_0b->SetFillStyle(0);
+                h1D_bb_combined->SetFillStyle(0); 
+                h1D_bb->SetFillStyle(0);
+               
+                h1D_b->SetFillStyle(0); h1D_0b->SetFillStyle(0); h1D_b_0b->SetFillStyle(0);
                 h1D_bb_combined->SetLineColor(kCyan+2); h1D_bb_combined ->SetLineWidth(3);
-                h1D_bb->SetLineColor(kBlue); h1D_bb_bjets->SetLineColor(kBlue+ 4);
+                h1D_bb->SetLineColor(kBlue);
+                if(also_bjet){
+                    h1D_bb_bjets->SetFillStyle(0);
+                    h1D_bb_bjets->SetLineColor(kBlue+ 4);
+                }
+
+
 
                 h1D_b_0b->SetLineColor(kMagenta + 1); h1D_b_0b ->SetLineWidth(3);
                 h1D_b->SetLineColor(kOrange+2); h1D_b ->SetLineWidth(2);
@@ -115,8 +128,8 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, In
                         );
                         leg->SetHeader(Form("%g < p_{T} < %g GeV", pt_first, pt_last), "L"); //centered
                         leg->Draw("same");
-                c_data->SaveAs( folder + sresultDir_eec + "/" + "Data_ EEC_fromFit_" + ibin_pt + ".pdf");
-                c_data->SaveAs( folder + sresultDir_eec + "/" + "Data_ EEC_fromFit_" + ibin_pt + ".png");
+                c_data->SaveAs(sresultDir_eec + "/" + "Data_ EEC_fromFit_" + ibin_pt + ".pdf");
+                c_data->SaveAs(sresultDir_eec + "/" + "Data_ EEC_fromFit_" + ibin_pt + ".png");
 
             // -- Draw MC EEC
              TCanvas *c_MC = new TCanvas(Form("c_EEC_MC_%s", sname_canvas.Data()), " ",900, 800);
@@ -126,22 +139,22 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, In
                 h1D_bb->SetTitle("");
                 h1D_bb->GetXaxis()->SetTitle("#DeltaR");
                 h1D_bb->GetYaxis()->SetTitle("EEC");
-                h1D_bb->SetMaximum(1.3 *  h1D_bb_bjets->GetMaximum()); // bjets is larger
+                if (also_bjet) h1D_bb->SetMaximum(1.3 *  h1D_bb_bjets->GetMaximum()); // bjets is larger
                 h1D_bb->Draw("hist E");
-                h1D_bb_bjets->Draw("hist E same");
+                if (also_bjet) h1D_bb_bjets->Draw("hist E same");
                 h1D_bb_combined->Draw("hist E same");
                 h1D_b_0b ->Draw("hist E same");
                 h1D_b->Draw("hist E same");
                 h1D_0b->Draw("hist E  same");
                 TLegend* leg_mc = CreateLegend(0.14, 0.6, 0.5, 0.8, // suggested: 0.6,0.7,0.9,0.9
-                        {h1D_bb_combined,h1D_bb, h1D_bb_bjets, h1D_b_0b, h1D_b, h1D_0b},
+                        {h1D_bb_combined, h1D_bb, h1D_bb_bjets, h1D_b_0b, h1D_b, h1D_0b},
                         {"LPE", "LPE", "LPE"},
-                        {"2B (MC: qcd + bjet)","2B (qcd)", "2B (bjets)" , "1B+0B (MC)", "1B (MC)", "0B (MC)"}
+                        {h1D_bb_combined->GetName(),"2B (qcd)", "2B (bjets)" , "1B+0B (MC)", "1B (MC)", "0B (MC)"}
                         );
                         leg_mc->SetHeader(Form("%g < p_{T} < %g GeV", pt_first, pt_last), "L"); //centered
                         leg_mc->Draw("same");
-                c_MC->SaveAs( folder + sresultDir_eec + "/" + "MC_ EEC_" + ibin_pt + ".pdf");
-                c_MC->SaveAs( folder + sresultDir_eec + "/" + "MC_ EEC_" + ibin_pt + ".png");
+                c_MC->SaveAs( sresultDir_eec + "/" + "MC_ EEC_" + ibin_pt + ".pdf");
+                c_MC->SaveAs( sresultDir_eec + "/" + "MC_ EEC_" + ibin_pt + ".png");
 
             // -- Draw All: normalized
                 double int_data = h1D_scaled->Integral(1, N_dr_bins, "width");
@@ -151,7 +164,8 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, In
                 double int0 = h1D_0b->Integral(1, N_dr_bins, "width");
                 double int1 = h1D_b->Integral(1, N_dr_bins, "width");
                 double int2 = h1D_bb->Integral(1, N_dr_bins, "width");
-                double int2_bjets = h1D_bb_bjets->Integral(1, N_dr_bins, "width");
+                double int2_bjets = 0; 
+                if (also_bjet) int2_bjets = h1D_bb_bjets->Integral(1, N_dr_bins, "width");
 
                     cout << "Data integral = " << int_data << endl;
                     cout << "2B in Data integral = " << int_2B_data << endl;
@@ -227,8 +241,8 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, In
                                 leg_ratio->Draw("same");
                         pad2->Modified(); // force refresh
                         pad2->Update();
-                    c_all_norm->SaveAs( folder + sresultDir_eec + "/" + "AllNorm_ EEC_" + ibin_pt + ".pdf");
-                    c_all_norm->SaveAs( folder + sresultDir_eec + "/" + "AllNorm_ EEC_" + ibin_pt + ".png");
+                    c_all_norm->SaveAs( sresultDir_eec + "/" + "AllNorm_ EEC_" + ibin_pt + ".pdf");
+                    c_all_norm->SaveAs( sresultDir_eec + "/" + "AllNorm_ EEC_" + ibin_pt + ".png");
 
       // -- Write plotted canvas to output file
      if (!foutputPlots) {

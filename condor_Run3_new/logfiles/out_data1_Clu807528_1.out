@@ -1,0 +1,18 @@
+gSystem->Load("run_condor_job_Run3_C.so");
+run_condor_job_Run3(1, 1,3, 0,
+                    80, 200,
+                    1, 1, 0, 1);
+.q
+
+ENTERED run_condor_job_Run3()
+JOBID = 1
+---->>>> RUN 3
+Entered data type 0 in run condor ()
+you chose data
+input file: /data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/1/merged_HiForestMiniAOD.root
+ERROR: cannot open file /data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/1/merged_HiForestMiniAOD.root
+  global job = 1  Job 0/1  events [0, 10000)  total=10000
+Enterd make_templates() 
+ERROR: cannot open file /data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/1/merged_HiForestMiniAOD.root
+after run_condor_job_Run3()
+ROOT exit code = 0

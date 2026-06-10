@@ -35,7 +35,7 @@
 
 
 // name for outpur directory (in path) 
-TString sDirname = "Templates_Run3"; // Must use before Help_Functions.h
+TString sDirname = "TemplateFits_Run3_minHLT60"; // Must use before Help_Functions.h
 // -- For systematic uncertainti study 
 enum Variation {NOMINAL, VARIED0B_UP, VARIED0B_DOWN, NVAR}; // add other variations before NVAR to keep the size 
 TString varNames[NVAR] = {"nominal", "var0B_2", "var0B_0"};
@@ -438,6 +438,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     TString sresultDir = Form("%s/FitResult_Summary_S_B_fractions/%s", sDirname.Data(), varNames[ivar].Data());
     gSystem->mkdir(sresultDir, kTRUE); 
 
+
     //Get fractions for the jtpt bin ibin_pt
     TFile *file = new TFile(Form("%s/%s", sDirname.Data(), fout_name.Data()), "read");
     if (!file) {Error("Input File:", "File does not exist'%s'", file->GetName());return nullptr;}
@@ -603,8 +604,8 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     // ------------------------------- range has to be modified  -------------------------------
     if (ibin_pt > 0){ ptbin_name = Form("%g_%g", jtpt_binsVector[ibin_pt-1], jtpt_binsVector[ibin_pt]);}
     else ptbin_name = Form("%g_%g", jtpt_binsVector[0], jtpt_binsVector[bins_pt]);
-    c->SaveAs( folder + sresultDir + "/" + trivialMC_label + "sign_frac_result_" + dataset + "_" + ptbin_name + ".pdf");
-    c->SaveAs( folder + sresultDir + "/"  + trivialMC_label + "sign_frac_result_" + dataset + "_" + ptbin_name + ".png");
+    c->SaveAs( sresultDir + "/" + trivialMC_label + "sign_frac_result_" + dataset + "_" + ptbin_name + ".pdf"); // Removed folder name (for not repeat again)
+    c->SaveAs( sresultDir + "/"  + trivialMC_label + "sign_frac_result_" + dataset + "_" + ptbin_name + ".png");
 
 
     // ---------- 
@@ -756,8 +757,8 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
             leg2_val->AddEntry(h_ratio2_dr, "Bkg.");
             leg2_val->Draw("same");
 
-            c_drval->SaveAs( folder + sresultDir + "/" + trivialMC_label + "sign_frac_result_differentialDronly_" + dataset + "_" + ptbin_name + ".png");
-            c_drval->SaveAs( folder + sresultDir + "/" + trivialMC_label + "sign_frac_result_differentialDronly_" + dataset + "_" + ptbin_name + ".pdf");
+            c_drval->SaveAs( sresultDir + "/" + trivialMC_label + "sign_frac_result_differentialDronly_" + dataset + "_" + ptbin_name + ".png");
+            c_drval->SaveAs( sresultDir + "/" + trivialMC_label + "sign_frac_result_differentialDronly_" + dataset + "_" + ptbin_name + ".pdf");
 
 
     // -- Write plotted canvas to output file 

@@ -6,13 +6,14 @@
 // Define binnings
 
 //dr
-const Int_t dr_binsVectorSize = 9;
+const Int_t dr_binsVectorSize = 8;
 Int_t bins_dr = dr_binsVectorSize - 1;
 Int_t dr_bins = bins_dr;
 Double_t dr_binsVector[dr_binsVectorSize] = {
   0.005,    // cut at 0.004 for now (aim to 0.005 when reproduce templates)
-  0.011883, // [bin 1-5] merged
-  0.024155, // bin [6-7]
+  //0.011883, // [bin 1-5] merged
+  //0.024155, // bin [6-7]
+  0.018019,
   0.034399,
   0.049013,
   0.069840,
@@ -67,7 +68,7 @@ Double_t mb_binsVector[mb_binsVectorSize] = {
     7.,
     8,
     9,
-    10,
+    10
 };
 Double_t mb_min = mb_binsVector[0];
 Double_t mb_max = mb_binsVector[mb_bins];
@@ -139,24 +140,6 @@ void recover_eec_distr(TH1D* &h_1D, TH2D* &h, Double_t last_eec = 1000){
 
         //dr = h->GetXaxis()->GetBinCenter(ibin_dr);
         //Float_t dr_error = 0;   
-
-
-/*
-
-        for (Int_t ibin_eec = 1; ibin_eec <= eec_bins_tot; ibin_eec++) {
-
-        eec = h->GetYaxis()->GetBinCenter(ibin_eec);
-        if (ibin_eec == eec_bins_tot) eec = last_eec;
-
-        double val = h->GetBinContent(ibin_dr, ibin_eec);
-        h_1D->Fill(dr, val * eec);
-        double err = h->GetBinError(ibin_dr, ibin_eec);
-        if (!std::isnan(err) && !std::isinf(err))
-            dr_error += pow(err * eec, 2);
-    }
-
-        */ 
-
         for(Int_t ibin_eec = 1; ibin_eec <= eec_bins_tot; ibin_eec++){
 
             eec = h->GetYaxis()->GetBinLowEdge(ibin_eec)+eec_step/2;
@@ -170,9 +153,6 @@ void recover_eec_distr(TH1D* &h_1D, TH2D* &h, Double_t last_eec = 1000){
             h_1D->Fill(dr, h->GetBinContent(ibin_dr, ibin_eec)*eec);
 
         }
-
-       
-
         //Approximate the bin error        
         h_1D->SetBinError(ibin_dr, std::sqrt(dr_error));
 
