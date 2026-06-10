@@ -6,13 +6,14 @@
 // Define binnings
 
 //dr
-const Int_t dr_binsVectorSize = 9;
+const Int_t dr_binsVectorSize = 8;
 Int_t bins_dr = dr_binsVectorSize - 1;
 Int_t dr_bins = bins_dr;
 Double_t dr_binsVector[dr_binsVectorSize] = {
   0.005,    // cut at 0.004 for now (aim to 0.005 when reproduce templates)
-  0.011883, // [bin 1-5] merged
-  0.024155, // bin [6-7]
+  //0.011883, // [bin 1-5] merged
+  //0.024155, // bin [6-7]
+  0.018019,
   0.034399,
   0.049013,
   0.069840,
