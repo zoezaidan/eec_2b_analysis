@@ -66,7 +66,7 @@ void fill_bdt_score_histos(TString filename, Int_t RunN, bool isMC,
   std::vector<TString> active = {
     "jtpt", "nref", "jtNbHad",
     "ntrk", "trkJetId", "trkPt", "trkBdtScore", "trkMatchSta",
-    "weight", "pthat", "refpt", "refeta"
+    "weight", "pthat"
   };
   if (RunN == 3) {
     active.push_back("HLT_AK4PFJet60_v8");
