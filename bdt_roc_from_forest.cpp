@@ -38,7 +38,7 @@ TGraph* MakeROC(TH1D* h_sg, TH1D* h_bkg, const char* name) {
   double total_bkg = h_bkg->Integral(1, nbins);
 
   std::vector<double> tpr, fpr;
-  for (int bin = 1; bin <= nbins; ++bin) {
+  for (int bin = 1; bin <= nbins; bin++) {
     double sg_pass  = h_sg->Integral(bin, nbins);
     double bkg_pass = h_bkg->Integral(bin, nbins);
     tpr.push_back(total_sg  > 0 ? sg_pass  / total_sg  : 0);
@@ -57,6 +57,8 @@ void fill_bdt_score_histos(TString filename, Int_t RunN, bool isMC,
                            TH1D* h0b_sg, TH1D* h0b_bkg,
                            TH1D* h1b_sg, TH1D* h1b_bkg,
                            TH1D* h2b_sg, TH1D* h2b_bkg) {
+  
+  // -- Check if Run3 fles have tree sructure or TChain ..----- 
   tTree t;
   t.Init(filename, isMC, RunN);
   t.SetBranchStatus("*", 0);
@@ -67,9 +69,9 @@ void fill_bdt_score_histos(TString filename, Int_t RunN, bool isMC,
     "weight", "pthat", "refpt", "refeta"
   };
   if (RunN == 3) {
-    active.push_back("HLT_AK4PFJet80_v8");
-  } else {
-    active.push_back("HLT_HIAK4PFJet80_v1");
+    active.push_back("HLT_AK4PFJet60_v8");
+  } else if (RunN == 2) {
+    active.push_back("HLT_HIAK4PFJet40_v1");
   }
   t.SetBranchStatus(active, 1);
 
@@ -81,18 +83,19 @@ void fill_bdt_score_histos(TString filename, Int_t RunN, bool isMC,
 
     double w = isMC ? t.weight : 1.0;
 
-    // trigger (matches the producer: HLT 80 in MC)
-    if (RunN == 3) { if (!(t.HLT_AK4PFJet80_v8))   continue; }
-    else           { if (!(t.HLT_HIAK4PFJet80_v1)) continue; }
+    // trigger
+    if (RunN == 3) { if (!(t.HLT_AK4PFJet60_v8))   continue; }
+    else if (RunN == 2) { if (!(t.HLT_HIAK4PFJet40_v1)) continue; }
 
     for (Int_t ijet = 0; ijet < t.nref; ijet++) {
-      double jeta = isMC ? t.refeta[ijet] : t.jteta[ijet];
-      double jpt  = isMC ? t.refpt[ijet]  : t.jtpt[ijet];
-      if (std::abs(jeta) > 1.9) continue;
+      if (std::abs(t.jteta[ijet]) > 1.9) continue;
       if (isMC && skipMC_bdt(jpt, t.pthat)) continue;
-      if (jpt < pT_low || jpt > pT_high) continue;
+      if (t.jtpt[ijet] < pT_low || t.jtpt[ijet] > pT_high) continue;
 
       int nbHad = t.jtNbHad[ijet];
+      // -- Comment: h0b_sg should not be filled! Only h0b_bkg is truth 0b (nbHad = 0 and trksta = 1)
+      // while h0b_sg is filled when (nbHad= 0 and trksta >=100).
+      // - - I suggest: if you want to add 0b DBT rOC, it will be opposite names (h0b_bkg --> sg, and vice versa).
       TH1D* h_sg  = (nbHad == 0) ? h0b_sg  : (nbHad == 1) ? h1b_sg  : h2b_sg;
       TH1D* h_bkg = (nbHad == 0) ? h0b_bkg : (nbHad == 1) ? h1b_bkg : h2b_bkg;
 
