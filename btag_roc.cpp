@@ -31,9 +31,9 @@ TGraph* makeROC(TH1D* h_sig_num, TH1D* h_sig_den, TH1D* h_bkg) {
   if (total_sig == 0 || total_bkg == 0) return new TGraph();
 
   std::vector<double> sig_eff, bkg_eff;
-  for (int ibin = nbins + 1; ibin >= 0; ibin--) {
-    double s = h_sig_num->Integral(ibin, nbins + 1);
-    double b = h_bkg->Integral(ibin, nbins + 1);
+  for (int ibin = nbins; ibin >= 1; ibin--) {
+    double s = h_sig_num->Integral(ibin, nbins);
+    double b = h_bkg->Integral(ibin, nbins);
     sig_eff.push_back(s / total_sig);
     bkg_eff.push_back(b / total_bkg);
   }
