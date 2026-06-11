@@ -425,7 +425,8 @@ void btag_roc(Int_t dataType = 2, Float_t pT_low = 80, Float_t pT_high = 200, do
 
   TString output_folder = TString(gSystem->DirName(__FILE__)) + "/";
   TString filename, output_hist;
-
+  
+  // -- NOTE: Bjet sample should not be used for b-tag ROC curve
   if (dataType == 1) {
     filename    = "/data_CMS/cms/kalipoliti/qcdMC/bjet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
     output_hist = "btag_roc_bjet";
