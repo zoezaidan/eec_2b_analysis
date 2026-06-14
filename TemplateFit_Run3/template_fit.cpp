@@ -1696,7 +1696,8 @@ void template_fit(){
     TString folder = Form("/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/%s/", sDirname.Data()); // this is sDirname 
         cout << "Output folder path: "<< folder << endl;
 
-    Int_t RunN = 3; 
+    Int_t RunN = 3; // 3; 
+
 
     //Get data and mc labels
     TString pT_selection = "80_200";
@@ -1718,8 +1719,8 @@ void template_fit(){
         alsoLowEG = false; 
         also_bjet = false;
         // TString templates_dijet_HLT40 = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/condor_Run3/MergedJobResult/MergedAllFiles_Run3_WP90_template_for_fit_histos_3D_qcd_btag.root";
-        dataset_HG = "/data_CMS/cms/shatat/Run3/Templates/MergedAllFiles_Run3_secondbinsplitting_June_WP090_template_for_fit_histos_3D_alltrgData_btag.root";
-        templates_dijet = "/data_CMS/cms/shatat/Run3/Templates/MergedAllFiles_Run3_secondbinsplitting_June_WP090_template_for_fit_histos_3D_qcd_btag.root";
+        dataset_HG = "/data_CMS/cms/shatat/Run3/Templates_btagwp0872/MergedAllFiles_Run3_secondbinsplitting_WP0872_template_for_fit_histos_3D_data_btag.root";
+        templates_dijet = "/data_CMS/cms/shatat/Run3/Templates_btagwp0872//MergedAllFiles_Run3_secondbinsplitting_WP0872_template_for_fit_histos_3D_qcd_btag.root";
         fout_name = Form("Run%d_TemplateFits_histos_3d_%s.root", RunN, pT_selection.Data());
     }
     else if (RunN == 2){
