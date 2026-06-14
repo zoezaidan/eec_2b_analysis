@@ -1,0 +1,44 @@
+## Test reading one file from Matt. path 
+## Before submit:
+## manully produce one comilation to be shared over all jobs, before starting. Use root -l, then .L run_condor_job_Run3.C++.
+## Use  condor_submit filename.sub
+
+Universe       = vanilla
+Executable     = Run3_script.sh
+
+N_JOBS=100
+DATATYPE=0
+RUNN=3
+PT_LOW=80
+PT_HIGH=200
+N=1
+BTAG=1
+ISMC=0
+
+arguments = $(Process) $(N_JOBS) $(RUNN) $(DATATYPE) $(PT_LOW) $(PT_HIGH) \
+            $(N) $(BTAG) $(ISMC) $(FILEINDEX)
+
+input          = /dev/null
+output         = logfiles/out_data$(FILEINDEX)_Clu$(ClusterId)_$(Process).out
+error          = logfiles/err_data$(FILEINDEX)_Clu$(ClusterId)_$(Process).err
+Log            = logfiles/log_data$(FILEINDEX)_Clu$(ClusterId).log
+getenv         = true
+T3Queue        = short
+WNTag          = el9
+
+include : /opt/exp_soft/cms/t3/t3queue |
+
+## test using t3 tests mode 
+#include : /opt/exp_soft/cms/t3_tst/t3queue |
+
+
+queue $(N_JOBS) FILEINDEX in 0, 1, 2, 3, 4
+# 0, 1, 2, 3, 4
+
+## For data: 0-4
+
+
+
+
+
+

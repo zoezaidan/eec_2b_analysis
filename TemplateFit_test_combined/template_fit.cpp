@@ -886,8 +886,6 @@ void template_fit(){
             
         } // end varaitions loop
 
-// return;
-
 
         //-- Get systematics 
         TFile *fsys = new TFile( Form("%s/Result_syst_uncert_templatefit.root", sDirname.Data()),"recreate");

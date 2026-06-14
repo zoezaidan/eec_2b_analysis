@@ -22,7 +22,7 @@ public :
    Int_t           nvtx;
    Float_t         rawpt[500];   //[nref]
    Float_t         jtpt[500];   //[nref]
-   Float_t         jtpt_gen[500];   //[nref]
+   // Float_t         jtpt_gen[500];   //[nref]
    Float_t         jteta[500];   //[nref]
    Float_t         jty[500];   //[nref]
    Float_t         jtphi[500];   //[nref]
@@ -85,12 +85,23 @@ public :
    Int_t           refTrkSta[500];   //[ntrk]
    Float_t         refTrkMass[500];
 
-   //HLT selection
+   //HLT selection (Run 2)
    Int_t           HLT_HIAK4PFJet100_v1;
    Int_t           HLT_HIAK4PFJet80_v1;
    Int_t           HLT_HIAK4PFJet60_v1;
    Int_t           HLT_HIAK4PFJet40_v1;
    Int_t           HLT_HIAK4PFJet30_v1;
+
+   // HLT selection (Run 3)
+   Int_t           HLT_AK4PFJet60_v8;
+   Int_t           HLT_AK4PFJet80_v8;
+   Int_t           HLT_AK4PFJet100_v8;
+   Int_t           HLT_AK4PFJet120_v8;
+   // Run 3: b tag discriminating variables 
+   Float_t         discr_unifiedParticleTransformer_probb[500]; // [nref]
+   Float_t         discr_unifiedParticleTransformer_problepb[500]; // [nref]
+   Float_t         discr_unifiedParticleTransformer_probbb[500]; // [nref]
+
 
    //Prescale
    //Double_t        prescale_pf40;
@@ -193,7 +204,7 @@ public :
    TBranch        *b_nvtx;   //!
    TBranch        *b_rawpt;   //!
    TBranch        *b_jtpt;   //!
-   TBranch        *b_jtpt_gen;   //!
+   // TBranch        *b_jtpt_gen;   //!
    TBranch        *b_discr_particleNet_BvsAll;
    TBranch        *b_jteta;   //!
    TBranch        *b_jty;   //!
@@ -256,12 +267,23 @@ public :
    TBranch        *b_trkMass;
    TBranch        *b_nrefTrk;
 
-   //HLT branches
+   //HLT branches (Run 2)
    TBranch        *b_HLT_HIAK4PFJet100_v1;
    TBranch        *b_HLT_HIAK4PFJet80_v1;
    TBranch        *b_HLT_HIAK4PFJet60_v1;
    TBranch        *b_HLT_HIAK4PFJet40_v1;
    TBranch        *b_HLT_HIAK4PFJet30_v1;
+
+   // HLT branches (Run 3)
+   TBranch        *b_HLT_AK4PFJet60_v8;
+   TBranch        *b_HLT_AK4PFJet80_v8;
+   TBranch        *b_HLT_AK4PFJet100_v8;
+   TBranch        *b_HLT_AK4PFJet120_v8;
+   // Run 3: btag variables branches 
+   TBranch        *b_discr_unifiedParticleTransformer_probb;
+   TBranch        *b_discr_unifiedParticleTransformer_problepb;
+   TBranch        *b_discr_unifiedParticleTransformer_probbb;
+
 
    //Prescale
    //TBranch        *b_prescale_pf40;
@@ -353,12 +375,12 @@ public :
   ~tTree();
   Int_t GetEntry(Long64_t entry);
   Long64_t GetEntries();
-  void Init(TString, bool);
+  void Init(TString, bool, Int_t RunN = 2); // it was RunN = 2! 
   void SetBranchStatus(TString branchName, Int_t status);
   void SetBranchStatus(std::vector<TString> branchNames, Int_t status);
-  void plot_rgzgkt(TString foutname, Float_t bTagWP);
+  // void plot_rgzgkt(TString foutname, Float_t bTagWP);
   Float_t calc_dr(Float_t eta1, Float_t phi1, Float_t eta2, Float_t phi2);
-  Float_t calc_rg(Float_t y1, Float_t phi1, Float_t y2, Float_t phi2);
+  // Float_t calc_rg(Float_t y1, Float_t phi1, Float_t y2, Float_t phi2);
 };
 
 //tTree::tTree(TString rootf)
@@ -386,20 +408,40 @@ Long64_t tTree::GetEntries()
    return tree->GetEntries();
 }
 
-void tTree::Init(TString rootf, bool isMC)
+void tTree::Init(TString rootf, bool isMC, Int_t RunN)
 {
    
+  std::cout << "Opening ROOT file: [" << rootf << "]" << std::endl;
   TFile *fin = TFile::Open(rootf);
-  if (!fin ->IsOpen()){cout << "Root input file fail to Open!! "<< endl; return;}
+
+      // Safety
+      if (!fin || fin->IsZombie()) {
+       std::cout << "ERROR: cannot open file " << rootf << std::endl;
+       return;
+      }
+
+
+   if(!isMC && RunN == 2) tree = (TTree*) fin->Get("akCs4PFJetAnalyzer/t"); // does not exist in Run3 data 
+   else tree = (TTree*) fin->Get("ak4PFJetAnalyzer/t"); // run3 data and MC, run2 MC 
    
-   if(!isMC) tree = (TTree*) fin->Get("akCs4PFJetAnalyzer/t");
-   else tree = (TTree*) fin->Get("ak4PFJetAnalyzer/t");
-   
-   tree->AddFriend("hiEvtAnalyzer/HiTree");
-   tree->AddFriend("hltanalysis/HltTree");
-   
+      // Safety
+      if (!tree) {
+       std::cout << "ERROR: tree not found in file " << rootf << std::endl;
+       return;
+      }
+
+   // -- Add tree friends
+   // tree->AddFriend("hiEvtAnalyzer/HiTree"); // Works only for TTree
+   // tree->AddFriend("hltanalysis/HltTree"); // Works only for TTree
+   tree->AddFriend((TTree*)fin->Get("hiEvtAnalyzer/HiTree"));
+   tree->AddFriend((TTree*)fin->Get("hltanalysis/HltTree"));  
+   // sanity check : print list of friends 
+   tree->GetListOfFriends()->Print();
+      
+
+
+
    // Set branch addresses and branch pointers
-   
    tree->SetBranchAddress("run", &run, &b_run);
    tree->SetBranchAddress("evt", &evt, &b_evt);
    tree->SetBranchAddress("lumi", &lumi, &b_lumi);
@@ -407,8 +449,57 @@ void tTree::Init(TString rootf, bool isMC)
    tree->SetBranchAddress("nvtx", &nvtx, &b_nvtx);
    tree->SetBranchAddress("rawpt", rawpt, &b_rawpt);
    tree->SetBranchAddress("jtpt", jtpt, &b_jtpt);
-   //if(isMC)tree->SetBranchAddress("jtpt_gen", jtpt_gen, &b_jtpt_gen);
-   tree->SetBranchAddress("discr_particleNet_BvsAll", discr_particleNet_BvsAll, &b_discr_particleNet_BvsAll);
+   
+   // if(isMC)tree->SetBranchAddress("jtpt_gen", jtpt_gen, &b_jtpt_gen); // does not exist
+
+   if (RunN == 2) {
+      cout << "Set branch address for some Run 2 specific branches" << endl;
+      tree->SetBranchAddress("trkDistToAxisSig", trkDistToAxisSig, &b_trkDistToAxisSig);
+      tree->SetBranchAddress("discr_particleNet_BvsAll", discr_particleNet_BvsAll, &b_discr_particleNet_BvsAll);
+      tree->SetBranchAddress("FNscore", FNscore, &b_FNscore); //
+      tree->SetBranchAddress("discr_deepCSV", discr_deepCSV, &b_discr_deepCSV);
+      tree->SetBranchAddress("discr_deepFlavour_b", discr_deepFlavour_b, &b_discr_deepFlavour_b);
+      tree->SetBranchAddress("discr_deepFlavour_bb", discr_deepFlavour_bb, &b_discr_deepFlavour_bb);
+      tree->SetBranchAddress("discr_deepFlavour_lepb", discr_deepFlavour_lepb, &b_discr_deepFlavour_lepb);
+
+      tree->SetBranchAddress("sjt1Pt", sjt1Pt, &b_sjt1Pt);
+      tree->SetBranchAddress("sjt1Eta", sjt1Eta, &b_sjt1Eta);
+      tree->SetBranchAddress("sjt1Phi", sjt1Phi, &b_sjt1Phi);
+      tree->SetBranchAddress("sjt1Y", sjt1Y, &b_sjt1Y);
+      tree->SetBranchAddress("sjt2Pt", sjt2Pt, &b_sjt2Pt);
+      tree->SetBranchAddress("sjt2Eta", sjt2Eta, &b_sjt2Eta);
+      tree->SetBranchAddress("sjt2Phi", sjt2Phi, &b_sjt2Phi);
+      tree->SetBranchAddress("sjt2Y", sjt2Y, &b_sjt2Y);
+
+      tree->SetBranchAddress("jtmB", jtmB, &b_jtmB);
+      tree->SetBranchAddress("jtBpt", jtBpt, &b_jtBpt);
+      //HLT (Run 2)
+      tree->SetBranchAddress("HLT_HIAK4PFJet100_v1", &HLT_HIAK4PFJet100_v1, &b_HLT_HIAK4PFJet100_v1);
+      tree->SetBranchAddress("HLT_HIAK4PFJet80_v1", &HLT_HIAK4PFJet80_v1, &b_HLT_HIAK4PFJet80_v1);
+      tree->SetBranchAddress("HLT_HIAK4PFJet60_v1", &HLT_HIAK4PFJet60_v1, &b_HLT_HIAK4PFJet60_v1);
+      tree->SetBranchAddress("HLT_HIAK4PFJet40_v1", &HLT_HIAK4PFJet40_v1, &b_HLT_HIAK4PFJet40_v1);
+      tree->SetBranchAddress("HLT_HIAK4PFJet30_v1", &HLT_HIAK4PFJet30_v1, &b_HLT_HIAK4PFJet30_v1);
+      
+      if (isMC){
+         tree->SetBranchAddress("jtHadFlav", jtHadFlav, &b_jtHadFlav);
+         tree->SetBranchAddress("jtParFlav", jtParFlav, &b_jtParFlav);
+         tree->SetBranchAddress("rsjt1Pt", rsjt1Pt, &b_rsjt1Pt);
+         tree->SetBranchAddress("rsjt1Eta", rsjt1Eta, &b_rsjt1Eta);
+         tree->SetBranchAddress("rsjt1Phi", rsjt1Phi, &b_rsjt1Phi);
+         tree->SetBranchAddress("rsjt1Y", rsjt1Y, &b_rsjt1Y);
+        
+         tree->SetBranchAddress("rsjt2Pt", rsjt2Pt, &b_rsjt2Pt);
+         tree->SetBranchAddress("rsjt2Eta", rsjt2Eta, &b_rsjt2Eta);
+         tree->SetBranchAddress("rsjt2Phi", rsjt2Phi, &b_rsjt2Phi);
+         tree->SetBranchAddress("rsjt2Y", rsjt2Y, &b_rsjt2Y);
+      
+         tree->SetBranchAddress("refmB", refmB, &b_refmB);
+         tree->SetBranchAddress("refBpt", refBpt, &b_refBpt);
+
+      } // Run2 && MC 
+
+   } // Run 2
+
    tree->SetBranchAddress("jteta", jteta, &b_jteta);
    tree->SetBranchAddress("jty", jty, &b_jty);
    tree->SetBranchAddress("jtphi", jtphi, &b_jtphi);
@@ -440,11 +531,12 @@ void tTree::Init(TString rootf, bool isMC)
    tree->SetBranchAddress("trkY", trkY, &b_trkY);
    tree->SetBranchAddress("trkIp3d", trkIp3d, &b_trkIp3d);
    tree->SetBranchAddress("trkIp3dSig", trkIp3dSig, &b_trkIp3dSig);
-   tree->SetBranchAddress("trkDistToAxisSig", trkDistToAxisSig, &b_trkDistToAxisSig);
+
    tree->SetBranchAddress("trkDistToAxis", trkDistToAxis, &b_trkDistToAxis);
    tree->SetBranchAddress("trkMatchSta", trkMatchSta, &b_trkMatchSta);
    tree->SetBranchAddress("trkBdtScore", trkBdtScore, &b_trkBdtScore); //
-   tree->SetBranchAddress("FNscore", FNscore, &b_FNscore); //
+	
+
    tree->SetBranchAddress("jtNsvtx", jtNsvtx, &b_jtNsvtx);
    tree->SetBranchAddress("nsvtx", &nsvtx, &b_nsvtx);
    tree->SetBranchAddress("svtxJetId", svtxJetId, &b_svtxJetId);
@@ -472,39 +564,25 @@ void tTree::Init(TString rootf, bool isMC)
    tree->SetBranchAddress("jtDiscDeepFlavourBB", jtDiscDeepFlavourBB, &b_jtDiscDeepFlavourBB);
    tree->SetBranchAddress("jtDiscDeepFlavourLEPB", jtDiscDeepFlavourLEPB, &b_jtDiscDeepFlavourLEPB);
    */
-   tree->SetBranchAddress("discr_deepCSV", discr_deepCSV, &b_discr_deepCSV);
-   tree->SetBranchAddress("discr_pfJP", discr_pfJP, &b_discr_pfJP);
-   tree->SetBranchAddress("discr_deepFlavour_b", discr_deepFlavour_b, &b_discr_deepFlavour_b);
-   tree->SetBranchAddress("discr_deepFlavour_bb", discr_deepFlavour_bb, &b_discr_deepFlavour_bb);
-   tree->SetBranchAddress("discr_deepFlavour_lepb", discr_deepFlavour_lepb, &b_discr_deepFlavour_lepb);
 
-   tree->SetBranchAddress("sjt1Pt", sjt1Pt, &b_sjt1Pt);
-   tree->SetBranchAddress("sjt1Eta", sjt1Eta, &b_sjt1Eta);
-   tree->SetBranchAddress("sjt1Phi", sjt1Phi, &b_sjt1Phi);
-   tree->SetBranchAddress("sjt1Y", sjt1Y, &b_sjt1Y);
-
-   tree->SetBranchAddress("sjt2Pt", sjt2Pt, &b_sjt2Pt);
-   tree->SetBranchAddress("sjt2Eta", sjt2Eta, &b_sjt2Eta);
-   tree->SetBranchAddress("sjt2Phi", sjt2Phi, &b_sjt2Phi);
-   tree->SetBranchAddress("sjt2Y", sjt2Y, &b_sjt2Y);
-
-   tree->SetBranchAddress("jtmB", jtmB, &b_jtmB);
-   tree->SetBranchAddress("jtBpt", jtBpt, &b_jtBpt);
+	tree->SetBranchAddress("discr_pfJP", discr_pfJP, &b_discr_pfJP); // exist for both Run 2 and 3
    tree->SetBranchAddress("jtptCh", jtptCh, &b_jtptCh);
-
    tree->SetBranchAddress("trkMass", trkMass, &b_trkMass);
 
-   //HLT
-   tree->SetBranchAddress("HLT_HIAK4PFJet100_v1", &HLT_HIAK4PFJet100_v1, &b_HLT_HIAK4PFJet100_v1);
-   tree->SetBranchAddress("HLT_HIAK4PFJet80_v1", &HLT_HIAK4PFJet80_v1, &b_HLT_HIAK4PFJet80_v1);
-   tree->SetBranchAddress("HLT_HIAK4PFJet60_v1", &HLT_HIAK4PFJet60_v1, &b_HLT_HIAK4PFJet60_v1);
-   tree->SetBranchAddress("HLT_HIAK4PFJet40_v1", &HLT_HIAK4PFJet40_v1, &b_HLT_HIAK4PFJet40_v1);
-   tree->SetBranchAddress("HLT_HIAK4PFJet30_v1", &HLT_HIAK4PFJet30_v1, &b_HLT_HIAK4PFJet30_v1);
-   
-   //Prescale
-   //tree->SetBranchAddress("prescale_pf40", &prescale_pf40, &b_prescale_pf40);
-   
 
+
+// HLT (Run 3 — set only when RunN==3; Run 3 files also keep the HIAK4 prescale triggers)
+// ----- Are you sure that Run3 allow the old HLT branches of Run 2 ? (I dont think so, since Run2 trigger names does not exist anymore). See Run 2 Triggers suggestion above.	
+   if (RunN == 3) {
+     tree->SetBranchAddress("HLT_AK4PFJet60_v8",    &HLT_AK4PFJet60_v8,    &b_HLT_AK4PFJet60_v8);
+     tree->SetBranchAddress("HLT_AK4PFJet80_v8",    &HLT_AK4PFJet80_v8,    &b_HLT_AK4PFJet80_v8);
+     tree->SetBranchAddress("HLT_AK4PFJet100_v8",   &HLT_AK4PFJet100_v8,   &b_HLT_AK4PFJet100_v8);
+     tree->SetBranchAddress("HLT_AK4PFJet120_v8",   &HLT_AK4PFJet120_v8,   &b_HLT_AK4PFJet120_v8);
+	  tree->SetBranchAddress("discr_unifiedParticleTransformer_probb", discr_unifiedParticleTransformer_probb, &b_discr_unifiedParticleTransformer_probb);
+     tree->SetBranchAddress("discr_unifiedParticleTransformer_problepb", discr_unifiedParticleTransformer_problepb, &b_discr_unifiedParticleTransformer_problepb);
+     tree->SetBranchAddress("discr_unifiedParticleTransformer_probbb", discr_unifiedParticleTransformer_probbb, &b_discr_unifiedParticleTransformer_probbb);
+   }
+   
    if(isMC){
      tree->SetBranchAddress("pthat", &pthat, &b_pthat);
      tree->SetBranchAddress("refpt", refpt, &b_refpt);
@@ -531,30 +609,16 @@ void tTree::Init(TString rootf, bool isMC)
      tree->SetBranchAddress("genm", genm, &b_genm);
      tree->SetBranchAddress("gendphijt", gendphijt, &b_gendphijt);
      tree->SetBranchAddress("gendrjt", gendrjt, &b_gendrjt);
-     tree->SetBranchAddress("jtHadFlav", jtHadFlav, &b_jtHadFlav);
-     tree->SetBranchAddress("jtParFlav", jtParFlav, &b_jtParFlav);
-     tree->SetBranchAddress("jtNbHad", jtNbHad, &b_jtNbHad);
+
+	  tree->SetBranchAddress("jtNbHad", jtNbHad, &b_jtNbHad);
      tree->SetBranchAddress("jtNcHad", jtNcHad, &b_jtNcHad);
      tree->SetBranchAddress("jtNbPar", jtNbPar, &b_jtNbPar);
      tree->SetBranchAddress("jtNcPar", jtNcPar, &b_jtNcPar);
   
-     tree->SetBranchAddress("rsjt1Pt", rsjt1Pt, &b_rsjt1Pt);
-     tree->SetBranchAddress("rsjt1Eta", rsjt1Eta, &b_rsjt1Eta);
-     tree->SetBranchAddress("rsjt1Phi", rsjt1Phi, &b_rsjt1Phi);
-     tree->SetBranchAddress("rsjt1Y", rsjt1Y, &b_rsjt1Y);
-     
-     tree->SetBranchAddress("rsjt2Pt", rsjt2Pt, &b_rsjt2Pt);
-     tree->SetBranchAddress("rsjt2Eta", rsjt2Eta, &b_rsjt2Eta);
-     tree->SetBranchAddress("rsjt2Phi", rsjt2Phi, &b_rsjt2Phi);
-     tree->SetBranchAddress("rsjt2Y", rsjt2Y, &b_rsjt2Y);
-   
-     tree->SetBranchAddress("refmB", refmB, &b_refmB);
-     tree->SetBranchAddress("refBpt", refBpt, &b_refBpt);
      tree->SetBranchAddress("refptCh", refptCh, &b_refptCh);
      tree->SetBranchAddress("refNtrk", refNtrk, &b_refNtrk);
      
      tree->SetBranchAddress("weight", &weight, &b_weight);
-     
      //new
      tree->SetBranchAddress("refTrkJetId", refTrkJetId, &b_refTrkJetId);
      tree->SetBranchAddress("refTrkPdgId", refTrkPdgId, &b_refTrkPdgId);
@@ -581,232 +645,6 @@ void tTree::SetBranchStatus(vector<TString> branchNames, Int_t status)
     }
 }
 
-void tTree::plot_rgzgkt(TString foutname, Float_t bTagWP = 0.9)
-{
-    // Activate relevant branches
-    tree->SetBranchStatus("*", 0);
-    for (auto activeBranchName : {"nref", "refeta", "refpt", "jtHadFlav",
-                                  "rsjt1Pt", "rsjt1Eta", "rsjt1Phi", "rsjt1Y",
-                                  "rsjt2Pt", "rsjt2Eta", "rsjt2Phi", "rsjt2Y",
-                                  "jtpt", "jteta",
-                                  "sjt1Pt", "sjt1Eta", "sjt1Phi", "sjt1Y",
-                                  "sjt2Pt", "sjt2Eta", "sjt2Phi", "sjt2Y",
-                                  "discr_deepFlavour_b", "discr_deepFlavour_bb", "discr_deepFlavour_lepb",
-                                  "weight"
-                                  }) {
-        tree->SetBranchStatus(activeBranchName, 1);
-    }
-
-    // Create histograms
-
-    // ln(0.4/rg)
-    Int_t x1bins = 10;
-    Float_t x1min = 0.;
-    Float_t x1max = 2.5;
-
-    // rg
-    // Int_t x1bins = 10;
-    // Float_t x1min = 0.;
-    // Float_t x1max = 0.4;
-
-    // ln(kt)
-    Int_t y1bins = 40;
-    Float_t y1min = -5.;
-    Float_t y1max = 5.;
-
-    // zg
-    Int_t y2bins = 10;
-    Float_t y2min = 0.1;
-    Float_t y2max = 0.5;
-
-    // refpt
-    Int_t z1bins = 27*2;
-    Float_t z1min = 30.;
-    Float_t z1max = 300.;
-
-    // reco level
-    TH3D *hB_drkt = new TH3D("hB_drkt", "dr, kt, pt, bjets", x1bins, x1min, x1max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-    TH3D *hB_rgkt = new TH3D("hB_rgkt", "rg, kt, pt, bjets", x1bins, x1min, x1max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-    TH3D *hB_rgzg = new TH3D("hB_rgzg", "rg, zg, pt, bjets", x1bins, x1min, x1max, y2bins, y2min, y2max, z1bins, z1min, z1max);
-    TH3D *hB_zgkt = new TH3D("hB_zgkt", "zg, kt, pt, bjets", y2bins, y2min, y2max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-
-    TH3D *hBtag_drkt = new TH3D("hBtag_drkt", "dr, kt, pt, b tagged jets", x1bins, x1min, x1max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-    TH3D *hBtag_rgkt = new TH3D("hBtag_rgkt", "rg, kt, pt, b tagged jets", x1bins, x1min, x1max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-    TH3D *hBtag_rgzg = new TH3D("hBtag_rgzg", "rg, zg, pt, b tagged jets", x1bins, x1min, x1max, y2bins, y2min, y2max, z1bins, z1min, z1max);
-    TH3D *hBtag_zgkt = new TH3D("hBtag_zgkt", "zg, kt, pt, b tagged jets", y2bins, y2min, y2max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-
-    TH3D *hBtagNoBB_drkt = new TH3D("hBtagNoBB_drkt", "dr, kt, pt, b tagged jets", x1bins, x1min, x1max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-    TH3D *hBtagNoBB_rgkt = new TH3D("hBtagNoBB_rgkt", "rg, kt, pt, b tagged jets", x1bins, x1min, x1max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-
-    // gen level
-    TH3D *hB_drkt_gen = new TH3D("hB_drkt_gen", "dr, kt, pt, bjets", x1bins, x1min, x1max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-    TH3D *hB_rgkt_gen = new TH3D("hB_rgkt_gen", "rg, kt, pt, bjets", x1bins, x1min, x1max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-    TH3D *hB_rgzg_gen = new TH3D("hB_rgzg_gen", "rg, zg, pt, bjets", x1bins, x1min, x1max, y2bins, y2min, y2max, z1bins, z1min, z1max);
-    TH3D *hB_zgkt_gen = new TH3D("hB_zgkt_gen", "zg, kt, pt, bjets", y2bins, y2min, y2max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-
-    TH3D *hBtag_drkt_gen = new TH3D("hBtag_drkt_gen", "dr, kt, pt, b tagged jets", x1bins, x1min, x1max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-    TH3D *hBtag_rgkt_gen = new TH3D("hBtag_rgkt_gen", "rg, kt, pt, b tagged jets", x1bins, x1min, x1max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-    TH3D *hBtag_rgzg_gen = new TH3D("hBtag_rgzg_gen", "rg, zg, pt, b tagged jets", x1bins, x1min, x1max, y2bins, y2min, y2max, z1bins, z1min, z1max);
-    TH3D *hBtag_zgkt_gen = new TH3D("hBtag_zgkt_gen", "zg, kt, pt, b tagged jets", y2bins, y2min, y2max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-
-    TH3D *hL_drkt_gen = new TH3D("hL_drkt_gen", "dr, kt, pt, guds jets", x1bins, x1min, x1max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-    TH3D *hL_rgkt_gen = new TH3D("hL_rgkt_gen", "rg, kt, pt, guds jets", x1bins, x1min, x1max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-    TH3D *hL_rgzg_gen = new TH3D("hL_rgzg_gen", "rg, zg, pt, guds jets", x1bins, x1min, x1max, y2bins, y2min, y2max, z1bins, z1min, z1max);
-    TH3D *hL_zgkt_gen = new TH3D("hL_zgkt_gen", "zg, kt, pt, guds jets", y2bins, y2min, y2max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-
-    TH3D *hC_drkt_gen = new TH3D("hC_drkt_gen", "dr, kt, pt, cjets", x1bins, x1min, x1max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-    TH3D *hC_rgkt_gen = new TH3D("hC_rgkt_gen", "rg, kt, pt, cjets", x1bins, x1min, x1max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-    TH3D *hC_rgzg_gen = new TH3D("hC_rgzg_gen", "rg, zg, pt, cjets", x1bins, x1min, x1max, y2bins, y2min, y2max, z1bins, z1min, z1max);
-    TH3D *hC_zgkt_gen = new TH3D("hC_zgkt_gen", "zg, kt, pt, cjets", y2bins, y2min, y2max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-
-    TH3D *hSingleBtag_rgkt_gen = new TH3D("hSingleBtag_rgkt_gen", "rg, kt, pt, b tagged jets", x1bins, x1min, x1max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-    TH3D *hSingleBtag_drkt_gen = new TH3D("hSingleBtag_drkt_gen", "dr, kt, pt, b tagged jets", x1bins, x1min, x1max, y1bins, y1min, y1max, z1bins, z1min, z1max);
-
-    const Float_t jetR = 0.4;
-
-    std::cout << "Creating histograms ..." << std::endl;
-    Long64_t nentries = tree->GetEntries();
-    for (Long64_t ient = 0; ient < nentries; ient++) {
-        // Print progress
-        if (ient % 1000000 == 0) {
-            std::cout << "ient = " << ient << std::endl;
-        }
-
-        // Choose nb of events
-        const Long64_t total_events = 1000000;
-        if (ient > total_events) break;
-		// if (ient > 100) break;
- 
-        tree->GetEntry(ient);
-
-        for (Int_t ijet = 0; ijet < nref; ijet++) {
-            // universal eta cut
-            if (std::abs(refeta[ijet]) > 2) continue;
-
-            Float_t dr = -1.;
-            Float_t rg = -1.;
-            Float_t kt = -1.;
-            Float_t zg = -1.;
-
-            Float_t logdr = -1.;
-            Float_t logrg = -1.;
-            Float_t logkt = -10.;
-
-            Float_t dr_gen = -1.;
-            Float_t rg_gen = -1.;
-            Float_t kt_gen = -1.;
-            Float_t zg_gen = -1.;
-
-            Float_t logdr_gen = -1.;
-            Float_t logrg_gen = -1.;
-            Float_t logkt_gen = -10.;
-
-            // Calculate rg, kt only for 2 prong jets
-            if (sjt2Pt[ijet] > 0.) {
-                dr = calc_dr(sjt1Eta[ijet], sjt1Phi[ijet], sjt2Eta[ijet], sjt2Phi[ijet]);
-                rg = calc_rg(sjt1Y[ijet], sjt1Phi[ijet], sjt2Y[ijet], sjt2Phi[ijet]);
-                kt = sjt2Pt[ijet] * rg;
-                zg = sjt2Pt[ijet] / (sjt1Pt[ijet] + sjt2Pt[ijet]);
-                
-                // calculate logs
-                logdr = std::log(jetR/dr);
-                logrg = std::log(jetR/rg);
-                logkt = std::log(kt);
-
-                // for poster
-                // logrg = rg;
-            }
-
-            if (rsjt2Pt[ijet] > 0.) {
-                dr_gen = calc_dr(rsjt1Eta[ijet], rsjt1Phi[ijet], rsjt2Eta[ijet], rsjt2Phi[ijet]);
-                rg_gen = calc_rg(rsjt1Y[ijet], rsjt1Phi[ijet], rsjt2Y[ijet], rsjt2Phi[ijet]);
-                kt_gen = rsjt2Pt[ijet] * rg_gen;
-                zg_gen = rsjt2Pt[ijet] / (rsjt1Pt[ijet] + rsjt2Pt[ijet]);
-                
-                // calculate logs
-                logdr_gen = std::log(jetR/dr_gen);
-                logrg_gen = std::log(jetR/rg_gen);
-                logkt_gen = std::log(kt_gen);
-
-                // for poster
-                // logrg_gen = rg_gen;
-            }
-
-            // Fill true-flavour histograms
-            bool isBjet = (jtHadFlav[ijet] == 5);
-            if (isBjet) {
-               hB_drkt->Fill(logdr, logkt, refpt[ijet], weight);
-               hB_rgkt->Fill(logrg, logkt, refpt[ijet], weight);
-               hB_rgzg->Fill(logrg, zg, refpt[ijet], weight);
-               hB_zgkt->Fill(zg, logkt, refpt[ijet], weight);
-            
-               hB_drkt_gen->Fill(logdr_gen, logkt_gen, refpt[ijet], weight);
-               hB_rgkt_gen->Fill(logrg_gen, logkt_gen, refpt[ijet], weight);
-               hB_rgzg_gen->Fill(logrg_gen, zg_gen, refpt[ijet], weight);
-               hB_zgkt_gen->Fill(zg_gen, logkt_gen, refpt[ijet], weight);
-            
-
-               // Fill the b-tag histogram
-               bool passWP = ((discr_deepFlavour_b[ijet] + discr_deepFlavour_bb[ijet] + discr_deepFlavour_lepb[ijet]) > bTagWP);
-            //    bool passWP = ((discr_deepFlavour_b[ijet] + discr_deepFlavour_lepb[ijet]) > 0.7);
-               if (passWP) {
-                    hBtag_drkt->Fill(logdr, logkt, refpt[ijet], weight);
-                    hBtag_rgkt->Fill(logrg, logkt, refpt[ijet], weight);
-                    hBtag_rgzg->Fill(logrg, zg, refpt[ijet], weight);
-                    hBtag_zgkt->Fill(zg, logkt, refpt[ijet], weight);
-
-                    hBtag_drkt_gen->Fill(logdr_gen, logkt_gen, refpt[ijet], weight);
-                    hBtag_rgkt_gen->Fill(logrg_gen, logkt_gen, refpt[ijet], weight);
-                    hBtag_rgzg_gen->Fill(logrg_gen, zg_gen, refpt[ijet], weight);
-                    hBtag_zgkt_gen->Fill(zg_gen, logkt_gen, refpt[ijet], weight);  
-               }
-
-               if (passWP && (discr_deepFlavour_bb[ijet] < 0.2)) {
-                    hBtagNoBB_drkt->Fill(logdr, logkt, refpt[ijet], weight);
-                    hSingleBtag_drkt_gen->Fill(logdr_gen, logkt_gen, refpt[ijet], weight);
-
-                    hBtagNoBB_rgkt->Fill(logrg, logkt, refpt[ijet], weight);
-                    hSingleBtag_rgkt_gen->Fill(logrg_gen, logkt_gen, refpt[ijet], weight);
-               }
-            } // end if is b jet
-
-            bool isLightJet = (jtHadFlav[ijet] == 0);
-            if (isLightJet) {
-                hL_drkt_gen->Fill(logdr_gen, logkt_gen, refpt[ijet], weight);
-                hL_rgkt_gen->Fill(logrg_gen, logkt_gen, refpt[ijet], weight);
-                hL_rgzg_gen->Fill(logrg_gen, zg_gen, refpt[ijet], weight);
-                hL_zgkt_gen->Fill(zg_gen, logkt_gen, refpt[ijet], weight);
-            }
-
-            bool isCJet = (jtHadFlav[ijet] == 4);
-            if (isCJet) {
-                hC_drkt_gen->Fill(logdr_gen, logkt_gen, refpt[ijet], weight);
-                hC_rgkt_gen->Fill(logrg_gen, logkt_gen, refpt[ijet], weight);
-                hC_rgzg_gen->Fill(logrg_gen, zg_gen, refpt[ijet], weight);
-                hC_zgkt_gen->Fill(zg_gen, logkt_gen, refpt[ijet], weight);
-            }
-        } // jet loop
-    } // entry loop
-
-    // Save histograms
-    std::cout << "\n(Re)creating file " << foutname << std::endl;
-    TFile *fout = new TFile(foutname, "recreate");
-
-    for (auto h : {hB_drkt, hB_rgkt, hB_rgzg, hB_zgkt, 
-                   hBtag_drkt, hBtag_rgkt, hBtag_rgzg, hBtag_zgkt,
-                   hB_drkt_gen, hB_rgkt_gen, hB_rgzg_gen, hB_zgkt_gen, 
-                   hBtag_drkt_gen, hBtag_rgkt_gen, hBtag_rgzg_gen, hBtag_zgkt_gen,
-                   hL_drkt_gen, hL_rgkt_gen, hL_rgzg_gen, hL_zgkt_gen, 
-                   hC_drkt_gen, hC_rgkt_gen, hC_rgzg_gen, hC_zgkt_gen, 
-                   hBtagNoBB_drkt,
-                   hSingleBtag_drkt_gen,
-                   hBtagNoBB_rgkt,
-                   hSingleBtag_rgkt_gen}) {
-        h->Write();
-    }
-
-    fout->Close();
-}
 
 Float_t tTree::calc_dr(Float_t eta1, Float_t phi1, Float_t eta2, Float_t phi2) {
     ROOT::Math::PtEtaPhiMVector v1;
@@ -823,20 +661,3 @@ Float_t tTree::calc_dr(Float_t eta1, Float_t phi1, Float_t eta2, Float_t phi2) {
     return dr;
 }
 
-Float_t tTree::calc_rg(Float_t y1, Float_t phi1, Float_t y2, Float_t phi2) {
-    ROOT::Math::PtEtaPhiMVector v1;
-    v1.SetPhi(phi1);
-
-    ROOT::Math::PtEtaPhiMVector v2;
-    v2.SetPhi(phi2);
-
-    Float_t dphi = ROOT::Math::VectorUtil::DeltaPhi(v1, v2);
-    Float_t dy = y1 - y2;
-
-    // Float_t dphi_test = std::acos(std::cos(phi1-phi2));
-
-    // std::cout << "dphi = " << dphi << std::endl;
-    // std::cout << "dphi_test = " << dphi_test << std::endl;
-    Float_t rg = std::sqrt((dy*dy) + (dphi*dphi));
-    return rg;
-}
