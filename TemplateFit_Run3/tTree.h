@@ -22,7 +22,7 @@ public :
    Int_t           nvtx;
    Float_t         rawpt[500];   //[nref]
    Float_t         jtpt[500];   //[nref]
-   Float_t         jtpt_gen[500];   //[nref]
+   // Float_t         jtpt_gen[500];   //[nref]
    Float_t         jteta[500];   //[nref]
    Float_t         jty[500];   //[nref]
    Float_t         jtphi[500];   //[nref]
@@ -204,7 +204,7 @@ public :
    TBranch        *b_nvtx;   //!
    TBranch        *b_rawpt;   //!
    TBranch        *b_jtpt;   //!
-   TBranch        *b_jtpt_gen;   //!
+   // TBranch        *b_jtpt_gen;   //!
    TBranch        *b_discr_particleNet_BvsAll;
    TBranch        *b_jteta;   //!
    TBranch        *b_jty;   //!
@@ -411,7 +411,9 @@ Long64_t tTree::GetEntries()
 void tTree::Init(TString rootf, bool isMC, Int_t RunN)
 {
    
+  std::cout << "Opening ROOT file: [" << rootf << "]" << std::endl;
   TFile *fin = TFile::Open(rootf);
+
       // Safety
       if (!fin || fin->IsZombie()) {
        std::cout << "ERROR: cannot open file " << rootf << std::endl;
@@ -428,9 +430,17 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
        return;
       }
 
-   tree->AddFriend("hiEvtAnalyzer/HiTree");
-   tree->AddFriend("hltanalysis/HltTree");
-   
+   // -- Add tree friends
+   // tree->AddFriend("hiEvtAnalyzer/HiTree"); // Works only for TTree
+   // tree->AddFriend("hltanalysis/HltTree"); // Works only for TTree
+   tree->AddFriend((TTree*)fin->Get("hiEvtAnalyzer/HiTree"));
+   tree->AddFriend((TTree*)fin->Get("hltanalysis/HltTree"));  
+   // sanity check : print list of friends 
+   tree->GetListOfFriends()->Print();
+      
+
+
+
    // Set branch addresses and branch pointers
    tree->SetBranchAddress("run", &run, &b_run);
    tree->SetBranchAddress("evt", &evt, &b_evt);
@@ -440,7 +450,7 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
    tree->SetBranchAddress("rawpt", rawpt, &b_rawpt);
    tree->SetBranchAddress("jtpt", jtpt, &b_jtpt);
    
-   if(isMC)tree->SetBranchAddress("jtpt_gen", jtpt_gen, &b_jtpt_gen);
+   // if(isMC)tree->SetBranchAddress("jtpt_gen", jtpt_gen, &b_jtpt_gen); // does not exist
 
    if (RunN == 2) {
       cout << "Set branch address for some Run 2 specific branches" << endl;

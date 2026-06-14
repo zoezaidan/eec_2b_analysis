@@ -35,7 +35,8 @@
 
 
 // name for outpur directory (in path) 
-TString sDirname = "TemplateFits_Run3_minHLT60"; // Must use before Help_Functions.h
+TString sDirname = "TemplateFits_Run3_minHLT60"; // "TemplateFits_Run3_minHLT60"; // Must use before Help_Functions.h
+
 // -- For systematic uncertainti study 
 enum Variation {NOMINAL, VARIED0B_UP, VARIED0B_DOWN, NVAR}; // add other variations before NVAR to keep the size 
 TString varNames[NVAR] = {"nominal", "var0B_2", "var0B_0"};
@@ -55,7 +56,7 @@ TLegend* CreateLegend(
     double x1, double y1, double x2, double y2,
     const std::vector<TObject*>& objects,
     const std::vector<std::string>& options,
-    const std::vector<std::string>& labels = {});
+    const std::vector<std::string>& labels);
 
 
 // ------------
