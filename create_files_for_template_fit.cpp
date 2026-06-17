@@ -59,8 +59,8 @@ R__LOAD_LIBRARY(/home/llr/cms/shatat/RooUnfold/build/libRooUnfold.so)
 
 // -- Second : More Roboust 
 // -- Or you can use the uusla header, while using: gInterpreter->AddIncludePath("/home/llr/cms/shatat/RooUnfold/src"); added inside creat_file(){ before you use the unfolding;}
-#pragma cling add_include_path("/home/llr/cms/shatat/RooUnfold/src")
-R__LOAD_LIBRARY(/home/llr/cms/shatat/RooUnfold/build/libRooUnfold.so) // and its corresponding library! 
+//#pragma cling add_include_path("/home/llr/cms/shatat/RooUnfold/src")
+//R__LOAD_LIBRARY(/home/llr/cms/shatat/RooUnfold/build/libRooUnfold.so) // and its corresponding library! 
 #include "RooUnfold.h"
 #include "RooUnfoldResponse.h"
 // You can run without compilation like: root -l .L.cpp runfunction() 
@@ -1416,6 +1416,7 @@ void get_eec_dr_migration(TString &filename, TString &sample, TString &label, TS
 //
 // No fakes: the jet always has a real gen b-hadron pair — only migration corrections needed.
 void create_response_templatefit(
+    Int_t    RunN,
     TString  filename,
     TString  output_folder,
     TString  output_hist,
@@ -1423,6 +1424,7 @@ void create_response_templatefit(
     Float_t  pT_high,
     Int_t    n,
     bool     btag,
+    Double_t btagWP,
     Long64_t ev_first = 0,
     Long64_t ev_last  = -1)
 {
@@ -1442,22 +1444,34 @@ void create_response_templatefit(
     std::cout << "dr range: [" << dr_min << ", " << dr_max << "]" << std::endl;
 
     tTree t;
-    t.Init(filename, /*isMC=*/true);
+    t.Init(filename, /*isMC=*/true, RunN);
     t.SetBranchStatus("*", 0);
     std::vector<TString> active_branches = {
         // reco
-        "jtpt", "jteta", "nref", "jtNsvtx", "discr_particleNet_BvsAll",
+        "jtpt", "jteta", "nref", "jtNsvtx",
         "ntrk", "trkJetId", "trkBdtScore", "trkPdgId", "trkMatchPdgId", "trkMatchSta",
         "trkPt", "trkEta", "trkPhi", "trkSvtxId",
         "nsvtx", "svtxJetId", "svtxNtrk", "svtxm", "svtxmcorr", "svtxpt",
         "svtxdl", "svtxdls", "svtxdl2d", "svtxdls2d", "svtxnormchi2",
-        "HLT_HIAK4PFJet40_v1",
         // gen / MC
         "weight", "pthat", "jtNbHad",
         "refpt", "refeta",
         "nrefTrk", "refTrkJetId", "refTrkPt", "refTrkEta", "refTrkPhi",
         "refTrkPdgId", "refTrkSta"
     };
+    // run-dependent trigger + b-tag discriminator branches
+    if (RunN == 2) {
+        active_branches.insert(active_branches.end(), {
+            "HLT_HIAK4PFJet40_v1",
+            "discr_particleNet_BvsAll"
+        });
+    } else if (RunN == 3) {
+        active_branches.insert(active_branches.end(), {
+            "HLT_AK4PFJet60_v8",
+            "discr_unifiedParticleTransformer_probb", "discr_unifiedParticleTransformer_problepb",
+            "discr_unifiedParticleTransformer_probbb"
+        });
+    }
     t.SetBranchStatus(active_branches, 1);
 
     std::random_device rand_dev;
@@ -1498,7 +1512,9 @@ void create_response_templatefit(
         t.GetEntry(ient);
 
         double weight_tree = t.weight;
-        if (!(t.HLT_HIAK4PFJet40_v1)) continue;
+        // MC trigger selection (run-dependent)
+        if (RunN == 2 && !(t.HLT_HIAK4PFJet40_v1)) continue;
+        if (RunN == 3 && !(t.HLT_AK4PFJet60_v8))   continue;
 
         for (Int_t ijet = 0; ijet < t.nref; ijet++) {
 
@@ -1556,13 +1572,22 @@ void create_response_templatefit(
             if (dr_gen_fill >= dr_max)  dr_gen_fill = dr_max_fill;
             //if (dr_gen_fill  < dr_min)  dr_gen_fill = dr_min_fill;
 
+            // b-tagging discriminator (run-dependent); working point passed as argument
+            double btagVar = 1;
+            if (RunN == 2) { btagVar = t.discr_particleNet_BvsAll[ijet]; }
+            if (RunN == 3) {
+                btagVar = (t.discr_unifiedParticleTransformer_probb[ijet]
+                         + t.discr_unifiedParticleTransformer_problepb[ijet]
+                         + t.discr_unifiedParticleTransformer_probbb[ijet]);
+            }
+
             // reco_pass: full detector-level selection
             bool reco_pass = reco_sv_ok &&
                              (jpt_reco >= pT_low && jpt_reco < pT_high) &&
                              (std::abs(t.jteta[ijet]) < 1.6) &&
-                             (!btag || t.discr_particleNet_BvsAll[ijet] > 0.898) &&
+                             (!btag || btagVar > btagWP) &&
                              (mB_reco_fill >= mb_min && mB_reco_fill < mb_max) &&
-                             (dr_reco_fill < dr_max);//dr_reco_fill >= dr_min && 
+                             (dr_reco_fill < dr_max);//dr_reco_fill >= dr_min &&
 
             //std::cout << "reco_sv_ok: " << reco_sv_ok << std::endl;
             //if (reco_sv_ok) {std::cout << "jpt_reco: " << jpt_reco << std::endl;}
@@ -1600,7 +1625,7 @@ void create_response_templatefit(
             if (!reco_sv_ok)                                      n_fail_reco_sv++;
             else if (!(jpt_reco >= pT_low && jpt_reco < pT_high)) n_fail_reco_pt++;
             else if (!(std::abs(t.jteta[ijet]) < 1.6))           n_fail_reco_eta++;
-            else if (btag && !(t.discr_particleNet_BvsAll[ijet] > 0.898)) n_fail_reco_btag++;
+            else if (btag && !(btagVar > btagWP)) n_fail_reco_btag++;
             else if (!(mB_reco_fill >= mb_min && mB_reco_fill < mb_max))  n_fail_reco_mb++;
             else if (!(dr_reco_fill < dr_max))                    n_fail_reco_dr++;
 
@@ -1616,7 +1641,7 @@ void create_response_templatefit(
                     << " jpt_gen="  << jpt_gen
                     << " jteta="    << t.jteta[ijet]
                     << " refeta="   << t.refeta[ijet]
-                    << " discr="    << t.discr_particleNet_BvsAll[ijet]
+                    << " discr="    << btagVar
                     << " mB_reco="  << mB_reco
                     << " dr_reco="  << dr_reco
                     << " mB_gen="   << mB_gen
@@ -1723,7 +1748,7 @@ void create_response_templatefit(
 
 //Step 1: filter bb from b. Only MC
 //Step 2: filter bb from b, but split the sample in 2 and treat one as data and one as MC (to be used as template fit input)
-void create_files_for_template_fit(Int_t RunN = 2, Int_t dataType = 1, Float_t pT_low = 80, Float_t pT_high = 200, Int_t n = 1, bool btag = true, bool isMC = true){
+void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t pT_low = 80, Float_t pT_high = 200, Int_t n = 1, bool btag = true, bool isMC = true, Double_t btagWP = -1){
  //gSystem->Load("libGenVector.so");
 std::cout << "ENTER FUNCTION" << std::endl;
 
@@ -1795,7 +1820,7 @@ std::cout << "ENTER FUNCTION" << std::endl;
 
 
     else if(dataType == 0) {
-      filename = "/eos/grif/cms/llr/store/user/mnguyen//bJetAggRun3/PPRefHardProbes[0-4]/bJetAgg_2024PPRef_HardProbes[0-4]/merged_HiForestMiniAOD.root";
+      filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/HiForestMiniAOD_v2_TChains.root";
       output_hist = RunN_str + "secondbinsplitting_MAY_WP0898_template_for_fit_histos_3D_HighEG_f";
       isMC = false;
       cout<<"you chose data" <<endl;       
@@ -1809,7 +1834,7 @@ std::cout << "ENTER FUNCTION" << std::endl;
       }
 
     else if(dataType == 2){//________________________________dijet______________________________
-      filename = "eos/grif/cms/llr/store/user/mnguyen//bJetAggRun3/QCD_pThat-15to1200_TuneCP5_5p36TeV_pythia8/bJetAgg_2024PPRef_QCD/[0-9]/merged_HiForestMiniAOD.root";
+      filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/HiForestMiniAOD_v2_TChains.root";
       output_hist = RunN_str + "secondbinsplitting_MAY_WP0898_template_for_fit_histos_3D_qcd_f";
       std::cout << "Creating files for template fit for qcd sample" << std::endl;
       cout<<"you chose qcd MC" <<endl;
@@ -1829,8 +1854,10 @@ std::cout << "ENTER FUNCTION" << std::endl;
       //filter_b_bb_as_data_and_mc(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC);
 
  // -- Test unfolding: Produce Response matrix
-    create_response_templatefit(filename, output_folder, "response_templatefit_n1_bjet_Run2",
-                              pT_low, pT_high, n, btag, 0, 1e+04);// last two arguments for for event range if you want
+    // if no working point was passed (btagWP < 0), fall back to the run default
+    if (btagWP < 0) btagWP = (RunN == 2) ? 0.898 : 0.872;
+    create_response_templatefit(RunN, filename, output_folder, "response_templatefit_n1_bjet_Run2",
+                              pT_low, pT_high, n, btag, btagWP, 0, 1e+04);// last two arguments for for event range if you want
 
 
   std::cout << "finished :)" << std::endl;
