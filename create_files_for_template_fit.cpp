@@ -1758,7 +1758,7 @@ void create_response_templatefit(
 
 //Step 1: filter bb from b. Only MC
 //Step 2: filter bb from b, but split the sample in 2 and treat one as data and one as MC (to be used as template fit input)
-void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 0, Float_t pT_low = 80, Float_t pT_high = 200,Float_t eta_cut = 1.9,Int_t n = 1, bool btag = true, bool isMC = false, Double_t btagWP = -1){
+void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t pT_low = 80, Float_t pT_high = 200,Float_t eta_cut = 1.9,Int_t n = 1, bool btag = true, bool isMC = true, Double_t btagWP = -1){
  //gSystem->Load("libGenVector.so");
 std::cout << "ENTER FUNCTION" << std::endl;
 
@@ -1873,15 +1873,15 @@ std::cout << "ENTER FUNCTION" << std::endl;
 
 
   // -- Make templates 
-  make_templates(RunN, filename, output_folder, output_hist, domain, pT_low, pT_high, eta_cut, n, btag, btagWP, isMC, dataType, 0, 1e+04);
+  // make_templates(RunN, filename, output_folder, output_hist, domain, pT_low, pT_high, eta_cut, n, btag, btagWP, isMC, dataType, 0, 1e+03);
       //filter_b_bb(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC, dataType);
       //filter_b_bb_as_data_and_mc(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC);
 
    // -- Test unfolding: Produce Response matrix
-    /*
+    
     create_response_templatefit(RunN, filename, output_folder, "response_templatefit_n1_bjet_"+ RunN_str,
-                              pT_low, pT_high, eta_cut, n, btag, btagWP, 0, 1e+04);// last two arguments for for event range if you want
+                              pT_low, pT_high, eta_cut, n, btag, btagWP, 0, 1e+03);// last two arguments for for event range if you want
 
-    */
+    
   std::cout << "finished :)" << std::endl;
 }

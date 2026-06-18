@@ -858,6 +858,7 @@ void make_templates(Int_t RunN, TString filename, TString output_folder, TString
   double agg_fail = 0, nb_sv = 0, sv_fail = 0, merge_fail = 0;
 
   double prescale_pf40 = (RunN == 2) ? 33.917210 : 6.2336493;
+
   std::vector<TString> active_branches = {
     "jtpt", "jteta", "nref", "jtNtrk", "jtNsvtx",
     "ntrk", "trkJetId", "trkBdtScore", "trkPdgId", "trkMatchPdgId", "trkMatchSta", "trkPt", "trkEta", "trkPhi",
@@ -1014,7 +1015,7 @@ void make_templates(Int_t RunN, TString filename, TString output_folder, TString
       if (RunN == 2 && !isMC && t.HLT_HIAK4PFJet40_v1 && !(t.HLT_HIAK4PFJet60_v1 || t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) 
       {eec *= prescale_pf40;} 
 
-      if (RunN == 3 && !isMC && t.HLT_HIAK4PFJet60_v1 && !(t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) 
+      if (RunN == 3 && !isMC && t.HLT_AK4PFJet60_v8 && !(t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8)) // updated 18 June 2026 !!! (WRONG use of HLT RUN2 to RUN3 Prescale)
       {eec *= prescale_pf40;} 
 
       if (isMC) {
