@@ -1,0 +1,19 @@
+executable = test_eos.sh
+
+
+use_x509userproxy = true
+
+output = logs/test.$(ClusterId).out
+error  = logs/test.$(ClusterId).err
+log    = logs/test.$(ClusterId).log
+
+getenv         = true
+T3Queue        = short
+WNTag          = el9
+
+## Usual use: t3
+#include : /opt/exp_soft/cms/t3/t3queue |
+
+## Test t3_tst for fast tests only
+include : /opt/exp_soft/cms/t3_tst/t3queue |
+queue

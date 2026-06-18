@@ -41,6 +41,12 @@
 #include "TH1D.h"
 #include "TH2D.h"
 #include "TH3D.h"
+// -- 
+#include <algorithm> // std::find
+#include <functional> // std::not_equal_to<int>.
+#include "TMatrixD.h"
+#include "RooUnfold.h"
+
 
 // -- For Unfolding 
 // #include "RooUnfoldResponse.h" // File not found 
@@ -994,7 +1000,9 @@ void filter_b_bb_as_data_and_mc(Int_t RunN, TString filename_bjet, TString outpu
 // MC:   fills h3D_b (jtNbHad==1) and h3D_bb (jtNbHad==2) using reco-level cuts and reco SV reconstruction.
 // Data: fills h3D_data with the same reco logic — no truth classification.
 void make_templates(Int_t RunN, TString filename, TString output_folder, TString output_hist, TString domain,
-                    Float_t pT_low, Float_t pT_high, Int_t n, bool btag, bool isMC, Int_t dataType,
+                    Float_t pT_low, Float_t pT_high, Float_t eta_cut,
+                    Int_t n, bool btag, Double_t btagWP,
+                    bool isMC, Int_t dataType,
                     Long64_t ev_first = 0, Long64_t ev_last = -1, Int_t job_idx = -1) {
 
   tTree t;
@@ -1014,11 +1022,11 @@ void make_templates(Int_t RunN, TString filename, TString output_folder, TString
       "HLT_HIAK4PFJet40_v1", "HLT_HIAK4PFJet60_v1", "HLT_HIAK4PFJet80_v1", "HLT_HIAK4PFJet100_v1", 
 	  "discr_particleNet_BvsAll"
 		});
-  } else if (RunN == 3) {
+  }
+   else if (RunN == 3) {
     active_branches.insert(active_branches.end(), {
       "HLT_AK4PFJet60_v8", "HLT_AK4PFJet80_v8", "HLT_AK4PFJet100_v8",
-      "HLT_HIAK4PFJet60_v1", "HLT_HIAK4PFJet80_v1", "HLT_HIAK4PFJet100_v1", "HLT_HIAK4PFJet120_v1",
-	  "discr_unifiedParticleTransformer_probb", "discr_unifiedParticleTransformer_problepb", 
+	     "discr_unifiedParticleTransformer_probb", "discr_unifiedParticleTransformer_problepb", 
        "discr_unifiedParticleTransformer_probbb" 	
 		});
   }
@@ -1095,8 +1103,8 @@ void make_templates(Int_t RunN, TString filename, TString output_folder, TString
 						+ t.discr_unifiedParticleTransformer_problepb[ijet]
 						+ t.discr_unifiedParticleTransformer_probbb [ijet]);
 		} 
-		if (RunN == 2 && btag && btagVar <= 0.898) continue;
-      	if (RunN == 3 && btag && btagVar <= 0.9) continue;
+		if (RunN == 2 && btag && btagVar <= btagWP) continue;
+      	if (RunN == 3 && btag && btagVar <= btagWP) continue;
 
       // reco SV reconstruction — same for data and MC
       vector<ROOT::Math::PtEtaPhiMVector> reco_sv = makeSvtxs_withBDT(t, ijet, ient, agg_fail, nb_sv, sv_fail, merge_fail, nullptr, nullptr);
@@ -1422,6 +1430,7 @@ void create_response_templatefit(
     TString  output_hist,
     Float_t  pT_low,
     Float_t  pT_high,
+    Float_t  eta_cut,
     Int_t    n,
     bool     btag,
     Double_t btagWP,
@@ -1468,7 +1477,8 @@ void create_response_templatefit(
     } else if (RunN == 3) {
         active_branches.insert(active_branches.end(), {
             "HLT_AK4PFJet60_v8",
-            "discr_unifiedParticleTransformer_probb", "discr_unifiedParticleTransformer_problepb",
+            "discr_unifiedParticleTransformer_probb",
+            "discr_unifiedParticleTransformer_problepb",
             "discr_unifiedParticleTransformer_probbb"
         });
     }
@@ -1584,7 +1594,7 @@ void create_response_templatefit(
             // reco_pass: full detector-level selection
             bool reco_pass = reco_sv_ok &&
                              (jpt_reco >= pT_low && jpt_reco < pT_high) &&
-                             (std::abs(t.jteta[ijet]) < 1.6) &&
+                             (std::abs(t.jteta[ijet]) < eta_cut) &&
                              (!btag || btagVar > btagWP) &&
                              (mB_reco_fill >= mb_min && mB_reco_fill < mb_max) &&
                              (dr_reco_fill < dr_max);//dr_reco_fill >= dr_min &&
@@ -1604,7 +1614,7 @@ void create_response_templatefit(
 
             // gen_pass: particle-level jet kinematics + gen observable range
             bool gen_pass  = (jpt_gen >= pT_low && jpt_gen < pT_high) &&
-                             (std::abs(t.refeta[ijet]) < 1.6) &&
+                             (std::abs(t.refeta[ijet]) < eta_cut) &&
                              (mB_gen_fill >= mb_min && mB_gen_fill < mb_max) &&
                              (dr_gen_fill < dr_max); //dr_gen_fill >= dr_min && 
 
@@ -1624,13 +1634,13 @@ void create_response_templatefit(
             // --- per-condition failure tallies ---
             if (!reco_sv_ok)                                      n_fail_reco_sv++;
             else if (!(jpt_reco >= pT_low && jpt_reco < pT_high)) n_fail_reco_pt++;
-            else if (!(std::abs(t.jteta[ijet]) < 1.6))           n_fail_reco_eta++;
+            else if (!(std::abs(t.jteta[ijet]) < eta_cut))           n_fail_reco_eta++;
             else if (btag && !(btagVar > btagWP)) n_fail_reco_btag++;
             else if (!(mB_reco_fill >= mb_min && mB_reco_fill < mb_max))  n_fail_reco_mb++;
             else if (!(dr_reco_fill < dr_max))                    n_fail_reco_dr++;
 
             if (!(jpt_gen >= pT_low && jpt_gen < pT_high))       n_fail_gen_pt++;
-            else if (!(std::abs(t.refeta[ijet]) < 1.6))          n_fail_gen_eta++;
+            else if (!(std::abs(t.refeta[ijet]) < eta_cut))          n_fail_gen_eta++;
             else if (!(mB_gen_fill >= mb_min && mB_gen_fill < mb_max))    n_fail_gen_mb++;
             else if (!(dr_gen_fill < dr_max))                     n_fail_gen_dr++;
 
@@ -1748,7 +1758,7 @@ void create_response_templatefit(
 
 //Step 1: filter bb from b. Only MC
 //Step 2: filter bb from b, but split the sample in 2 and treat one as data and one as MC (to be used as template fit input)
-void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t pT_low = 80, Float_t pT_high = 200, Int_t n = 1, bool btag = true, bool isMC = true, Double_t btagWP = -1){
+void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t pT_low = 80, Float_t pT_high = 200,Float_t eta_cut = 1.9,Int_t n = 1, bool btag = true, bool isMC = true, Double_t btagWP = -1){
  //gSystem->Load("libGenVector.so");
 std::cout << "ENTER FUNCTION" << std::endl;
 
@@ -1757,6 +1767,13 @@ std::cout << "ENTER FUNCTION" << std::endl;
   TString output_folder;
   TString domain = ".root";
   TString RunN_str = (RunN == 2) ? "Run2" : (RunN == 3) ? "Run3" : "UnknownRun";
+
+  // -- Btagging point
+  if (btagWP < 0) btagWP = (RunN == 2) ? 0.898 : 0.872;
+
+
+  // --for Run3 input MC: test one file: 
+  Int_t fileindex = 0;
 
   if(RunN == 2) {
     // output_folder = "/data_CMS/cms/zaidan/analysis_lise/Run2/"; // to test locally: Afnan
@@ -1807,7 +1824,10 @@ std::cout << "ENTER FUNCTION" << std::endl;
       }
     }
 
-  if(RunN == 3) {output_folder = "/data_CMS/cms/zaidan/analysis_lise/Run3/";
+  if(RunN == 3) {
+    // output_folder = "/data_CMS/cms/zaidan/analysis_lise/Run3/";
+    output_folder = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/test_unfoldingcodewithTemplates/"; 
+
     cout<<"---->>>> RUN 3" <<endl;
     //sanity check
     if (isMC && dataType < 1) {
@@ -1821,7 +1841,7 @@ std::cout << "ENTER FUNCTION" << std::endl;
 
     else if(dataType == 0) {
       filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/HiForestMiniAOD_v2_TChains.root";
-      output_hist = RunN_str + "secondbinsplitting_MAY_WP0898_template_for_fit_histos_3D_HighEG_f";
+      output_hist = RunN_str + "secondbinsplitting_MAY_WP0898_template_for_fit_histos_3D_allData_f";
       isMC = false;
       cout<<"you chose data" <<endl;       
       }      
@@ -1834,7 +1854,12 @@ std::cout << "ENTER FUNCTION" << std::endl;
       }
 
     else if(dataType == 2){//________________________________dijet______________________________
-      filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/HiForestMiniAOD_v2_TChains.root";
+      // -- chain file: 
+      // filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/HiForestMiniAOD_v2_TChains.root"; // not exist anymore
+      // -- tree structure per fileindex
+      // filename = Form("/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/%d/merged_HiForestMiniAOD_v2.root", fileindex); // not exist anymore
+      // -- New files with JP branch after recalibration
+      filename = Form("/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/Pythia8_recalJP_chunks_20260617/merged_block_000%d_Pythia8_recalJP_20260617.root", fileindex); 
       output_hist = RunN_str + "secondbinsplitting_MAY_WP0898_template_for_fit_histos_3D_qcd_f";
       std::cout << "Creating files for template fit for qcd sample" << std::endl;
       cout<<"you chose qcd MC" <<endl;
@@ -1848,17 +1873,15 @@ std::cout << "ENTER FUNCTION" << std::endl;
 
 
   // -- Make templates 
-     // make_templates(RunN, filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC, dataType);
-
+  // make_templates(RunN, filename, output_folder, output_hist, domain, pT_low, pT_high, eta_cut, n, btag, btagWP, isMC, dataType, 0, 1e+03);
       //filter_b_bb(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC, dataType);
       //filter_b_bb_as_data_and_mc(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC);
 
- // -- Test unfolding: Produce Response matrix
-    // if no working point was passed (btagWP < 0), fall back to the run default
-    if (btagWP < 0) btagWP = (RunN == 2) ? 0.898 : 0.872;
-    create_response_templatefit(RunN, filename, output_folder, "response_templatefit_n1_bjet_Run2",
-                              pT_low, pT_high, n, btag, btagWP, 0, 1e+04);// last two arguments for for event range if you want
+   // -- Test unfolding: Produce Response matrix
+    
+    create_response_templatefit(RunN, filename, output_folder, "response_templatefit_n1_bjet_"+ RunN_str,
+                              pT_low, pT_high, eta_cut, n, btag, btagWP, 0, 1e+03);// last two arguments for for event range if you want
 
-
+    
   std::cout << "finished :)" << std::endl;
 }

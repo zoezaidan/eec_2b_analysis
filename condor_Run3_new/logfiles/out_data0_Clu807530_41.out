@@ -1,0 +1,18 @@
+gSystem->Load("run_condor_job_Run3_C.so");
+run_condor_job_Run3(41, 100,3, 0,
+                    80, 200,
+                    1, 1, 0, 0);
+.q
+
+ENTERED run_condor_job_Run3()
+JOBID = 41
+---->>>> RUN 3
+Entered data type 0 in run condor ()
+you chose data
+input file: /data_CMS/cms/shatat/DataRun3_014/0/merged_HiForestMiniAOD.root
+  global job = 41  Job 41/100  events [41031652, 42032424)  total=100077150
+Enterd make_templates() 
+Processing events [41031652, 42032424) of 100077150
+Processing: 41.0184 %Processing: 41.0683 %Processing: 41.1183 %Processing: 41.1682 %Processing: 41.2182 %Processing: 41.2682 %Processing: 41.3181 %Processing: 41.3681 %Processing: 41.418 %Processing: 41.468 %Processing: 41.518 %Processing: 41.5679 %Processing: 41.6179 %Processing: 41.6679 %Processing: 41.7178 %Processing: 41.7678 %Processing: 41.8177 %Processing: 41.8677 %Processing: 41.9177 %Processing: 41.9676 %
+after run_condor_job_Run3()
+ROOT exit code = 0
