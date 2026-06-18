@@ -434,8 +434,8 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
    // -- Add tree friends
    // tree->AddFriend("hiEvtAnalyzer/HiTree"); // Works only for TTree
    // tree->AddFriend("hltanalysis/HltTree"); // Works only for TTree
-   tree->AddFriend((TTree*)fin->Get("hiEvtAnalyzer/HiTree"));
-   tree->AddFriend((TTree*)fin->Get("hltanalysis/HltTree"));  
+   tree->AddFriend((TTree*)fin->Get("hiEvtAnalyzer/HiTree")); // works for TChain too 
+   tree->AddFriend((TTree*)fin->Get("hltanalysis/HltTree"));  // works for TChain too 
    // sanity check : print list of friends 
    tree->GetListOfFriends()->Print();
       

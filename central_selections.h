@@ -16,9 +16,9 @@ struct DatasetConfig {
   int dataType;    // data / MC type (0: Data, 1: bjet MC, 2: qcd MC), and for Run2: -1 is for lowEG, and 0 for HighEG
   bool isMC;
 
-  TString filename;
+  TString filename; // input sample full path to root file 
   TString output_folder = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/test_unfoldingcodewithTemplates/";
-  TString output_hist;
+  TString output_hist; // for output file name (for templates)
   TString domain = ".root";
 
   // prescale
@@ -45,7 +45,7 @@ struct AnalysisConfig {
 
 };
 
-// -- Helper function for reco/gen MC choice of branches
+// -- Helper function for reco MC (or data)/gen MC choice of branches
 float reco_jet_pt(const tTree& t, int ijet) {
   return t.jtpt[ijet];
 }
@@ -187,7 +187,7 @@ DatasetConfig buildDataset(int RunN, int dataType, bool isMC, const PhysicsConfi
       d.data_prescale = 6.2336493; // prescale 60-80 GeV
     }
 
-  TString add_BtagWP = physics.useBtag ? Form("_btagWP%d", static_cast<int>(std::round(1000 * physics.btagWP))):""; // round to int without floating digits
+  TString add_BtagWP = physics.useBtag ? Form("_btagWP%d", static_cast<int>(std::round(1000 * physics.btagWP))):"_nobtag"; // round to int without floating digits
   TString sample = "";
 
   if (RunN == 2) {
@@ -215,7 +215,7 @@ DatasetConfig buildDataset(int RunN, int dataType, bool isMC, const PhysicsConfi
   if (RunN == 3) {
 
     if (dataType == 0) {
-      d.filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/HiForestMiniAOD_v2_TChains.root"; // Chaine (available working as tree)
+      d.filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/HiForestMiniAOD_v2_TChains.root";
       sample = "data";
     }
 
@@ -224,8 +224,11 @@ DatasetConfig buildDataset(int RunN, int dataType, bool isMC, const PhysicsConfi
       sample = "bjet";
     }
     if (dataType == 2) {
-      Int_t fileindex = 0; // temporare set
-      d.filename = Form("/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/Pythia8_recalJP_chunks_20260617/merged_block_000%d_Pythia8_recalJP_20260617.root", fileindex); // [0-9]
+      // Int_t fileindex = 0; // temporare set
+      // d.filename = Form("/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/Pythia8_recalJP_chunks_20260617/merged_block_000%d_Pythia8_recalJP_20260617.root", fileindex); // [0-9]
+      
+      // -- all in one TChain: 
+      d.filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/HiForestMiniAOD_v2_TChains.root";
       sample = "qcd";
     }
 
@@ -347,7 +350,17 @@ std::vector<TString> getActiveBranches(const AnalysisConfig& cfg)
         branches.insert(branches.end(), {
             "weight",
             "pthat",
-            "jtNbHad"
+            "jtNbHad",
+            // for gen level info
+            "refpt",
+            "refeta",
+            "nrefTrk",
+            "refTrkJetId",
+            "refTrkPt",
+            "refTrkEta",
+            "refTrkPhi",
+            "refTrkPdgId",
+            "refTrkSta"
         });
     }
 
