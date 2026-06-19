@@ -88,7 +88,8 @@ bool passEventSelection(const tTree& t,
     if (!isMC)
       return (t.HLT_AK4PFJet60_v8 ||
               t.HLT_AK4PFJet80_v8 ||
-              t.HLT_AK4PFJet100_v8);
+              t.HLT_AK4PFJet100_v8||
+              t.HLT_AK4PFJet120_v8); // new trigger --> update 19 June 
 
     if (isMC)
       return t.HLT_AK4PFJet60_v8;
@@ -184,7 +185,7 @@ DatasetConfig buildDataset(int RunN, int dataType, bool isMC, const PhysicsConfi
       d.data_prescale = 33.917210; // prescale 40-60 GeV
     }
     else if (RunN == 3){
-      d.data_prescale = 6.2336493; // prescale 60-80 GeV
+      d.data_prescale = 6.34958; // prescale 60-80 GeV --> value updated on 19 June (to include the trigger 120 GeV + full data stats)
     }
 
   TString add_BtagWP = physics.useBtag ? Form("_btagWP%d", static_cast<int>(std::round(1000 * physics.btagWP))):"_nobtag"; // round to int without floating digits
@@ -335,9 +336,11 @@ std::vector<TString> getActiveBranches(const AnalysisConfig& cfg)
 
         branches.insert(branches.end(), {
 
+            "HLT_AK4PFJet40_v8", // not used for analysis
             "HLT_AK4PFJet60_v8",
             "HLT_AK4PFJet80_v8",
             "HLT_AK4PFJet100_v8",
+            "HLT_AK4PFJet120_v8",
 
             "discr_unifiedParticleTransformer_probb",
             "discr_unifiedParticleTransformer_problepb",
