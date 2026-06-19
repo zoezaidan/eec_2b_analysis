@@ -1,0 +1,29 @@
+gSystem->Load("run_condor_job_Run3_C.so");
+run_condor_job_Run3(35, 100,3, 2,
+                    80, 200,
+                    1, 1, 1, 0);
+.q
+
+ENTERED run_condor_job_Run3()
+JOBID = 35
+---->>>> RUN 3
+Creating files for template fit for qcd sample
+you chose qcd MC
+input file: /data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/0/merged_HiForestMiniAOD_v2.root
+Before Init() in Run condor() 
+Opening ROOT file: [/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/0/merged_HiForestMiniAOD_v2.root]
+Collection name='TList', class='TList', size=2
+ OBJ: TFriendElement	HiTree	
+ OBJ: TFriendElement	HltTree	
+After init of tree inside run condor()
+n total = 5958000
+  global job = 35  Job 35/100  events [2085300, 2144880)  total=5958000
+Enterd make_templates() 
+Opening ROOT file: [/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/0/merged_HiForestMiniAOD_v2.root]
+Collection name='TList', class='TList', size=2
+ OBJ: TFriendElement	HiTree	
+ OBJ: TFriendElement	HltTree	
+Processing events [2085300, 2144880) of 5958000
+Processing: 35.2467 %
+after run_condor_job_Run3()
+ROOT exit code = 0

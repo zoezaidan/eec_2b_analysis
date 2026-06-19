@@ -22,7 +22,7 @@ public :
    Int_t           nvtx;
    Float_t         rawpt[500];   //[nref]
    Float_t         jtpt[500];   //[nref]
-   Float_t         jtpt_gen[500];   //[nref]
+   // Float_t         jtpt_gen[500];   //[nref]
    Float_t         jteta[500];   //[nref]
    Float_t         jty[500];   //[nref]
    Float_t         jtphi[500];   //[nref]
@@ -204,7 +204,7 @@ public :
    TBranch        *b_nvtx;   //!
    TBranch        *b_rawpt;   //!
    TBranch        *b_jtpt;   //!
-   TBranch        *b_jtpt_gen;   //!
+   // TBranch        *b_jtpt_gen;   //!
    TBranch        *b_discr_particleNet_BvsAll;
    TBranch        *b_jteta;   //!
    TBranch        *b_jty;   //!
@@ -411,77 +411,37 @@ Long64_t tTree::GetEntries()
 void tTree::Init(TString rootf, bool isMC, Int_t RunN)
 {
    
-  // Jet-analyzer tree path (run/data dependent): Run 2 data uses the CS collection,
-  // everything else (Run 2 MC, Run 3 data and MC) uses the standard ak4 collection.
-  TString jetTreeName = (!isMC && RunN == 2) ? "akCs4PFJetAnalyzer/t" : "ak4PFJetAnalyzer/t";
+  std::cout << "Opening ROOT file: [" << rootf << "]" << std::endl;
+  TFile *fin = TFile::Open(rootf);
 
-  // A wildcard in the path means "glob the real forest files directly": we build the
-  // TChain from the files matched by the pattern, bypassing any prebuilt *_TChains.root
-  // index (whose stored sub-file paths may be stale). TChain::Add opens each matched file
-  // and grabs the named tree from inside it; the friend chains are built from the same glob
-  // so they stay aligned file-by-file.
-  if (rootf.Contains("*") || rootf.Contains("?") || rootf.Contains("[")) {
-      TChain *mainChain = new TChain(jetTreeName);
-      Int_t nAdded = mainChain->Add(rootf);
-      TChain *evtChain = new TChain("hiEvtAnalyzer/HiTree");
-      evtChain->Add(rootf);
-      TChain *hltChain = new TChain("hltanalysis/HltTree");
-      hltChain->Add(rootf);
-      mainChain->AddFriend(evtChain);
-      mainChain->AddFriend(hltChain);
-      tree = mainChain;
-      std::cout << "Glob chain (" << jetTreeName << ") from '" << rootf << "': "
-                << nAdded << " files, " << tree->GetEntries() << " entries" << std::endl;
-
-      if (!tree || tree->GetEntries() == 0) {
-        std::cout << "ERROR: glob matched no usable files: " << rootf << std::endl;
-        return;
-      }
-  } else {
-      TFile *fin = TFile::Open(rootf);
       // Safety
       if (!fin || fin->IsZombie()) {
        std::cout << "ERROR: cannot open file " << rootf << std::endl;
        return;
       }
 
-      if (!isMC && RunN == 2) {
-         tree = (TTree*) fin->Get("akCs4PFJetAnalyzer/t"); // does not exist in Run3 data
-      } else if (RunN == 3) {
-         // Run 3 *_TChains.root: the stored TChain only resolves its sub-file list when read
-         // from inside its own directory. Getting it as "ak4PFJetAnalyzer/t" from the top of
-         // the file yields a chain with stale paths (0 entries). cd in, then Get("t").
-         fin->cd("ak4PFJetAnalyzer");
-         tree = (TTree*) gDirectory->Get("t");
-      } else {
-         tree = (TTree*) fin->Get("ak4PFJetAnalyzer/t"); // run2 MC
-      }
 
+   if(!isMC && RunN == 2) tree = (TTree*) fin->Get("akCs4PFJetAnalyzer/t"); // does not exist in Run3 data 
+   else tree = (TTree*) fin->Get("ak4PFJetAnalyzer/t"); // run3 data and MC, run2 MC 
+
+   
       // Safety
       if (!tree) {
        std::cout << "ERROR: tree not found in file " << rootf << std::endl;
        return;
       }
 
-      if (RunN == 2) {
-         // Run 2 forests store plain TTrees: the name-string overload finds them in the file.
-         tree->AddFriend("hiEvtAnalyzer/HiTree");
-         tree->AddFriend("hltanalysis/HltTree");
-      } else {
-         // Run 3 *_TChains.root forests store the trees as TChains. They must be read from
-         // inside their own directory (cd + Get) so their sub-file lists resolve, and added
-         // as friends by pointer (the name-string overload gives an "Unknown TChain" warning).
-         fin->cd("hiEvtAnalyzer");
-         TTree *evtFriend = (TTree*) gDirectory->Get("HiTree");
-         fin->cd("hltanalysis");
-         TTree *hltFriend = (TTree*) gDirectory->Get("HltTree");
-         if (evtFriend) tree->AddFriend(evtFriend);
-         else std::cout << "WARNING: friend hiEvtAnalyzer/HiTree not found in " << rootf << std::endl;
-         if (hltFriend) tree->AddFriend(hltFriend);
-         else std::cout << "WARNING: friend hltanalysis/HltTree not found in " << rootf << std::endl;
-      }
-   }
-   
+   // -- Add tree friends
+   // tree->AddFriend("hiEvtAnalyzer/HiTree"); // Works only for TTree
+   // tree->AddFriend("hltanalysis/HltTree"); // Works only for TTree
+   tree->AddFriend((TTree*)fin->Get("hiEvtAnalyzer/HiTree")); // works for TChain too 
+   tree->AddFriend((TTree*)fin->Get("hltanalysis/HltTree"));  // works for TChain too 
+   // sanity check : print list of friends 
+   tree->GetListOfFriends()->Print();
+      
+
+
+
    // Set branch addresses and branch pointers
    tree->SetBranchAddress("run", &run, &b_run);
    tree->SetBranchAddress("evt", &evt, &b_evt);
@@ -491,7 +451,8 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
    tree->SetBranchAddress("rawpt", rawpt, &b_rawpt);
    tree->SetBranchAddress("jtpt", jtpt, &b_jtpt);
    
-   if(isMC)tree->SetBranchAddress("jtpt_gen", jtpt_gen, &b_jtpt_gen);
+   // if(isMC)tree->SetBranchAddress("jtpt_gen", jtpt_gen, &b_jtpt_gen); // does not exist
+
 
    if (RunN == 2) {
       cout << "Set branch address for some Run 2 specific branches" << endl;
@@ -606,23 +567,21 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
    tree->SetBranchAddress("jtDiscDeepFlavourLEPB", jtDiscDeepFlavourLEPB, &b_jtDiscDeepFlavourLEPB);
    */
 
-	tree->SetBranchAddress("discr_pfJP", discr_pfJP, &b_discr_pfJP); // exist for both Run 2 and 3
+   tree->SetBranchAddress("discr_pfJP", discr_pfJP, &b_discr_pfJP); // exist for both Run 2 and 3
    tree->SetBranchAddress("jtptCh", jtptCh, &b_jtptCh);
    tree->SetBranchAddress("trkMass", trkMass, &b_trkMass);
 
-
-
-// HLT
    if (RunN == 3) {
      tree->SetBranchAddress("HLT_AK4PFJet60_v8",    &HLT_AK4PFJet60_v8,    &b_HLT_AK4PFJet60_v8);
      tree->SetBranchAddress("HLT_AK4PFJet80_v8",    &HLT_AK4PFJet80_v8,    &b_HLT_AK4PFJet80_v8);
      tree->SetBranchAddress("HLT_AK4PFJet100_v8",   &HLT_AK4PFJet100_v8,   &b_HLT_AK4PFJet100_v8);
      tree->SetBranchAddress("HLT_AK4PFJet120_v8",   &HLT_AK4PFJet120_v8,   &b_HLT_AK4PFJet120_v8);
-	 tree->SetBranchAddress("discr_unifiedParticleTransformer_probb", discr_unifiedParticleTransformer_probb, &b_discr_unifiedParticleTransformer_probb);
+     tree->SetBranchAddress("discr_unifiedParticleTransformer_probb", discr_unifiedParticleTransformer_probb, &b_discr_unifiedParticleTransformer_probb);
      tree->SetBranchAddress("discr_unifiedParticleTransformer_problepb", discr_unifiedParticleTransformer_problepb, &b_discr_unifiedParticleTransformer_problepb);
      tree->SetBranchAddress("discr_unifiedParticleTransformer_probbb", discr_unifiedParticleTransformer_probbb, &b_discr_unifiedParticleTransformer_probbb);
    }
    
+
    if(isMC){ // Common for Run 2 and Run 3 
      tree->SetBranchAddress("pthat", &pthat, &b_pthat);
      tree->SetBranchAddress("refpt", refpt, &b_refpt);
@@ -650,7 +609,9 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
      tree->SetBranchAddress("gendphijt", gendphijt, &b_gendphijt);
      tree->SetBranchAddress("gendrjt", gendrjt, &b_gendrjt);
 
-	 tree->SetBranchAddress("jtNbHad", jtNbHad, &b_jtNbHad);
+
+     tree->SetBranchAddress("jtNbHad", jtNbHad, &b_jtNbHad);
+
      tree->SetBranchAddress("jtNcHad", jtNcHad, &b_jtNcHad);
      tree->SetBranchAddress("jtNbPar", jtNbPar, &b_jtNbPar);
      tree->SetBranchAddress("jtNcPar", jtNcPar, &b_jtNcPar);

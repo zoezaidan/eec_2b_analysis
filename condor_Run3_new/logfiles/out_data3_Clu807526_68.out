@@ -1,0 +1,21 @@
+gSystem->Load("run_condor_job_Run3_C.so");
+run_condor_job_Run3(68, 100,3, 0,
+                    80, 200,
+                    1, 1, 0, 3);
+.q
+
+ENTERED run_condor_job_Run3()
+JOBID = 68
+---->>>> RUN 3
+Entered data type 0 in run condor ()
+you chose data
+input file: /data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/3/merged_HiForestMiniAOD.root
+Before Init() in Run condor() 
+After init of tree inside run condor()
+n total = 100081888
+  global job = 68  Job 68/100  events [6800000, 6900000)  total=10000000
+Enterd make_templates() 
+Processing events [6800000, 6900000) of 100081888
+Processing: 6.79444 %Processing: 6.8444 %
+after run_condor_job_Run3()
+ROOT exit code = 0

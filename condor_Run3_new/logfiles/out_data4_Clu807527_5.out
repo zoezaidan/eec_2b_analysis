@@ -1,0 +1,21 @@
+gSystem->Load("run_condor_job_Run3_C.so");
+run_condor_job_Run3(5, 2,3, 0,
+                    80, 200,
+                    1, 1, 0, 4);
+.q
+
+ENTERED run_condor_job_Run3()
+JOBID = 5
+---->>>> RUN 3
+Entered data type 0 in run condor ()
+you chose data
+input file: /data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/4/merged_HiForestMiniAOD.root
+Before Init() in Run condor() 
+After init of tree inside run condor()
+n total = 100069389
+  global job = 5  Job 1/2  events [5000000, 10000000)  total=10000000
+Enterd make_templates() 
+Processing events [5000000, 10000000) of 100069389
+Processing: 4.99653 %Processing: 5.0465 %Processing: 5.09646 %Processing: 5.14643 %Processing: 5.19639 %Processing: 5.24636 %Processing: 5.29632 %Processing: 5.34629 %Processing: 5.39626 %Processing: 5.44622 %Processing: 5.49619 %Processing: 5.54615 %Processing: 5.59612 %Processing: 5.64608 %Processing: 5.69605 %Processing: 5.74601 %Processing: 5.79598 %Processing: 5.84594 %Processing: 5.89591 %Processing: 5.94587 %Processing: 5.99584 %Processing: 6.0458 %Processing: 6.09577 %Processing: 6.14574 %Processing: 6.1957 %Processing: 6.24567 %Processing: 6.29563 %Processing: 6.3456 %Processing: 6.39556 %Processing: 6.44553 %Processing: 6.49549 %Processing: 6.54546 %Processing: 6.59542 %Processing: 6.64539 %Processing: 6.69535 %Processing: 6.74532 %Processing: 6.79528 %Processing: 6.84525 %Processing: 6.89522 %Processing: 6.94518 %Processing: 6.99515 %Processing: 7.04511 %Processing: 7.09508 %Processing: 7.14504 %Processing: 7.19501 %Processing: 7.24497 %Processing: 7.29494 %Processing: 7.3449 %Processing: 7.39487 %Processing: 7.44483 %Processing: 7.4948 %Processing: 7.54476 %Processing: 7.59473 %Processing: 7.6447 %Processing: 7.69466 %Processing: 7.74463 %Processing: 7.79459 %Processing: 7.84456 %Processing: 7.89452 %Processing: 7.94449 %Processing: 7.99445 %Processing: 8.04442 %Processing: 8.09438 %Processing: 8.14435 %Processing: 8.19431 %Processing: 8.24428 %Processing: 8.29424 %Processing: 8.34421 %Processing: 8.39418 %Processing: 8.44414 %Processing: 8.49411 %Processing: 8.54407 %Processing: 8.59404 %Processing: 8.644 %Processing: 8.69397 %Processing: 8.74393 %Processing: 8.7939 %Processing: 8.84386 %Processing: 8.89383 %Processing: 8.94379 %Processing: 8.99376 %Processing: 9.04372 %Processing: 9.09369 %Processing: 9.14366 %Processing: 9.19362 %Processing: 9.24359 %Processing: 9.29355 %Processing: 9.34352 %Processing: 9.39348 %Processing: 9.44345 %Processing: 9.49341 %Processing: 9.54338 %Processing: 9.59334 %Processing: 9.64331 %Processing: 9.69327 %Processing: 9.74324 %Processing: 9.7932 %Processing: 9.84317 %Processing: 9.89314 %Processing: 9.9431 %
+after run_condor_job_Run3()
+ROOT exit code = 0
