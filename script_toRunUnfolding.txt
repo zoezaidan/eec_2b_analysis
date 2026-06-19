@@ -1,0 +1,10 @@
+unset ROOT_INCLUDE_PATH
+unset CPLUS_INCLUDE_PATH
+unset CPATH
+
+source /cvmfs/sft.cern.ch/lcg/views/LCG_106a/x86_64-el9-gcc14-opt/setup.sh
+
+export ROOT_INCLUDE_PATH=/home/llr/cms/shatat/RooUnfold/src
+export LD_LIBRARY_PATH=/home/llr/cms/shatat/RooUnfold/build:$LD_LIBRARY_PATH
+
+## then you can use root -l, .L file.C+, then runFunction()

@@ -1,0 +1,14 @@
+WARNING: Developer's area is created for architecture slc7_amd64_gcc700 while your current OS is EL9.
+WARNING: You are trying to use SCRAM architecture 'slc7' on host with operating system 'el9'.
+         This is not supported and likely will not work and you might get build/runtime errors. Please either
+         - use correct SCRAM_ARCH to match your host's operating system.
+         - OR use 'cmssw-el7' script to start a singularity container (http://cms-sw.github.io/singularity.html)
+         - OR use host which has 'slc7' installed e.g. lxplus8 for el8, lxplus9 for el9 or lxplus7 for slc7.
+=== CMSSW environment loaded for job 0 ===
+===== Environment checks =====
+SCRAM_ARCH = slc7_amd64_gcc700
+ROOT executable:
+/cvmfs/cms.cern.ch/slc7_amd64_gcc700/cms/cmssw/CMSSW_10_6_48/external/slc7_amd64_gcc700/bin/root
+ROOT version:
+6.14/09
+==============================

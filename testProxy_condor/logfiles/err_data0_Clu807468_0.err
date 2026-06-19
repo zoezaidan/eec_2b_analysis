@@ -1,0 +1,3 @@
+ROOT_cli_1:1:27: error: member reference base type 'void (Int_t, Int_t, Int_t, Float_t, Float_t, Int_t, Int_t, Int_t, Int_t)' (aka 'void (int, int, int, float, float, int, int, int, int)') is not a structure or union
+run_condor_job_Run3_wproxy.C(0,1,2,80,200,1,1,1,0);
+~~~~~~~~~~~~~~~~~~~~~~~~~~^~

@@ -1,0 +1,29 @@
+gSystem->Load("run_condor_job_Run3_C.so");
+run_condor_job_Run3(229, 100,3, 0,
+                    80, 200,
+                    1, 1, 0, 2);
+.q
+
+ENTERED run_condor_job_Run3()
+JOBID = 229
+---->>>> RUN 3
+you chose data
+file name = /data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/2/merged_HiForestMiniAOD_v2.root
+input file: /data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/2/merged_HiForestMiniAOD_v2.root
+Before Init() in Run condor() 
+Opening ROOT file: [/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/2/merged_HiForestMiniAOD_v2.root]
+Collection name='TList', class='TList', size=2
+ OBJ: TFriendElement	HiTree	
+ OBJ: TFriendElement	HltTree	
+After init of tree inside run condor()
+n total = 99980719
+  global job = 229  Job 29/100  events [28994432, 29994240)  total=99980719
+Enterd make_templates() 
+Opening ROOT file: [/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/2/merged_HiForestMiniAOD_v2.root]
+Collection name='TList', class='TList', size=2
+ OBJ: TFriendElement	HiTree	
+ OBJ: TFriendElement	HltTree	
+Processing events [28994432, 29994240) of 99980719
+Processing: 29.0056 %Processing: 29.0556 %Processing: 29.1056 %Processing: 29.1556 %Processing: 29.2056 %Processing: 29.2556 %Processing: 29.3057 %Processing: 29.3557 %Processing: 29.4057 %Processing: 29.4557 %Processing: 29.5057 %Processing: 29.5557 %Processing: 29.6057 %Processing: 29.6557 %Processing: 29.7057 %Processing: 29.7557 %Processing: 29.8057 %Processing: 29.8558 %Processing: 29.9058 %Processing: 29.9558 %
+after run_condor_job_Run3()
+ROOT exit code = 0

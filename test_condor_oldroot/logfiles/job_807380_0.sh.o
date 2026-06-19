@@ -1,0 +1,6 @@
+=== CMSSW environment loaded for job 0 ===
+===== Environment checks =====
+SCRAM_ARCH = el9_amd64_gcc12
+ROOT executable:
+ROOT version:
+==============================
