@@ -411,25 +411,76 @@ Long64_t tTree::GetEntries()
 void tTree::Init(TString rootf, bool isMC, Int_t RunN)
 {
    
-  TFile *fin = TFile::Open(rootf);
+  // Jet-analyzer tree path (run/data dependent): Run 2 data uses the CS collection,
+  // everything else (Run 2 MC, Run 3 data and MC) uses the standard ak4 collection.
+  TString jetTreeName = (!isMC && RunN == 2) ? "akCs4PFJetAnalyzer/t" : "ak4PFJetAnalyzer/t";
+
+  // A wildcard in the path means "glob the real forest files directly": we build the
+  // TChain from the files matched by the pattern, bypassing any prebuilt *_TChains.root
+  // index (whose stored sub-file paths may be stale). TChain::Add opens each matched file
+  // and grabs the named tree from inside it; the friend chains are built from the same glob
+  // so they stay aligned file-by-file.
+  if (rootf.Contains("*") || rootf.Contains("?") || rootf.Contains("[")) {
+      TChain *mainChain = new TChain(jetTreeName);
+      Int_t nAdded = mainChain->Add(rootf);
+      TChain *evtChain = new TChain("hiEvtAnalyzer/HiTree");
+      evtChain->Add(rootf);
+      TChain *hltChain = new TChain("hltanalysis/HltTree");
+      hltChain->Add(rootf);
+      mainChain->AddFriend(evtChain);
+      mainChain->AddFriend(hltChain);
+      tree = mainChain;
+      std::cout << "Glob chain (" << jetTreeName << ") from '" << rootf << "': "
+                << nAdded << " files, " << tree->GetEntries() << " entries" << std::endl;
+
+      if (!tree || tree->GetEntries() == 0) {
+        std::cout << "ERROR: glob matched no usable files: " << rootf << std::endl;
+        return;
+      }
+  } else {
+      TFile *fin = TFile::Open(rootf);
       // Safety
       if (!fin || fin->IsZombie()) {
        std::cout << "ERROR: cannot open file " << rootf << std::endl;
        return;
       }
 
+      if (!isMC && RunN == 2) {
+         tree = (TTree*) fin->Get("akCs4PFJetAnalyzer/t"); // does not exist in Run3 data
+      } else if (RunN == 3) {
+         // Run 3 *_TChains.root: the stored TChain only resolves its sub-file list when read
+         // from inside its own directory. Getting it as "ak4PFJetAnalyzer/t" from the top of
+         // the file yields a chain with stale paths (0 entries). cd in, then Get("t").
+         fin->cd("ak4PFJetAnalyzer");
+         tree = (TTree*) gDirectory->Get("t");
+      } else {
+         tree = (TTree*) fin->Get("ak4PFJetAnalyzer/t"); // run2 MC
+      }
 
-   if(!isMC && RunN == 2) tree = (TTree*) fin->Get("akCs4PFJetAnalyzer/t"); // does not exist in Run3 data 
-   else tree = (TTree*) fin->Get("ak4PFJetAnalyzer/t"); // run3 data and MC, run2 MC 
-   
       // Safety
       if (!tree) {
        std::cout << "ERROR: tree not found in file " << rootf << std::endl;
        return;
       }
 
-   tree->AddFriend("hiEvtAnalyzer/HiTree");
-   tree->AddFriend("hltanalysis/HltTree");
+      if (RunN == 2) {
+         // Run 2 forests store plain TTrees: the name-string overload finds them in the file.
+         tree->AddFriend("hiEvtAnalyzer/HiTree");
+         tree->AddFriend("hltanalysis/HltTree");
+      } else {
+         // Run 3 *_TChains.root forests store the trees as TChains. They must be read from
+         // inside their own directory (cd + Get) so their sub-file lists resolve, and added
+         // as friends by pointer (the name-string overload gives an "Unknown TChain" warning).
+         fin->cd("hiEvtAnalyzer");
+         TTree *evtFriend = (TTree*) gDirectory->Get("HiTree");
+         fin->cd("hltanalysis");
+         TTree *hltFriend = (TTree*) gDirectory->Get("HltTree");
+         if (evtFriend) tree->AddFriend(evtFriend);
+         else std::cout << "WARNING: friend hiEvtAnalyzer/HiTree not found in " << rootf << std::endl;
+         if (hltFriend) tree->AddFriend(hltFriend);
+         else std::cout << "WARNING: friend hltanalysis/HltTree not found in " << rootf << std::endl;
+      }
+   }
    
    // Set branch addresses and branch pointers
    tree->SetBranchAddress("run", &run, &b_run);

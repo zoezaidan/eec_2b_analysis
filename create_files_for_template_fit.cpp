@@ -59,10 +59,15 @@ R__LOAD_LIBRARY(/home/llr/cms/shatat/RooUnfold/build/libRooUnfold.so)
 
 // -- Second : More Roboust 
 // -- Or you can use the uusla header, while using: gInterpreter->AddIncludePath("/home/llr/cms/shatat/RooUnfold/src"); added inside creat_file(){ before you use the unfolding;}
+//export ROOT_INCLUDE_PATH=${ROOT_INCLUDE_PATH}:/home/llr/cms/kalipoliti/gitRepos/RooUnfoldOld/src
 //#pragma cling add_include_path("/home/llr/cms/shatat/RooUnfold/src")
 //R__LOAD_LIBRARY(/home/llr/cms/shatat/RooUnfold/build/libRooUnfold.so) // and its corresponding library! 
 #include "RooUnfold.h"
-#include "RooUnfoldResponse.h"
+//#include "RooUnfoldResponse.h"
+
+// ROOT::Math::PtEtaPhiMVector (GenVector) lives in libGenVector; load it explicitly
+// so its symbols (e.g. ROOT::Math::GenVector::Throw) resolve when the macro is JIT-linked.
+R__LOAD_LIBRARY(libGenVector)
 // You can run without compilation like: root -l .L.cpp runfunction() 
 //--- To run with compilation:  ROOT_INCLUDE_PATH=/home/llr/cms/shatat/RooUnfold/src root -l and then .L file.cpp+
 // OR use: root -l -e 'gSystem->AddIncludePath("-I/home/llr/cms/shatat/RooUnfold/src");' then .L .... 
@@ -1428,6 +1433,14 @@ void create_response_templatefit(
     Long64_t ev_first = 0,
     Long64_t ev_last  = -1)
 {
+    // Histograms must not be owned by any input file's directory. For BOTH Run 2 and Run 3,
+    // the input is read through a multi-file TChain that opens/closes its member files as it
+    // walks them; a directory-owned histogram gets deleted when its owning file closes ->
+    // "TList::Clear / THashList::Delete ... already deleted". Detaching histograms from all
+    // file directories (global, run-independent) prevents this. Write() to fout below still
+    // works, as it writes to whatever gDirectory is current at that point.
+    TH1::AddDirectory(kFALSE);
+
     TString fout_name = output_folder + output_hist + (btag ? "_btag" : "_nobtag") + ".root";
 
     // Re-derive bin counts from const sizes (Cling init-order workaround for non-const globals)
@@ -1820,7 +1833,7 @@ std::cout << "ENTER FUNCTION" << std::endl;
 
 
     else if(dataType == 0) {
-      filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/HiForestMiniAOD_v2_TChains.root";
+      filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/HiForestMiniAOD_v2_TChains.root";
       output_hist = RunN_str + "secondbinsplitting_MAY_WP0898_template_for_fit_histos_3D_HighEG_f";
       isMC = false;
       cout<<"you chose data" <<endl;       
@@ -1857,7 +1870,7 @@ std::cout << "ENTER FUNCTION" << std::endl;
     // if no working point was passed (btagWP < 0), fall back to the run default
     if (btagWP < 0) btagWP = (RunN == 2) ? 0.898 : 0.872;
     create_response_templatefit(RunN, filename, output_folder, "response_templatefit_n1_bjet_Run2",
-                              pT_low, pT_high, n, btag, btagWP, 0, 1e+04);// last two arguments for for event range if you want
+                              pT_low, pT_high, n, btag, btagWP, 0, -1);// last two arguments for for event range if you want
 
 
   std::cout << "finished :)" << std::endl;
