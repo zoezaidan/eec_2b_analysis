@@ -720,7 +720,7 @@ if (t.jtNbHad[ijet] == 0){
 
 void filter_b_bb_as_data_and_mc(Int_t RunN, TString filename_bjet, TString output_folder, TString output_hist, TString domain, Float_t pT_low, Float_t pT_high, Int_t n, bool btag, bool isMC) {
   // -- This function is not updated for Run3 branches 
-  
+
   if (RunN == 2) double prescale = 33.917210;
   if (RunN == 3) double prescale = 6.34958;
 
@@ -860,7 +860,7 @@ void make_templates(Int_t RunN, TString filename, TString output_folder, TString
 
   double agg_fail = 0, nb_sv = 0, sv_fail = 0, merge_fail = 0;
 
-  double prescale = (RunN == 2) ? 33.917210 : 6.34958;
+  double prescale = (RunN == 2) ? 33.917210 : 6.34958; // updated 19 June 
 
   std::vector<TString> active_branches = {
     "jtpt", "jteta", "nref", "jtNtrk", "jtNsvtx",
@@ -987,11 +987,10 @@ void make_templates(Int_t RunN, TString filename, TString output_folder, TString
 
       // -- Fill here Selected jets histogram: selected jets after btagging + >=2svx (cut)
       // -- The >=2Svx cut is required already in reco partial Bs. (which save info about less verteices also), so I will use if statement for it.
-      if (t.jtNsvtx[ijet]){
+      if (t.jtNsvtx[ijet] >= 2){
         hpt_selectedJets ->Fill(t.jtpt[ijet], weight_tree);
         hpt_selectedJets_noweight ->Fill(t.jtpt[ijet]);
       }
-
 
 
       // reco SV reconstruction — same for data and MC
@@ -1134,7 +1133,7 @@ void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t p
 
     else if(dataType == 0) { //________________________________data______________________________
       // -- Corrected data: all triggers starting from 60 GeV
-      // filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/HiForestMiniAOD_v2_TChains.root";
+      // filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/HiForestMiniAOD_v2_TChains.root"; //chain
       filename = Form("/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/%d/merged_HiForestMiniAOD_v2.root", fileindex);
       output_hist = RunN_str + "secondbinsplitting_WP0872_template_for_fit_histos_3D_f";
 

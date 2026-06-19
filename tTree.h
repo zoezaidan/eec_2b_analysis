@@ -277,7 +277,7 @@ public :
    TBranch        *b_HLT_HIAK4PFJet30_v1;
 
    // HLT branches (Run 3)
-   TBranch        *b_HLT_AK4PFJet0_v8;
+   TBranch        *b_HLT_AK4PFJet40_v8;
    TBranch        *b_HLT_AK4PFJet60_v8;
    TBranch        *b_HLT_AK4PFJet80_v8;
    TBranch        *b_HLT_AK4PFJet100_v8;
