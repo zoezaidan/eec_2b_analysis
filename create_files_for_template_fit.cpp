@@ -1751,6 +1751,14 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
   h_count_bb->Sumw2();   h_count_bb->SetCanExtend(TH1::kNoAxis);
   h_count_data->Sumw2(); h_count_data->SetCanExtend(TH1::kNoAxis);
 
+  // -- Statistocs histogram for selected jets after btagging + >=2Svx (within selected kinematics eta, pt)
+  TH1D *hpt_selectedJets   = new TH1D("hpt_selectedJets", "For templates: Selected jets (btagged, NSvx >=2, within kienmatics(jet pt and eta + skipped events of large weights) of anlalysis);p_{T} [GeV]; weighted counts(event weight)",jtpt_bins, jtpt_binsVector);
+  TH1D *hpt_selectedJets_noweight   = new TH1D("hpt_selectedJets_noweight", "For templates: Selected jets (btagged, NSvx >=2, within kienmatics(jet pt and eta + skipped events of large weights) of anlalysis);p_{T} [GeV]; counts",jtpt_bins, jtpt_binsVector);
+
+    hpt_selectedJets->Sumw2();
+    hpt_selectedJets_noweight->Sumw2();
+
+
   // -- For response matrix 
 
     // -----------------Is it needed ??? -------------------------------
@@ -1843,6 +1851,13 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
       /////////----  To Fill templates: Require Jet kinematics + btagging (even if btag is false --> it is embedded in passBtag())
       /// NOTE: Templates use DATA or RECO MC 
       if(passRecoJetKinematics(t, ijet, cfg) &&  passBtag(t, ijet, cfg)){
+
+              // -- Fill here Selected jets histogram: selected jets after btagging + >=2svx (cut)
+              if (t.jtNsvtx[ijet] >= 2){
+                hpt_selectedJets ->Fill(t.jtpt[ijet], weight_tree);
+                hpt_selectedJets_noweight ->Fill(t.jtpt[ijet]);
+              }
+
               // reco SV reconstruction — same for data and MC
               vector<ROOT::Math::PtEtaPhiMVector> reco_sv = makeSvtxs_withBDT(t, ijet, ient, agg_fail, nb_sv, sv_fail, merge_fail, nullptr, nullptr);
               
@@ -2137,6 +2152,9 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
   ///////// Write Output hist to Templates output root file 
   std::cout << "Creating: " << fout_name << std::endl;
   TFile* outFile = new TFile(fout_name, "RECREATE");
+    hpt_selectedJets->Write();
+    hpt_selectedJets_noweight->Write();
+
   if (cfg.dataset.isMC) { // Reco MC 
     h3D_0b->Write();
     h3D_b->Write();

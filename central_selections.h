@@ -322,7 +322,7 @@ std::vector<TString> getActiveBranches(const AnalysisConfig& cfg)
     if (cfg.dataset.RunN == 2) {
 
         branches.insert(branches.end(), {
-
+            // you can add that of 30 GeV --> For trigger studies 
             "HLT_HIAK4PFJet40_v1",
             "HLT_HIAK4PFJet60_v1",
             "HLT_HIAK4PFJet80_v1",
@@ -336,7 +336,7 @@ std::vector<TString> getActiveBranches(const AnalysisConfig& cfg)
 
         branches.insert(branches.end(), {
 
-            "HLT_AK4PFJet40_v8", // not used for analysis
+            "HLT_AK4PFJet40_v8", // not used for analysis but needed when study trigger Eff. 
             "HLT_AK4PFJet60_v8",
             "HLT_AK4PFJet80_v8",
             "HLT_AK4PFJet100_v8",
