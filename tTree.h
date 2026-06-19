@@ -93,10 +93,12 @@ public :
    Int_t           HLT_HIAK4PFJet30_v1;
 
    // HLT selection (Run 3)
+   Int_t           HLT_AK4PFJet40_v8;
    Int_t           HLT_AK4PFJet60_v8;
    Int_t           HLT_AK4PFJet80_v8;
    Int_t           HLT_AK4PFJet100_v8;
    Int_t           HLT_AK4PFJet120_v8;
+
    // Run 3: b tag discriminating variables 
    Float_t         discr_unifiedParticleTransformer_probb[500]; // [nref]
    Float_t         discr_unifiedParticleTransformer_problepb[500]; // [nref]
@@ -275,6 +277,7 @@ public :
    TBranch        *b_HLT_HIAK4PFJet30_v1;
 
    // HLT branches (Run 3)
+   TBranch        *b_HLT_AK4PFJet0_v8;
    TBranch        *b_HLT_AK4PFJet60_v8;
    TBranch        *b_HLT_AK4PFJet80_v8;
    TBranch        *b_HLT_AK4PFJet100_v8;
@@ -572,6 +575,7 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
    tree->SetBranchAddress("trkMass", trkMass, &b_trkMass);
 
    if (RunN == 3) {
+     tree->SetBranchAddress("HLT_AK4PFJet40_v8",    &HLT_AK4PFJet40_v8,    &b_HLT_AK4PFJet40_v8);
      tree->SetBranchAddress("HLT_AK4PFJet60_v8",    &HLT_AK4PFJet60_v8,    &b_HLT_AK4PFJet60_v8);
      tree->SetBranchAddress("HLT_AK4PFJet80_v8",    &HLT_AK4PFJet80_v8,    &b_HLT_AK4PFJet80_v8);
      tree->SetBranchAddress("HLT_AK4PFJet100_v8",   &HLT_AK4PFJet100_v8,   &b_HLT_AK4PFJet100_v8);

@@ -533,7 +533,8 @@ vector<ROOT::Math::PtEtaPhiMVector> makeSvtxs_withBDT(
 
 // - - - - - - - - - - -  USING FUNCTIONS  - - - - - - - - - - -
 void filter_b_bb(Int_t RunN,TString filename, TString output_folder, TString output_hist, TString domain, Float_t pT_low, Float_t pT_high, Int_t n, bool btag, bool isMC, Int_t dataType) {
-  
+ // -- This function is not updated for Run3 branches 
+
   // true level information aggregated to partial Bs
   tTree t;
   t.Init(filename, isMC, RunN);
@@ -557,11 +558,12 @@ void filter_b_bb(Int_t RunN,TString filename, TString output_folder, TString out
       "refTrkPdgId","refTrkSta", "refTrkMass",  "refmB", "refpt", "refeta", "refphi",
       "nrefTrk", "refTrkJetId", "refTrkPt", "refTrkEta", "refTrkPhi", "refTrkY", "refNtrk",
       "jtNsvtx", "trkSvtxId",  "nsvtx", "svtxJetId", "svtxNtrk", "svtxm", "svtxmcorr", "svtxpt",  "svtxdl", "svtxdls", "svtxdl2d", "svtxdls2d", "svtxnormchi2",
-      "HLT_HIAK4PFJet40_v1", "HLT_HIAK4PFJet60_v1", "HLT_HIAK4PFJet80_v1", "HLT_HIAK4PFJet100_v1"};
+      "HLT_HIAK4PFJet40_v1", "HLT_HIAK4PFJet60_v1", "HLT_HIAK4PFJet80_v1", "HLT_HIAK4PFJet100_v1"}; // old 
+
     t.SetBranchStatus(active_branches, 1);
   
-  if (RunN == 2) double prescale_pf40 = 33.917210;
-  if (RunN == 3) double prescale_pf40 = 6.2336493; ;
+  if (RunN == 2) double prescale = 33.917210;
+  if (RunN == 3) double prescale = 6.34958;
 
   // Plots or histograms
   TH3D *h3D_2b = new TH3D("h3D_2b", "#DeltaR;EEC",bins_mb, mb_binsVector, bins_dr, dr_binsVector,jtpt_bins, jtpt_binsVector);
@@ -717,9 +719,10 @@ if (t.jtNbHad[ijet] == 0){
 
 
 void filter_b_bb_as_data_and_mc(Int_t RunN, TString filename_bjet, TString output_folder, TString output_hist, TString domain, Float_t pT_low, Float_t pT_high, Int_t n, bool btag, bool isMC) {
+  // -- This function is not updated for Run3 branches 
   
-  if (RunN == 2) double prescale_pf40 = 33.917210;
-  if (RunN == 3) double prescale_pf40 = 6.2336493; ;
+  if (RunN == 2) double prescale = 33.917210;
+  if (RunN == 3) double prescale = 6.34958;
 
   // true level information aggregated to partial Bs
   tTree t;
@@ -857,7 +860,7 @@ void make_templates(Int_t RunN, TString filename, TString output_folder, TString
 
   double agg_fail = 0, nb_sv = 0, sv_fail = 0, merge_fail = 0;
 
-  double prescale_pf40 = (RunN == 2) ? 33.917210 : 6.2336493;
+  double prescale = (RunN == 2) ? 33.917210 : 6.34958;
 
   std::vector<TString> active_branches = {
     "jtpt", "jteta", "nref", "jtNtrk", "jtNsvtx",
@@ -957,7 +960,7 @@ void make_templates(Int_t RunN, TString filename, TString output_folder, TString
 
     if (RunN == 3){ 
       if (!isMC) {
-        if ( !(t.HLT_AK4PFJet60_v8 || t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8)) continue;
+        if ( !(t.HLT_AK4PFJet60_v8 || t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8 || t.HLT_AK4PFJet120_v8)) continue;
       }
 	  else if (isMC){
 		  if(!t.HLT_AK4PFJet60_v8) continue;
@@ -1013,10 +1016,10 @@ void make_templates(Int_t RunN, TString filename, TString output_folder, TString
       //std::cout << "eec: " << eec << std::endl;
 
       if (RunN == 2 && !isMC && t.HLT_HIAK4PFJet40_v1 && !(t.HLT_HIAK4PFJet60_v1 || t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) 
-      {eec *= prescale_pf40;} 
+      {eec *= prescale;} 
 
-      if (RunN == 3 && !isMC && t.HLT_AK4PFJet60_v8 && !(t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8)) // updated 18 June 2026 !!! (WRONG use of HLT RUN2 to RUN3 Prescale)
-      {eec *= prescale_pf40;} 
+      if (RunN == 3 && !isMC && t.HLT_AK4PFJet60_v8 && !(t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8 || t.HLT_AK4PFJet120_v8)) // updated 18 June 2026 !!! (WRONG use of HLT RUN2 to RUN3 Prescale)
+      {eec *= prescale;} 
 
       if (isMC) {
         // use truth to classify: fill separate 0b, b and bb templates
