@@ -1021,9 +1021,9 @@ void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t e
 
 
   // MC: separate 0b, b and bb templates
-  TH3D *h3D_0b = new TH3D("h3D_0b", "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
-  TH3D *h3D_b  = new TH3D("h3D_b",  "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
-  TH3D *h3D_bb = new TH3D("h3D_bb", "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h3D_0b = new TH3D("h3D_0b", ";m_{2B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h3D_b  = new TH3D("h3D_b",  ";m_{2B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h3D_bb = new TH3D("h3D_bb", ";m_{2B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
   // Data: single distribution to be fit
   TH3D *h3D_data = new TH3D("h3D_data", "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
 
@@ -1033,10 +1033,10 @@ void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t e
   h3D_data->Sumw2(); h3D_data->SetCanExtend(TH1::kNoAxis);
 
   // Jet counts (no EEC weight): 3D (mB, dr, jtpt) — same axes as the EEC histograms
-  TH3D *h_count_0b   = new TH3D("h_count_0b",   "jet counts 0b;m_{B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
-  TH3D *h_count_b    = new TH3D("h_count_b",    "jet counts 1b;m_{B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
-  TH3D *h_count_bb   = new TH3D("h_count_bb",   "jet counts 2b;m_{B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
-  TH3D *h_count_data = new TH3D("h_count_data", "jet counts data;m_{B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h_count_0b   = new TH3D("h_count_0b",   "jet counts 0b;m_{2B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h_count_b    = new TH3D("h_count_b",    "jet counts 1b;m_{2B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h_count_bb   = new TH3D("h_count_bb",   "jet counts 2b;m_{2B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h_count_data = new TH3D("h_count_data", "jet counts data;m_{2B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
   h_count_0b->Sumw2();   h_count_0b->SetCanExtend(TH1::kNoAxis);
   h_count_b->Sumw2();    h_count_b->SetCanExtend(TH1::kNoAxis);
   h_count_bb->Sumw2();   h_count_bb->SetCanExtend(TH1::kNoAxis);
@@ -1730,9 +1730,9 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
   ///////////////////////declare  all Histograms  ///////////////////////
   // -- Templates 
   // MC: separate 0b, b and bb templates
-  TH3D *h3D_0b = new TH3D("h3D_0b", "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
-  TH3D *h3D_b  = new TH3D("h3D_b",  "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
-  TH3D *h3D_bb = new TH3D("h3D_bb", "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h3D_0b = new TH3D("h3D_0b", ";m_{2B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h3D_b  = new TH3D("h3D_b",  ";m_{2B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h3D_bb = new TH3D("h3D_bb", ";m_{2B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
 
   // Data: single distribution to be fit
   TH3D *h3D_data = new TH3D("h3D_data", "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
@@ -1742,10 +1742,10 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
   h3D_data->Sumw2(); h3D_data->SetCanExtend(TH1::kNoAxis);
 
   // Jet counts (no EEC weight): 3D (mB, dr, jtpt) — same axes as the EEC histograms
-  TH3D *h_count_0b   = new TH3D("h_count_0b",   "jet counts 0b;m_{B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
-  TH3D *h_count_b    = new TH3D("h_count_b",    "jet counts 1b;m_{B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
-  TH3D *h_count_bb   = new TH3D("h_count_bb",   "jet counts 2b;m_{B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
-  TH3D *h_count_data = new TH3D("h_count_data", "jet counts data;m_{B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h_count_0b   = new TH3D("h_count_0b",   "jet counts 0b;m_{2B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h_count_b    = new TH3D("h_count_b",    "jet counts 1b;m_{2B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h_count_bb   = new TH3D("h_count_bb",   "jet counts 2b;m_{2B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h_count_data = new TH3D("h_count_data", "jet counts data;m_{2B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
   h_count_0b->Sumw2();   h_count_0b->SetCanExtend(TH1::kNoAxis);
   h_count_b->Sumw2();    h_count_b->SetCanExtend(TH1::kNoAxis);
   h_count_bb->Sumw2();   h_count_bb->SetCanExtend(TH1::kNoAxis);
@@ -1841,10 +1841,15 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
       
       double weight_tree = cfg.dataset.isMC ? t.weight : 1.0;
 
+      // -- NEW: 
+      if (! passPVQuality_EventSelection(t, cfg)) continue;
+        cout << "PV quality pass ok: t.vz = "<< t.vz  << endl;
+          if (!cfg.dataset.isMC) cout << " and t.pprimaryVertexFilter = "<< t.pprimaryVertexFilter << endl;
+
       // -- Trigger selections for all 
       if (! passEventSelection(t, cfg)) continue;
       // cout << "event pass ok" << endl;
-    
+
     for (Int_t ijet = 0; ijet < t.nref; ijet++) { // Jet loop
 
 
@@ -2180,8 +2185,8 @@ void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t p
  std::cout << "ENTER FUNCTION" << std::endl;
 
   RunN = 3;
-  dataType = 2;
-  isMC = true;
+  dataType = 0;
+  isMC = false;
 
 
  // -- test use of central configuration

@@ -886,9 +886,9 @@ void make_templates(Int_t RunN, TString filename, TString output_folder, TString
   t.SetBranchStatus(active_branches, 1);
 
   // MC: separate 0b, b and bb templates
-  TH3D *h3D_0b = new TH3D("h3D_0b", "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
-  TH3D *h3D_b  = new TH3D("h3D_b",  "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
-  TH3D *h3D_bb = new TH3D("h3D_bb", "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h3D_0b = new TH3D("h3D_0b", ";m_{2B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h3D_b  = new TH3D("h3D_b",  ";m_{2B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h3D_bb = new TH3D("h3D_bb", ";m_{2B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
   
   // Data: single distribution to be fit
   TH3D *h3D_data = new TH3D("h3D_data", "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
@@ -899,10 +899,10 @@ void make_templates(Int_t RunN, TString filename, TString output_folder, TString
   h3D_data->Sumw2(); h3D_data->SetCanExtend(TH1::kNoAxis);
 
   // Jet counts (no EEC weight): 3D (mB, dr, jtpt) — same axes as the EEC histograms
-  TH3D *h_count_0b   = new TH3D("h_count_0b",   "jet counts 0b;m_{B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
-  TH3D *h_count_b    = new TH3D("h_count_b",    "jet counts 1b;m_{B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
-  TH3D *h_count_bb   = new TH3D("h_count_bb",   "jet counts 2b;m_{B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
-  TH3D *h_count_data = new TH3D("h_count_data", "jet counts data;m_{B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h_count_0b   = new TH3D("h_count_0b",   "jet counts 0b;m_{2B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h_count_b    = new TH3D("h_count_b",    "jet counts 1b;m_{2B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h_count_bb   = new TH3D("h_count_bb",   "jet counts 2b;m_{2B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h_count_data = new TH3D("h_count_data", "jet counts data;m_{2B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
   h_count_0b->Sumw2();   h_count_0b->SetCanExtend(TH1::kNoAxis);
   h_count_b->Sumw2();    h_count_b->SetCanExtend(TH1::kNoAxis);
   h_count_bb->Sumw2();   h_count_bb->SetCanExtend(TH1::kNoAxis);
