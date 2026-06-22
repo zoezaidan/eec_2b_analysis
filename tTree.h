@@ -18,6 +18,10 @@ public :
    Int_t           run;
    Int_t           evt;
    Int_t           lumi;
+   // Event selections: Run3 data/reco MC
+   Int_t          pprimaryVertexFilter;
+   Float_t        vz;
+
    Int_t           nref;
    Int_t           nvtx;
    Float_t         rawpt[500];   //[nref]
@@ -93,10 +97,12 @@ public :
    Int_t           HLT_HIAK4PFJet30_v1;
 
    // HLT selection (Run 3)
+   Int_t           HLT_AK4PFJet40_v8;
    Int_t           HLT_AK4PFJet60_v8;
    Int_t           HLT_AK4PFJet80_v8;
    Int_t           HLT_AK4PFJet100_v8;
    Int_t           HLT_AK4PFJet120_v8;
+
    // Run 3: b tag discriminating variables 
    Float_t         discr_unifiedParticleTransformer_probb[500]; // [nref]
    Float_t         discr_unifiedParticleTransformer_problepb[500]; // [nref]
@@ -200,6 +206,10 @@ public :
    TBranch        *b_run;   //!
    TBranch        *b_evt;   //!
    TBranch        *b_lumi;   //!
+   // Event selections: Run3 data/reco MC
+   TBranch         *b_pprimaryVertexFilter;
+   TBranch         *b_vz;
+
    TBranch        *b_nref;   //!
    TBranch        *b_nvtx;   //!
    TBranch        *b_rawpt;   //!
@@ -275,6 +285,7 @@ public :
    TBranch        *b_HLT_HIAK4PFJet30_v1;
 
    // HLT branches (Run 3)
+   TBranch        *b_HLT_AK4PFJet40_v8;
    TBranch        *b_HLT_AK4PFJet60_v8;
    TBranch        *b_HLT_AK4PFJet80_v8;
    TBranch        *b_HLT_AK4PFJet100_v8;
@@ -435,7 +446,9 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
    // tree->AddFriend("hiEvtAnalyzer/HiTree"); // Works only for TTree
    // tree->AddFriend("hltanalysis/HltTree"); // Works only for TTree
    tree->AddFriend((TTree*)fin->Get("hiEvtAnalyzer/HiTree")); // works for TChain too 
-   tree->AddFriend((TTree*)fin->Get("hltanalysis/HltTree"));  // works for TChain too 
+   tree->AddFriend((TTree*)fin->Get("hltanalysis/HltTree"));  // works for TChain too
+   if(RunN == 3 && !isMC ){tree->AddFriend((TTree*)fin->Get("skimanalysis/HltTree"));} // Run3 data only ?(for the branch pprimaryVertexFilter) 
+
    // sanity check : print list of friends 
    tree->GetListOfFriends()->Print();
       
@@ -450,6 +463,11 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
    tree->SetBranchAddress("nvtx", &nvtx, &b_nvtx);
    tree->SetBranchAddress("rawpt", rawpt, &b_rawpt);
    tree->SetBranchAddress("jtpt", jtpt, &b_jtpt);
+
+   tree->SetBranchAddress("vz", &vz, &b_vz);
+   if (RunN == 3 && !isMC){
+       tree->SetBranchAddress("pprimaryVertexFilter", &pprimaryVertexFilter, &b_pprimaryVertexFilter);
+   }
    
    // if(isMC)tree->SetBranchAddress("jtpt_gen", jtpt_gen, &b_jtpt_gen); // does not exist
 
@@ -572,6 +590,7 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
    tree->SetBranchAddress("trkMass", trkMass, &b_trkMass);
 
    if (RunN == 3) {
+     tree->SetBranchAddress("HLT_AK4PFJet40_v8",    &HLT_AK4PFJet40_v8,    &b_HLT_AK4PFJet40_v8);
      tree->SetBranchAddress("HLT_AK4PFJet60_v8",    &HLT_AK4PFJet60_v8,    &b_HLT_AK4PFJet60_v8);
      tree->SetBranchAddress("HLT_AK4PFJet80_v8",    &HLT_AK4PFJet80_v8,    &b_HLT_AK4PFJet80_v8);
      tree->SetBranchAddress("HLT_AK4PFJet100_v8",   &HLT_AK4PFJet100_v8,   &b_HLT_AK4PFJet100_v8);
@@ -579,6 +598,7 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
      tree->SetBranchAddress("discr_unifiedParticleTransformer_probb", discr_unifiedParticleTransformer_probb, &b_discr_unifiedParticleTransformer_probb);
      tree->SetBranchAddress("discr_unifiedParticleTransformer_problepb", discr_unifiedParticleTransformer_problepb, &b_discr_unifiedParticleTransformer_problepb);
      tree->SetBranchAddress("discr_unifiedParticleTransformer_probbb", discr_unifiedParticleTransformer_probbb, &b_discr_unifiedParticleTransformer_probbb);
+
    }
    
 

@@ -88,7 +88,8 @@ bool passEventSelection(const tTree& t,
     if (!isMC)
       return (t.HLT_AK4PFJet60_v8 ||
               t.HLT_AK4PFJet80_v8 ||
-              t.HLT_AK4PFJet100_v8);
+              t.HLT_AK4PFJet100_v8||
+              t.HLT_AK4PFJet120_v8); // new trigger --> update 19 June 
 
     if (isMC)
       return t.HLT_AK4PFJet60_v8;
@@ -96,6 +97,26 @@ bool passEventSelection(const tTree& t,
 
   return true;
 }
+
+// -- Add selection of vz (hiEvtAnalyzer/HiTree --> vz/F) and pprimaryVertexFilter (skimanalysis/HltTree --> pprimaryVertexFilter/I) cuts 
+bool passPVQuality_EventSelection(const tTree& t,
+                                  const AnalysisConfig& cfg){
+
+  int RunN = cfg.dataset.RunN;
+  bool isMC = cfg.dataset.isMC;
+  int dataType = cfg.dataset.dataType;
+
+  if (RunN == 3){
+      if(!isMC && dataType == 0) return (t.pprimaryVertexFilter &&  // Run 3 data  only
+                                          fabs(t.vz) < 24.);
+  }
+  // For Run2 || Run3 (MC)
+  if(isMC && dataType != 0) return (fabs(t.vz) < 24.);
+   
+  return true;
+
+}
+
 
 // -- Jet kinematic selection: seperated for Gen/Reco + cleaned events of large weights based on jetpt
 bool passGenJetKinematics(const tTree& t,
@@ -184,7 +205,7 @@ DatasetConfig buildDataset(int RunN, int dataType, bool isMC, const PhysicsConfi
       d.data_prescale = 33.917210; // prescale 40-60 GeV
     }
     else if (RunN == 3){
-      d.data_prescale = 6.2336493; // prescale 60-80 GeV
+      d.data_prescale = 6.34958; // prescale 60-80 GeV --> value updated on 19 June (to include the trigger 120 GeV + full data stats)
     }
 
   TString add_BtagWP = physics.useBtag ? Form("_btagWP%d", static_cast<int>(std::round(1000 * physics.btagWP))):"_nobtag"; // round to int without floating digits
@@ -215,7 +236,8 @@ DatasetConfig buildDataset(int RunN, int dataType, bool isMC, const PhysicsConfi
   if (RunN == 3) {
 
     if (dataType == 0) {
-      d.filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/HiForestMiniAOD_v2_TChains.root";
+      // d.filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/HiForestMiniAOD_v2_TChains.root";
+      d.filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/HardProbesAll_recalJP_TChains.root";
       sample = "data";
     }
 
@@ -283,8 +305,9 @@ AnalysisConfig buildConfig(
 // ----------- Centralize activated branches based on need from configuration ----------------
 std::vector<TString> getActiveBranches(const AnalysisConfig& cfg)
 {
-    std::vector<TString> branches = {
+    std::vector<TString> branches = { // Both Run2 and Run 3 (Data/ recoMC)
 
+        "vz", // Data and recoMC: in hiEvtAnalyzer/HiTree 
         "jtpt",
         "jteta",
         "nref",
@@ -321,7 +344,7 @@ std::vector<TString> getActiveBranches(const AnalysisConfig& cfg)
     if (cfg.dataset.RunN == 2) {
 
         branches.insert(branches.end(), {
-
+            // you can add that of 30 GeV --> For trigger studies 
             "HLT_HIAK4PFJet40_v1",
             "HLT_HIAK4PFJet60_v1",
             "HLT_HIAK4PFJet80_v1",
@@ -335,17 +358,25 @@ std::vector<TString> getActiveBranches(const AnalysisConfig& cfg)
 
         branches.insert(branches.end(), {
 
+            "HLT_AK4PFJet40_v8", // not used for analysis but needed when study trigger Eff. 
             "HLT_AK4PFJet60_v8",
             "HLT_AK4PFJet80_v8",
             "HLT_AK4PFJet100_v8",
+            "HLT_AK4PFJet120_v8",
 
             "discr_unifiedParticleTransformer_probb",
             "discr_unifiedParticleTransformer_problepb",
             "discr_unifiedParticleTransformer_probbb"
         });
-    }
 
-    if (cfg.dataset.isMC) {
+
+        // Only data Run3 
+        branches.insert(branches.end(), {"pprimaryVertexFilter"}); // // data only ? from (skimanalysis/HltTree)
+        
+
+    } // run3 
+
+    if (cfg.dataset.isMC) { // Only MC: Run2 || Run3 
 
         branches.insert(branches.end(), {
             "weight",
