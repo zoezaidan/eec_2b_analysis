@@ -18,6 +18,10 @@ public :
    Int_t           run;
    Int_t           evt;
    Int_t           lumi;
+   // Event selections: Run3 data/reco MC
+   Int_t          pprimaryVertexFilter;
+   Float_t        vz;
+
    Int_t           nref;
    Int_t           nvtx;
    Float_t         rawpt[500];   //[nref]
@@ -202,6 +206,10 @@ public :
    TBranch        *b_run;   //!
    TBranch        *b_evt;   //!
    TBranch        *b_lumi;   //!
+   // Event selections: Run3 data/reco MC
+   TBranch         *b_pprimaryVertexFilter;
+   TBranch         *b_vz;
+
    TBranch        *b_nref;   //!
    TBranch        *b_nvtx;   //!
    TBranch        *b_rawpt;   //!
@@ -438,7 +446,9 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
    // tree->AddFriend("hiEvtAnalyzer/HiTree"); // Works only for TTree
    // tree->AddFriend("hltanalysis/HltTree"); // Works only for TTree
    tree->AddFriend((TTree*)fin->Get("hiEvtAnalyzer/HiTree")); // works for TChain too 
-   tree->AddFriend((TTree*)fin->Get("hltanalysis/HltTree"));  // works for TChain too 
+   tree->AddFriend((TTree*)fin->Get("hltanalysis/HltTree"));  // works for TChain too
+   if(RunN == 3 && !isMC ){tree->AddFriend((TTree*)fin->Get("skimanalysis/HltTree"));} // Run3 data only ?(for the branch pprimaryVertexFilter) 
+
    // sanity check : print list of friends 
    tree->GetListOfFriends()->Print();
       
@@ -453,6 +463,11 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
    tree->SetBranchAddress("nvtx", &nvtx, &b_nvtx);
    tree->SetBranchAddress("rawpt", rawpt, &b_rawpt);
    tree->SetBranchAddress("jtpt", jtpt, &b_jtpt);
+
+   tree->SetBranchAddress("vz", &vz, &b_vz);
+   if (RunN == 3 && !isMC){
+       tree->SetBranchAddress("pprimaryVertexFilter", &pprimaryVertexFilter, &b_pprimaryVertexFilter);
+   }
    
    // if(isMC)tree->SetBranchAddress("jtpt_gen", jtpt_gen, &b_jtpt_gen); // does not exist
 
@@ -583,6 +598,7 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
      tree->SetBranchAddress("discr_unifiedParticleTransformer_probb", discr_unifiedParticleTransformer_probb, &b_discr_unifiedParticleTransformer_probb);
      tree->SetBranchAddress("discr_unifiedParticleTransformer_problepb", discr_unifiedParticleTransformer_problepb, &b_discr_unifiedParticleTransformer_problepb);
      tree->SetBranchAddress("discr_unifiedParticleTransformer_probbb", discr_unifiedParticleTransformer_probbb, &b_discr_unifiedParticleTransformer_probbb);
+
    }
    
 

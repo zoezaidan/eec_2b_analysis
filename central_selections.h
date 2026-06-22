@@ -98,6 +98,26 @@ bool passEventSelection(const tTree& t,
   return true;
 }
 
+// -- Add selection of vz (hiEvtAnalyzer/HiTree --> vz/F) and pprimaryVertexFilter (skimanalysis/HltTree --> pprimaryVertexFilter/I) cuts 
+bool passPVQuality_EventSelection(const tTree& t,
+                                  const AnalysisConfig& cfg){
+
+  int RunN = cfg.dataset.RunN;
+  bool isMC = cfg.dataset.isMC;
+  int dataType = cfg.dataset.dataType;
+
+  if (RunN == 3){
+      if(!isMC && dataType == 0) return (t.pprimaryVertexFilter &&  // Run 3 data  only
+                                          fabs(t.vz) < 24.);
+  }
+  // For Run2 || Run3 (MC)
+  if(isMC && dataType != 0) return (fabs(t.vz) < 24.);
+   
+  return true;
+
+}
+
+
 // -- Jet kinematic selection: seperated for Gen/Reco + cleaned events of large weights based on jetpt
 bool passGenJetKinematics(const tTree& t,
                           int ijet,
@@ -216,7 +236,8 @@ DatasetConfig buildDataset(int RunN, int dataType, bool isMC, const PhysicsConfi
   if (RunN == 3) {
 
     if (dataType == 0) {
-      d.filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/HiForestMiniAOD_v2_TChains.root";
+      // d.filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/HiForestMiniAOD_v2_TChains.root";
+      d.filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/HardProbesAll_recalJP_TChains.root";
       sample = "data";
     }
 
@@ -284,8 +305,9 @@ AnalysisConfig buildConfig(
 // ----------- Centralize activated branches based on need from configuration ----------------
 std::vector<TString> getActiveBranches(const AnalysisConfig& cfg)
 {
-    std::vector<TString> branches = {
+    std::vector<TString> branches = { // Both Run2 and Run 3 (Data/ recoMC)
 
+        "vz", // Data and recoMC: in hiEvtAnalyzer/HiTree 
         "jtpt",
         "jteta",
         "nref",
@@ -346,9 +368,15 @@ std::vector<TString> getActiveBranches(const AnalysisConfig& cfg)
             "discr_unifiedParticleTransformer_problepb",
             "discr_unifiedParticleTransformer_probbb"
         });
-    }
 
-    if (cfg.dataset.isMC) {
+
+        // Only data Run3 
+        branches.insert(branches.end(), {"pprimaryVertexFilter"}); // // data only ? from (skimanalysis/HltTree)
+        
+
+    } // run3 
+
+    if (cfg.dataset.isMC) { // Only MC: Run2 || Run3 
 
         branches.insert(branches.end(), {
             "weight",
