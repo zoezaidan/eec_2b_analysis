@@ -35,7 +35,7 @@
 
 
 // name for outpur directory (in path) 
-TString sDirname = "TemplateFits_Run3_minHLT60"; // "TemplateFits_Run3_minHLT60"; // Must use before Help_Functions.h
+TString sDirname = "TemplateFits_Run3_minHLT60_correctPrescale_19June"; // "TemplateFits_Run3_minHLT60"; // Must use before Help_Functions.h
 
 // -- For systematic uncertainti study 
 enum Variation {NOMINAL, VARIED0B_UP, VARIED0B_DOWN, NVAR}; // add other variations before NVAR to keep the size 
