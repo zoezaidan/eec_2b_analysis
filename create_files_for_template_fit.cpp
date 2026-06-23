@@ -1935,7 +1935,7 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
           /////////---- To Prepare Response matrix (of true >=2B) ---- ONLY for MC (both RECO, GEN) ----
           if(cfg.dataset.isMC && t.jtNbHad[ijet] >= 2)  // -- select jets of 2b (truth)
           { 
-			  
+
             // -- common variables repeatdly used in fill histograms 
             double jpt_reco = reco_jet_pt(t, ijet);
             double jpt_gen = gen_jet_pt(t, ijet);
@@ -1974,14 +1974,17 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
                                            gen_bh[best_j].Eta(), gen_bh[best_j].Phi());
 
 
- 				// -- suggestion 2: For btagging eff.: here Fill total number of True 2b Jets (Deno of b tagging eff.)
-			  		hgenjet_2b ->Fill(mB_gen, dr_gen, jpt_gen); // no EEC weight for Eff., what about MC event weight? 
+				// -- Gen EEC weight
+				double w_gen  = weight_tree * eec_gen;
+
+ 				// here Fill total number of True 2b Jets (Deno of b tagging eff.): simialr axis to what we unfold to.
+			  		hgenjet_2b ->Fill(mB_gen, dr_gen, jpt_gen, w_gen); // no EEC weight for Eff., what about MC event weight? 
 			  
-			  	// Suggestion1: using btaggin at the beggining: have only btagged jes to work with when build Response matrix, purity, and effeciency.
+			  	//using btaggin at the beggining: have only btagged jes to work with when build Response matrix, purity, and effeciency.
 					if (! passBtag(t, ijet, cfg)) continue; // select btagged jets only
 				
-			  // -- continue suggestion 2: here Fill total number of True 2b Jets after btagging condition on the reco jet (Num of b tagging eff.)
-					hgenjet_2b_passbtag ->Fill(mB_gen, dr_gen, jpt_gen);
+			  // here Fill total number of True 2b Jets after btagging condition on the reco jet (Num of b tagging eff.)
+					hgenjet_2b_passbtag ->Fill(mB_gen, dr_gen, jpt_gen, w_gen);
 
                // step2: for Response matrix ---- Reco SVs ----
                 vector<ROOT::Math::PtEtaPhiMVector> reco_sv_rm =
@@ -2084,7 +2087,7 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
             // -------------------------------------------
             double num    = distr(generator);
             double w_reco = weight_tree * eec_reco;
-            double w_gen  = weight_tree * eec_gen;
+            
 
             if (reco_pass) {
                 if (num < 0.5) h_half0_purity_den->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
