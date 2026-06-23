@@ -99,7 +99,7 @@ void fill_bdt_score_histos(TString filename, Int_t RunN, bool isMC,
     else if (RunN == 2) { if (!(t.HLT_HIAK4PFJet40_v1)) continue; }
 
     for (Int_t ijet = 0; ijet < t.nref; ijet++) {
-      if (std::abs(t.jteta[ijet]) > 1.9) continue;
+      if (t.jteta[ijet] > 2. || t.jteta[ijet] < -2.) continue;
       if (isMC && skipMC_bdt(t.jtpt[ijet], t.pthat)) continue;
       if (t.jtpt[ijet] < pT_low || t.jtpt[ijet] > pT_high) continue;
 
@@ -339,7 +339,7 @@ RocSet build_rocs(TString filename, Int_t RunN, bool isMC,
 void bdt_roc_compare(
     TString file_run2 = "/data_CMS/cms/kalipoliti/qcdMC/dijet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root",
     TString file_run3 = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/HiForestMiniAOD_v2_TChains.root",
-    Float_t pT_low = 80, Float_t pT_high = 200,
+    Float_t pT_low = 100, Float_t pT_high = 120,
     TString out_tag = "bdt_roc_run2_vs_run3",
     bool btag = true, Float_t btagWP = -1) {
 
@@ -463,7 +463,7 @@ void replot_compare(TString in_tag = "bdt_roc_run2_vs_run3",
 // btag = solid lines, no-btag = dashed lines; colours per category.
 void bdt_roc_run3_btag_vs_nobtag(
     TString filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/HiForestMiniAOD_v2_TChains.root",
-    Float_t pT_low = 80, Float_t pT_high = 200,
+    Float_t pT_low = 100, Float_t pT_high = 120,
     TString out_tag = "bdt_roc_run3_btag_vs_nobtag",
     Float_t btagWP = -1) {
 
