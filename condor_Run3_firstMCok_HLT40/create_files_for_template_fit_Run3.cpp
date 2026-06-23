@@ -614,7 +614,7 @@ void filter_b_bb(TString filename, TString output_folder, TString output_hist, T
     for (Int_t ijet = 0; ijet < t.nref; ijet++) {  
       
       //some cuts
-      if (std::abs(t.refeta[ijet]) > 1.9) continue;
+      if (t.refeta[ijet] > 2. || t.refeta[ijet]) < -2.) continue;
       if ((isMC) && skipMC(t.refpt[ijet], t.pthat)) continue;
       if (t.refpt[ijet] < pT_low || t.refpt[ijet] > pT_high) continue;
       // if (btag && t.discr_particleNet_BvsAll[ijet] <= 0.898) continue;
@@ -777,7 +777,7 @@ void filter_b_bb_as_data_and_mc(TString filename_bjet, TString output_folder, TS
     // Loop over jets — identical logic for data and MC
     for (Int_t ijet = 0; ijet < t.nref; ijet++) {
 
-      if (std::abs(t.jteta[ijet]) > 1.9) continue;
+      if (t.jteta[ijet] > 2. || t.jteta[ijet] < -2.) continue;
       if (isMC && skipMC(t.jtpt[ijet], t.pthat)) continue;
       if (t.jtpt[ijet] < pT_low || t.jtpt[ijet] > pT_high) continue;
       // if (btag && t.discr_particleNet_BvsAll[ijet] <= 0.898) continue;
@@ -925,7 +925,7 @@ void make_templates(TString filename, TString output_folder, TString output_hist
     for (Int_t ijet = 0; ijet < t.nref; ijet++) {
 
       // reco-level cuts — identical for data and MC
-      if (std::abs(t.jteta[ijet]) > 1.9) continue;
+      if (t.jteta[ijet] > 2 || t.jteta[ijet] < -2) continue;
       if (isMC && skipMC(t.jtpt[ijet], t.pthat)) continue;
       if (t.jtpt[ijet] < pT_low || t.jtpt[ijet] > pT_high) continue;
       // if (btag && t.discr_particleNet_BvsAll[ijet] <= 0.898) continue; // Run 2 
