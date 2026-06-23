@@ -1815,6 +1815,12 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
     RooUnfoldResponse *response_half1 = new RooUnfoldResponse(h_half1_purity_den, h_half1_eff_den, "response_tf_half1", "tf response half1");
     RooUnfoldResponse *response_full  = new RooUnfoldResponse(h_half0_purity_den, h_half0_eff_den, "response_tf_full",  "tf response full");
 
+	// -- For b-tagging correction after unfolding (at particle level): simple counts
+	// -- Think: Do you need to add 2svx cut on the Num? (I think so), and it should have the event weight as usual ?
+	TH3D* hgenjet_2b = new TH3D("hgenjet_2b", "b-tagging eff. DENO;m_{2B} [GeV];DeltaR;p_{T} [GeV]", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector); // before btagging
+	TH3D* hgenjet_2b_passbtag = new TH3D("hgenjet_2b_passbtag", "b-tagging eff. NUM;m_{2B} [GeV];DeltaR;p_{T} [GeV]",  n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector); // after btagging
+	
+	
   /////////////////////////////////////////////////////////
     //// Variables related to data/reco MC  
     // -- needed parameters for reco SV func() 
@@ -1928,10 +1934,7 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
 
           /////////---- To Prepare Response matrix (of true >=2B) ---- ONLY for MC (both RECO, GEN) ----
           if(cfg.dataset.isMC && t.jtNbHad[ijet] >= 2)  // -- select jets of 2b (truth)
-          {
-			
-			  // Suggestion1: using btaggin at the beggining: have only btagged jes to work with when build Response matrix, purity, and effeciency.
-				if (! passBtag(t, ijet, cfg)) continue; // select btagged jets only
+          { 
 			  
             // -- common variables repeatdly used in fill histograms 
             double jpt_reco = reco_jet_pt(t, ijet);
@@ -1971,7 +1974,14 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
                                            gen_bh[best_j].Eta(), gen_bh[best_j].Phi());
 
 
-
+ 				// -- suggestion 2: For btagging eff.: here Fill total number of True 2b Jets (Deno of b tagging eff.)
+			  		hgenjet_2b ->Fill(mB_gen, dr_gen, jpt_gen); // no EEC weight for Eff., what about MC event weight? 
+			  
+			  	// Suggestion1: using btaggin at the beggining: have only btagged jes to work with when build Response matrix, purity, and effeciency.
+					if (! passBtag(t, ijet, cfg)) continue; // select btagged jets only
+				
+			  // -- continue suggestion 2: here Fill total number of True 2b Jets after btagging condition on the reco jet (Num of b tagging eff.)
+					hgenjet_2b_passbtag ->Fill(mB_gen, dr_gen, jpt_gen);
 
                // step2: for Response matrix ---- Reco SVs ----
                 vector<ROOT::Math::PtEtaPhiMVector> reco_sv_rm =
@@ -2179,7 +2189,11 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
     h_full_purity_num->Write(); h_full_purity_den->Write(); h_full_purity->Write();
     h_full_eff_num->Write();    h_full_eff_den->Write();    h_full_eff->Write();
     response_full->Write();
-    fout_rm->Close();
+    
+	hgenjet_2b ->Write();
+	hgenjet_2b_passbtag ->Write();
+    
+	fout_rm->Close();
     delete fout_rm;
   } // end if MC () after event loop  -- For Response matrix related hists.
   
