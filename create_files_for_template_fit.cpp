@@ -1917,6 +1917,10 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
           /////////---- To Prepare Response matrix (of true >=2B) ---- ONLY for MC (both RECO, GEN) ----
           if(cfg.dataset.isMC && t.jtNbHad[ijet] >= 2)  // -- select jets of 2b (truth)
           {
+			
+			  // Suggestion1: using btaggin at the beggining: have only btagged jes to work with when build Response matrix, purity, and effeciency.
+				if (! passBtag(t, ijet, cfg)) continue; // select btagged jets only
+			  
             // -- common variables repeatdly used in fill histograms 
             double jpt_reco = reco_jet_pt(t, ijet);
             double jpt_gen = gen_jet_pt(t, ijet);
@@ -1985,8 +1989,8 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
 
                             // reco_pass: full detector-level selection
             bool reco_pass = reco_sv_ok &&
-                             passRecoJetKinematics(t, ijet, cfg) &&
-                             passBtag(t, ijet, cfg);
+                             passRecoJetKinematics(t, ijet, cfg); 
+                             // passBtag(t, ijet, cfg); // Following suggestion1: no need for repetition
                              //  && (mB_reco_fill >= mb_min && mB_reco_fill < mb_max) && (dr_reco_fill < dr_max); // Not needed since reco_sv_ok is already required.
             /*
             // -- Debugging paragraph-------
