@@ -440,6 +440,13 @@ vector<ROOT::Math::PtEtaPhiMVector> makeSvtxs_withBDT(
   TH1D* h_score_bkg, TH1D* h_score_sg
 ){
 
+  ///// Notes: 
+  // Comment: Does groupVertex1() really give two vertices!
+  // nb_sv: count when secVtxs.size() <  2: this vector has the tracks trkSvtxId: when t.trkSvtxId[itrk] >= 0 
+  // sv_fail: related to match status 
+  // merge_fail: related to match status 
+  // agg_fail : same
+
   std::unordered_map<Int_t, std::vector<ROOT::Math::PtEtaPhiMVector>> secVtxs;
   std::unordered_map<Int_t, std::vector<int>> secVtxsMatchSta;
   vector<ROOT::Math::PtEtaPhiMVector> empty;
@@ -487,22 +494,24 @@ vector<ROOT::Math::PtEtaPhiMVector> makeSvtxs_withBDT(
         else                  v1.SetM(0.139570); //  safety
 
        // no_sv_tracks  
-        if (t.trkSvtxId[itrk] < 0) {
-	  no_sv_list.push_back(v1);
-	  no_sv_sta_list.push_back(t.trkMatchSta[itrk]); 
-	} 
-	//map vertex id to list of tracks
-	else if (t.trkSvtxId[itrk] >= 0 ) {
-	  secVtxs[t.trkSvtxId[itrk]].push_back(v1);
-	  secVtxsMatchSta[t.trkSvtxId[itrk]].push_back(t.trkMatchSta[itrk]); // store trkMatchSta of trk itrk as the itrk elem of the value associated to trkSvtxId
-	} 
-    }
+        if (t.trkSvtxId[itrk] < 0){
+	        no_sv_list.push_back(v1);
+	        no_sv_sta_list.push_back(t.trkMatchSta[itrk]); 
+	      } 
+      	//map vertex id to list of tracks
+      	else if (t.trkSvtxId[itrk] >= 0 ){
+      	  secVtxs[t.trkSvtxId[itrk]].push_back(v1);
+      	  secVtxsMatchSta[t.trkSvtxId[itrk]].push_back(t.trkMatchSta[itrk]); // store trkMatchSta of trk itrk as the itrk elem of the value associated to trkSvtxId
+      	} 
+    } // tracks loop 
 
     if (secVtxs.size() <  2) {
       nb_sv += 1 ;
-      if (nb_sv < 15 ) {
-      } 
-      return empty;    }
+      // test: 
+      cout << "nb sv < 2 for ient# " << ient << endl; 
+      // if (nb_sv < 15 ) {} // not needed! 
+      return empty;    
+    }
 
     // Build Vertex objects
     std::vector<Vertex> vertices;
@@ -510,8 +519,8 @@ vector<ROOT::Math::PtEtaPhiMVector> makeSvtxs_withBDT(
       int originalSvId = it.first;       //saves it.first = vertex ID (map key)
       auto& v = secVtxsMatchSta[originalSvId];
       if (std::adjacent_find(v.begin(), v.end(),std::not_equal_to<int>()) != v.end()) {      // if not all tracks in the sv come from the same B 
-	sv_fail += 1.0;
-	//return empty;
+        	sv_fail += 1.0;
+        	//return empty;
       }
       Vertex vtx;
       vtx.p4 = ROOT::Math::PtEtaPhiMVector();
@@ -519,11 +528,13 @@ vector<ROOT::Math::PtEtaPhiMVector> makeSvtxs_withBDT(
       vtx.trkMatchSta.reserve(it.second.size());
       vtx.trkSvtxId.reserve(it.second.size());
       for (size_t i = 0; i < it.second.size(); ++i) {      //loop over tracks in this vertex (it.second)
-	vtx.p4 += it.second[i];
-	vtx.tracks.push_back(it.second[i]);
-	vtx.trkMatchSta.push_back(v[i]);  // reuse already-looked-up reference
-	vtx.trkSvtxId.push_back(originalSvId);
+
+        	vtx.p4 += it.second[i];
+        	vtx.tracks.push_back(it.second[i]);
+        	vtx.trkMatchSta.push_back(v[i]);  // reuse already-looked-up reference
+        	vtx.trkSvtxId.push_back(originalSvId);
         }
+      
       vertices.push_back(std::move(vtx));
     }
     // what we have created is tracks[i] ↔ trkMatchSta[i] ↔ trkSvtxId[i] correspondance :  originalSvId = vertex.trkSvtxId[i]
@@ -532,7 +543,7 @@ vector<ROOT::Math::PtEtaPhiMVector> makeSvtxs_withBDT(
           
 
     // Merge until only 2 vertices remain
-    if (vertices.size() > 2) groupVertexes1(vertices);
+    if (vertices.size() > 2) groupVertexes1(vertices); // does it give 2 vertices?
     if (vertices.size() != 2) {
        std::cout<<" merging pb"<<std::endl; 
        //return empty;
@@ -581,12 +592,12 @@ vector<ROOT::Math::PtEtaPhiMVector> makeSvtxs_withBDT(
       double d0 = deltaR2(v1, vertex0.p4);
       double d1 = deltaR2(v1, vertex1.p4);
       if (d0 < d1) {
-	vertex0.p4 += v1;
-	if (no_sv_sta_list[i] != vertex0.trkMatchSta[0]) agg_fail += 1;
+	      vertex0.p4 += v1;
+	      if (no_sv_sta_list[i] != vertex0.trkMatchSta[0]) agg_fail += 1;
       }
       else if (d0 > d1) {
-	vertex1.p4 += v1;
-	if (no_sv_sta_list[i] != vertex1.trkMatchSta[0]) agg_fail += 1;
+	      vertex1.p4 += v1;
+	      if (no_sv_sta_list[i] != vertex1.trkMatchSta[0]) agg_fail += 1;
       }
       i += 1;
     }
@@ -1851,14 +1862,15 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
       t.GetEntry(ient);
 
       // -- test tree branches are read: 
-        //cout << "jtpt = " << t.jtpt[0] << endl;
+        // cout << "jtpt = " << t.jtpt[0] << endl;
       
       double weight_tree = cfg.dataset.isMC ? t.weight : 1.0;
 
       // -- NEW: 
       if (! passPVQuality_EventSelection(t, cfg)) continue;
-        //cout << "PV quality pass ok: t.vz = "<< t.vz  << endl;
-          //if (!cfg.dataset.isMC) cout << " and t.pprimaryVertexFilter = "<< t.pprimaryVertexFilter << endl;
+
+        // cout << "PV quality pass ok: t.vz = "<< t.vz  << endl;
+          // if (cfg.dataset.RunN == 3 &&  !cfg.dataset.isMC ) cout << " and t.pprimaryVertexFilter = "<< t.pprimaryVertexFilter << endl;
 
       // -- Trigger selections for all 
       if (! passEventSelection(t, cfg)) continue;
@@ -2203,8 +2215,8 @@ void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t p
  std::cout << "ENTER FUNCTION" << std::endl;
 
   RunN = 3;
-  dataType = 0;
-  isMC = false;
+  dataType = 2;
+  isMC = true;
 
 
  // -- test use of central configuration
@@ -2222,12 +2234,13 @@ void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t p
     // --  new make_templates() with with central selections 
       // make_templates(cfg, 1, 1e+04); 
     // -- test new create_response() with central selections 
-      // TString output_hist_response =  Form("response_templatefit_n1_bjet_Run%d", cfg.dataset.RunN);
-      // create_response_templatefit(cfg, output_hist_response, 0, 1e+04);
+      cout << "Reponse matrix alone" << endl;
+      TString output_hist_response =  Form("response_templatefit_n1_bjet_Run%d", cfg.dataset.RunN);
+      create_response_templatefit(cfg, output_hist_response, 0, 1e+04);
 
     // -- test central selections with merged macro(templates + RMatrix creation): read tree once ! --> Two outputs 
-    cout << "Hello  : Build_templates " << endl; 
-    Build_templates(cfg, 0, -1);
+    // cout << "Hello  : Build_templates " << endl; 
+    // Build_templates(cfg, 0, 1e+04);
 
   std::cout << "finished :) :D " << std::endl;
   //filter_b_bb(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC, dataType);
@@ -2242,10 +2255,10 @@ Build_templates(cfg, 0, 1e+04):
   Passing reco cuts:           17
   Passing gen cuts:            42
   Passing both (numerator):    17
-  Reco SV failures (< 2 SVs): 81
-  SV purity failures:          8
-  SV merging failures:         9
-  No-SV track agg failures:    9
+  Reco SV failures (< 2 SVs): 46
+  SV purity failures:          19
+  SV merging failures:         20
+  No-SV track agg failures:    21
 --- Reco-pass per-condition failures (first failing cond shown) ---
   fail reco_sv_ok:   46
   fail reco jpt:     23
@@ -2258,7 +2271,6 @@ Build_templates(cfg, 0, 1e+04):
   fail gen eta:      2
   fail gen mB:       0
   fail gen dr:       0
-
 
 */
 

@@ -374,10 +374,10 @@ std::vector<TString> getActiveBranches(const AnalysisConfig& cfg)
 
 
         // Only data Run3 
-        branches.insert(branches.end(), {"pprimaryVertexFilter"}); // // data only ? from (skimanalysis/HltTree)
+        if (!cfg.dataset.isMC) branches.insert(branches.end(), {"pprimaryVertexFilter"}); // // data only ? from (skimanalysis/HltTree)
         
 
-    } // run3 
+    } // Run3 
 
     if (cfg.dataset.isMC) { // Only MC: Run2 || Run3 
 

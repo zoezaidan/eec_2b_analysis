@@ -4,6 +4,7 @@
 #include "binning_histos_small.h"
 #include "Help_Functions.h"
 #include "Draw_EEC.h"
+#include "../CMSStyle.C" // CMS style impored from Matthew
 
 
 void do_template_fit_combined(const TString &HighEGdata_name, const TString &LowEGdata_name, TString &templates, TString &templates_bjet, TString pT_selection, TString folder, TString &fout_name, bool& alsoLowEG, bool& also_bjet,  Variation ivar = NOMINAL){
@@ -13,6 +14,9 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
         // 0B onl from qcd sample. bjet sample 0B contribution is not physical (it is already filtered to be bjets so these light quark templates are not real but mistaken).
         // Argument add for possible varations on the fit
     */
+
+    // Test CMS style 
+    setCMSStyle();
 
     // -- Make subdirectory for printed canvases only. The root files are in main directory 
     TString sDir_canvas = Form("%s/%s", sDirname.Data(), varNames[ivar].Data());
@@ -777,13 +781,16 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                 canva_stack_norm_afterfit->Print(Form("%s/%s.png", sDir_canvas.Data(), canva_stack_norm_afterfit->GetName()));
 
             //-- ratio plot: data /total fit
-                TCanvas* c = new TCanvas(Form("RatioPlot_%s", sname_canvas_afterfit.Data()), "", 900, 1100); // 800, 1100
-                    TPad* pad1 = new TPad("pad1","",0,0.2,1,1);
+                TCanvas* c = new TCanvas(Form("RatioPlot_%s", sname_canvas_afterfit.Data()), "", 1100, 1100); // 900, 1100
+                    TPad* pad1 = new TPad("pad1","",0,0.2,1,1);//  0,0.2,1,1
                     TPad* pad2 = new TPad("pad2","",0,0,1,0.24);
                     // pad1->SetBottomMargin(0.13);
                     pad1->SetBottomMargin(0.06);
                     pad1->SetLeftMargin(0.18); // for y axis title space 
-                    pad2->SetTopMargin(0.02);     // bottom pad (very small)
+                    
+                pad1->SetTopMargin(0.14); // new to allow cms label
+
+                    pad2->SetTopMargin(0.03);// 0.02     // bottom pad (very small)
                     pad2->SetBottomMargin(0.40);  // keep space for x-axis labels
                     pad2->SetLeftMargin(0.18);  
 
@@ -799,15 +806,18 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                         // Add (dr, pt) bins legend 
                         DrawCommonTextTopRight(pad1, ibin_dr, ibin_pt, yBins,N_bins_dr ,false); // without default bildlegend of other objects
                         // use new Legend for enties (withut hframe)
-                        TLegend* leg = CreateLegend(0.54, 0.6, 0.85, 0.8,
+                        TLegend* leg = CreateLegend(0.6, 0.50, 0.85, 0.8, // 0.54, 0.6, 0.85, 0.8,
                             {h_data_mb, h_sig_fit, h_bkg_fit_1b, h_bkg_fit_nob},
                             {"LPE", "LF", "LF", "LF"},
                             {"Data", "", "", ""} // use default titles 
                         );
                         leg->Draw("same");
+                    // test CMS label 
+                // drawCMSLabel(c, "Internal", "2024 pp (5.36 TeV)"); // CMS style header
                         pad1->Modified(); // force refresh 
                         pad1->Update();
                     pad2->cd(); 
+                // setCMSStyle(); // also for Pad2 
                     AddRatioPlot(h_data_mb, h_total_fit);
                     pad2->SetTickx(1);// → draws ticks on both bottom and top
                         fout->cd();
@@ -1719,8 +1729,8 @@ void template_fit(){
         alsoLowEG = false; 
         also_bjet = false;
         // TString templates_dijet_HLT40 = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/condor_Run3/MergedJobResult/MergedAllFiles_Run3_WP90_template_for_fit_histos_3D_qcd_btag.root";
-        dataset_HG = "/data_CMS/cms/shatat/Run3/Templates_btagwp0872/MergedAllFiles_Run3_secondbinsplitting_WP0872_template_for_fit_histos_3D_data_btag.root";
-        templates_dijet = "/data_CMS/cms/shatat/Run3/Templates_btagwp0872//MergedAllFiles_Run3_secondbinsplitting_WP0872_template_for_fit_histos_3D_qcd_btag.root";
+        dataset_HG = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/condor_Run3_corrected/MergedJobResult/MergedAllFiles_Run3_secondbinsplitting_WP0872_template_for_fit_histos_3D_data_btag.root";
+        templates_dijet = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/condor_Run3_corrected/MergedJobResult/MergedAllFiles_Run3_secondbinsplitting_WP0872_template_for_fit_histos_3D_qcd_btag.root";
         fout_name = Form("Run%d_TemplateFits_histos_3d_%s.root", RunN, pT_selection.Data());
     }
     else if (RunN == 2){
