@@ -1053,7 +1053,7 @@ void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t e
       
       t.GetEntry(ient);
       // -- test tree branches are read: 
-      cout << "jtpt = " << t.jtpt[0] << endl;
+      //cout << "jtpt = " << t.jtpt[0] << endl;
       
       double weight_tree = cfg.dataset.isMC ? t.weight : 1.0;
 
@@ -1445,14 +1445,22 @@ void create_response_templatefit(
     long n_fail_gen_mb  = 0, n_fail_gen_dr  = 0;
     int  n_debug_printed = 0;
 
+    //purity
     TH3D *h_half0_purity_num = new TH3D("h_half0_purity_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
     TH3D *h_half0_purity_den = new TH3D("h_half0_purity_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half0_eff_num    = new TH3D("h_half0_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half0_eff_den    = new TH3D("h_half0_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
     TH3D *h_half1_purity_num = new TH3D("h_half1_purity_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
     TH3D *h_half1_purity_den = new TH3D("h_half1_purity_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    //efficiency
+    TH3D *h_half0_eff_num    = new TH3D("h_half0_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH3D *h_half0_eff_den    = new TH3D("h_half0_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
     TH3D *h_half1_eff_num    = new TH3D("h_half1_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
     TH3D *h_half1_eff_den    = new TH3D("h_half1_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    //btag efficiency
+    TH3D *h_half0_btag_eff_num    = new TH3D("h_half0_btag_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH3D *h_half0_btag_eff_den    = new TH3D("h_half0_btag_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH3D *h_half1_btag_eff_num    = new TH3D("h_half1_btag_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH3D *h_half1_btag_eff_den    = new TH3D("h_half1_btag_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+
 
     RooUnfoldResponse *response_half0 = new RooUnfoldResponse(h_half0_purity_den, h_half0_eff_den, "response_tf_half0", "tf response half0");
     RooUnfoldResponse *response_half1 = new RooUnfoldResponse(h_half1_purity_den, h_half1_eff_den, "response_tf_half1", "tf response half1");
@@ -1540,10 +1548,14 @@ void create_response_templatefit(
               //if (dr_gen_fill  < dr_min)  dr_gen_fill = dr_min_fill;  // underflow use or not ?
 
             // reco_pass: full detector-level selection
-            bool reco_pass = reco_sv_ok &&
-                             passRecoJetKinematics(t, ijet, cfg) &&
-                             passBtag(t, ijet, cfg);
+            //bool reco_pass = reco_sv_ok &&
+                             //passRecoJetKinematics(t, ijet, cfg) &&
+                             //passBtag(t, ijet, cfg);
                              //  && (mB_reco_fill >= mb_min && mB_reco_fill < mb_max) && (dr_reco_fill < dr_max); // Not needed since reco_sv_ok is already required.
+
+            bool reco_pass = reco_sv_ok && passRecoJetKinematics(t, ijet, cfg);
+            
+            bool reco_pass_btag = reco_sv_ok && passBtag(t, ijet, cfg); //check
 
             /*
             // -- Debugging paragraph-------
@@ -1565,6 +1577,7 @@ void create_response_templatefit(
             // gen_pass: particle-level jet kinematics + gen observable range
             bool gen_pass  = passGenJetKinematics(t, ijet, cfg); //  && (mB_gen_fill >= mb_min && mB_gen_fill < mb_max) &&(dr_gen_fill < dr_max); //dr_gen_fill >= dr_min && 
 
+            bool gen_pass_btag = passBtag(t, ijet, cfg); //check 
             // --- debugging paragraph ----
             //std::cout << "gen_pass: " << gen_pass << std::endl;
             //std::cout << "jpt_gen: " << jpt_gen << std::endl;
@@ -1625,6 +1638,7 @@ void create_response_templatefit(
                 if (num < 0.5) h_half0_purity_den->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
                 else           h_half1_purity_den->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
             }
+            
             if (gen_pass) {
                 if (num < 0.5) h_half0_eff_den->Fill(mB_gen_fill, dr_gen_fill, jpt_gen, w_gen);
                 else           h_half1_eff_den->Fill(mB_gen_fill, dr_gen_fill, jpt_gen, w_gen);
@@ -1837,14 +1851,14 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
       t.GetEntry(ient);
 
       // -- test tree branches are read: 
-        cout << "jtpt = " << t.jtpt[0] << endl;
+        //cout << "jtpt = " << t.jtpt[0] << endl;
       
       double weight_tree = cfg.dataset.isMC ? t.weight : 1.0;
 
       // -- NEW: 
       if (! passPVQuality_EventSelection(t, cfg)) continue;
-        cout << "PV quality pass ok: t.vz = "<< t.vz  << endl;
-          if (!cfg.dataset.isMC) cout << " and t.pprimaryVertexFilter = "<< t.pprimaryVertexFilter << endl;
+        //cout << "PV quality pass ok: t.vz = "<< t.vz  << endl;
+          //if (!cfg.dataset.isMC) cout << " and t.pprimaryVertexFilter = "<< t.pprimaryVertexFilter << endl;
 
       // -- Trigger selections for all 
       if (! passEventSelection(t, cfg)) continue;
@@ -2180,7 +2194,7 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
 
 //Step 1: filter bb from b. Only MC
 //Step 2: filter bb from b, but split the sample in 2 and treat one as data and one as MC (to be used as template fit input)
-void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t pT_low = 80, Float_t pT_high = 200,Float_t etaCut = 1.9,Int_t n = 1, bool btag = true, bool isMC = true, Double_t btagWP = -1){
+void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t pT_low = 80, Float_t pT_high = 200,Float_t etaCut = 2,Int_t n = 1, bool btag = true, bool isMC = true, Double_t btagWP = -1){
  // load at prompt: gSystem->Load("libGenVector");
  std::cout << "ENTER FUNCTION" << std::endl;
 
@@ -2209,7 +2223,7 @@ void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t p
 
     // -- test central selections with merged macro(templates + RMatrix creation): read tree once ! --> Two outputs 
     cout << "Hello  : Build_templates " << endl; 
-    Build_templates(cfg, 0, 1e+04);
+    Build_templates(cfg, 0, -1);
 
   std::cout << "finished :) :D " << std::endl;
   //filter_b_bb(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC, dataType);
