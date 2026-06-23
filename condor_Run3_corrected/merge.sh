@@ -5,9 +5,9 @@
 #   ./merge.sh <output_hist_base> <btag|nobtag> <n_jobs>
 #
 # Example (qcd MC, btag, 100 jobs):
-#   ./merge.sh Run3_secondbinsplitting_June_WP090_template_for_fit_histos_3D_qcd btag 100
+#   ./merge.sh Run3_secondbinsplitting_WP0872_template_for_fit_histos_3D_qcd btag 100
 # Example for Run3 data:
-#   ./merge.sh Run3_secondbinsplitting_June_WP090_template_for_fit_histos_3D_alltrgData btag 100 
+#   ./merge.sh Run3_secondbinsplitting_WP0872_template_for_fit_histos_3D_data btag 100 
 
 
 ## Output.root 
@@ -28,7 +28,7 @@ FILES=""
 # For qcdMC
 #for FILEINDEX in $(seq 0 9); do
 # For data : 0 - 4
-for FILEINDEX in $(seq 0 9); do
+for FILEINDEX in $(seq 0 4); do
 	for i in $(seq 0 $((N_JOBS - 1))); do
   		f="${OUTPUT_FOLDER}/${OUTPUT_HIST}_${FILEINDEX}_${LABEL}_job${i}.root"
   		if [[ ! -f "$f" ]]; then

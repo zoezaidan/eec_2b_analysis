@@ -28,7 +28,7 @@ void setCMSStyle()
   gStyle->SetTitleSize(0.055, "XYZ");
   gStyle->SetLabelSize(0.045, "XYZ");
 
-  gStyle->SetTitleOffset(1.15, "X");
+  gStyle->SetTitleOffset(1.12, "X"); // 1.15 is off the canvas limits 
   gStyle->SetTitleOffset(1.25, "Y");
 
   gStyle->SetPadTickX(1);
@@ -36,17 +36,14 @@ void setCMSStyle()
 
   gStyle->SetHistLineWidth(2);
   gStyle->SetLineWidth(2);
-  gStyle->SetLegendBorderSize(0);
-  gStyle->SetLegendFillColor(0);   // optional, transparent/white
-  gStyle->SetLegendFont(42);
- 
+
   gROOT->ForceStyle();
 }
 
 void drawCMSLabel(TCanvas* c,
                   const char* extraText = "Internal",
                   const char* lumiText  = "",
-                  double x = 0.14,
+                  double x = 0.16, // x=0.14 is off my canvas 
                   double y = 0.93)
 {
   c->cd();
