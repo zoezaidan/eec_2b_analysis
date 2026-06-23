@@ -124,7 +124,7 @@ DiscHistos fillRun3QCD(Float_t pT_low, Float_t pT_high,
     if (!HLT_AK4PFJet60_v8) continue;
 
     for (Int_t ijet = 0; ijet < nref; ijet++) {
-      if (std::abs(jteta[ijet]) > 1.9) continue;
+      if (jteta[ijet] > 2. || jteta[ijet] < -2) continue;
       if (skipMC_roc(jtpt[ijet], pthat)) continue;
       if (jtpt[ijet] < pT_low || jtpt[ijet] > pT_high) continue;
 
@@ -182,7 +182,7 @@ void calc_btag_roc(TString filename, TString output_folder, TString output_hist,
     if (!(t.HLT_HIAK4PFJet40_v1)) continue;
 
     for (Int_t ijet = 0; ijet < t.nref; ijet++) {
-      if (std::abs(t.jteta[ijet]) > 1.9) continue;
+      if (t.jteta[ijet] > 2. || t.jteta[ijet] < -2) continue;
       if (skipMC_roc(t.jtpt[ijet], t.pthat)) continue;
       if (t.jtpt[ijet] < pT_low || t.jtpt[ijet] > pT_high) continue;
 
@@ -384,7 +384,7 @@ void calc_btag_roc(TString filename, TString output_folder, TString output_hist,
     def->AddText("Signal efficiency: True Positives / All Positives");
     def->AddText("Mistag rate: False Positives / All Negatives");
     def->AddText("score = discr_particleNet_BvsAll,  t scanned in [#minus1, 1]");
-    def->AddText(Form("%.0f < p_{T} < %.0f GeV,  |#eta| < 1.9", (double)pT_low, (double)pT_high));
+    def->AddText(Form("%.0f < p_{T} < %.0f GeV,  |#eta| < 2", (double)pT_low, (double)pT_high));
     def->Draw();
   };
 

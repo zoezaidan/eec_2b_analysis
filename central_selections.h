@@ -17,7 +17,7 @@ struct DatasetConfig {
   bool isMC;
 
   TString filename; // input sample full path to root file 
-  TString output_folder = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/test_unfoldingcodewithTemplates/";
+  TString output_folder = gSystem->ExpandPathName("$mydata/analysis_lise/"); // base path; Run2/ or Run3/ subfolder appended in buildDataset()
   TString output_hist; // for output file name (for templates)
   TString domain = ".root";
 
@@ -199,6 +199,9 @@ DatasetConfig buildDataset(int RunN, int dataType, bool isMC, const PhysicsConfi
   d.RunN = RunN;
   d.dataType = dataType;
   d.isMC = isMC;
+
+  // Save output in the Run2/ or Run3/ subfolder accordingly
+  d.output_folder += (RunN == 2) ? "Run2/" : "Run3/";
 
   // -- Set pre-calculated prescales 
   if (RunN == 2){
