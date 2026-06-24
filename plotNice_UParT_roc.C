@@ -80,6 +80,7 @@ void plotNice_UParT_roc(){
   leg->AddEntry(g1b,   "1B", "l");
   leg->AddEntry(g2b,   "#geq2B", "l");
   leg->AddEntry(g2bsv,   "#geq2B + 2SV", "l");
+  leg->AddEntry(wp,"Analysis working point","p");
   leg->Draw();
 
 
