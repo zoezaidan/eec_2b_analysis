@@ -1815,11 +1815,12 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
     RooUnfoldResponse *response_half1 = new RooUnfoldResponse(h_half1_purity_den, h_half1_eff_den, "response_tf_half1", "tf response half1");
     RooUnfoldResponse *response_full  = new RooUnfoldResponse(h_half0_purity_den, h_half0_eff_den, "response_tf_full",  "tf response full");
 
-	// -- For b-tagging correction after unfolding (at particle level): simple counts
-	// -- Think: Do you need to add 2svx cut on the Num? (I think so), and it should have the event weight as usual ?
+	// -- For b-tagging eff. correction after unfolding (at particle level): simple counts
+		// -- Think: Do you need to add 2svx cut on the Num? (I think so).
 	TH3D* hgenjet_2b = new TH3D("hgenjet_2b", "b-tagging eff. DENO;m_{2B} [GeV];DeltaR;p_{T} [GeV]", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector); // before btagging
 	TH3D* hgenjet_2b_passbtag = new TH3D("hgenjet_2b_passbtag", "b-tagging eff. NUM;m_{2B} [GeV];DeltaR;p_{T} [GeV]",  n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector); // after btagging
-	
+	TH3D* hgenjet_2b_passbtag_recoSvx = new TH3D("hgenjet_2b_passbtag_recoSvx", "b-tagging eff. NUM with reco_sv requirement;m_{2B} [GeV];DeltaR;p_{T} [GeV]",  n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector); // after btagging
+
 	
   /////////////////////////////////////////////////////////
     //// Variables related to data/reco MC  
@@ -1997,6 +1998,9 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
                   dr_reco  = t.calc_dr(reco_sv_rm[0].Eta(), reco_sv_rm[0].Phi(),
                                        reco_sv_rm[1].Eta(), reco_sv_rm[1].Phi());
                   eec_reco = std::pow(reco_sv_rm[0].Pt() * reco_sv_rm[1].Pt(), cfg.n);
+
+				   // particle level jets, passing b tagging and Svx requirment
+				   hgenjet_2b_passbtag_recoSvx ->Fill(mB_gen, dr_gen, jpt_gen, w_gen);
               }
 
               // Overflow protection
@@ -2181,6 +2185,12 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
 
     std::cout << "Creating: " << ResponseMatrix_fout_name << std::endl;
 
+	// -- Compute b-tagg. Eff. correction
+	TH3D* hbtagEff_correction_plevel = divide(hgenjet_2b_passbtag, hgenjet_2b, "hbtagEff_correction_plevel");
+	TH3D* hbtagEff_correction_plevel_wrecoSvx = divide(hgenjet_2b_passbtag_recoSvx, hgenjet_2b, "hbtagEff_correction_plevel");
+	
+
+	  
     //// WRITE OUTPUT RESPONSE MATRIX 
     TFile *fout_rm = new TFile(ResponseMatrix_fout_name, "recreate");
     h_half0_purity_num->Write(); h_half0_purity_den->Write(); h_half0_purity->Write();
@@ -2195,6 +2205,9 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
     
 	hgenjet_2b ->Write();
 	hgenjet_2b_passbtag ->Write();
+	hgenjet_2b_passbtag_recoSvx ->Write();
+	hbtagEff_correction_plevel ->Write();
+	hbtagEff_correction_plevel_wrecoSvx ->Write();
     
 	fout_rm->Close();
     delete fout_rm;
