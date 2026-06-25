@@ -1742,7 +1742,7 @@ void create_response_templatefit(
 
 
 
-void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t ev_last = -1, Int_t job_idx = -1) {
+void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, bool isCreateRmatrix = true, Long64_t ev_first = 0, Long64_t ev_last = -1, Int_t job_idx = -1) {
   // -- make templates of Data/MC, and Response matrix for MC 
 
   // -- Output files name
@@ -1888,7 +1888,7 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
 
       /////////----  To Fill templates: Require Jet kinematics + btagging (even if btag is false --> it is embedded in passBtag())
       /// NOTE: Templates use DATA or RECO MC 
-      if(passRecoJetKinematics(t, ijet, cfg) &&  passBtag(t, ijet, cfg)){
+      if(isMakeTemplates && passRecoJetKinematics(t, ijet, cfg) &&  passBtag(t, ijet, cfg)){
 
               // -- Fill here Selected jets histogram: selected jets after btagging + >=2svx (cut)
               if (t.jtNsvtx[ijet] >= 2){
@@ -1934,7 +1934,7 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
 
 
           /////////---- To Prepare Response matrix (of true >=2B) ---- ONLY for MC (both RECO, GEN) ----
-          if(cfg.dataset.isMC && t.jtNbHad[ijet] >= 2)  // -- select jets of 2b (truth)
+          if(isCreateRmatrix && cfg.dataset.isMC && t.jtNbHad[ijet] >= 2)  // -- select jets of 2b (truth)
           { 
 
             // -- common variables repeatdly used in fill histograms 
@@ -2129,8 +2129,8 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
   std::cout << std::endl;
 
 
-  /////////// continue compute Response matrix related ef. and purity ------
-  if(cfg.dataset.isMC)
+  /////////// continue compute Response matrix related ef. and purity + WRITE to root file output ------
+  if(isCreateRmatrix && cfg.dataset.isMC)
   {
   // -- Debug output ----------
     std::cout << std::endl;
@@ -2214,7 +2214,9 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
   } // end if MC () after event loop  -- For Response matrix related hists.
   
 
-  ///////// Write Output hist to Templates output root file 
+///////// Write Output hist to Templates output root file 
+if(isMakeTemplates)
+{
   std::cout << "Creating: " << fout_name << std::endl;
   TFile* outFile = new TFile(fout_name, "RECREATE");
     hpt_selectedJets->Write();
@@ -2234,7 +2236,8 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
   }
   outFile->Close();
   delete outFile;
-
+}
+	
 } // end Function 
 
 
