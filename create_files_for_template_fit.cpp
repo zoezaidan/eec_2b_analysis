@@ -1742,7 +1742,7 @@ void create_response_templatefit(
 
 
 
-void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t ev_last = -1, Int_t job_idx = -1) {
+void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, bool isCreateRmatrix = true, Long64_t ev_first = 0, Long64_t ev_last = -1, Int_t job_idx = -1) {
   // -- make templates of Data/MC, and Response matrix for MC 
 
   // -- Output files name
@@ -1815,11 +1815,9 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
     RooUnfoldResponse *response_half1 = new RooUnfoldResponse(h_half1_purity_den, h_half1_eff_den, "response_tf_half1", "tf response half1");
     RooUnfoldResponse *response_full  = new RooUnfoldResponse(h_half0_purity_den, h_half0_eff_den, "response_tf_full",  "tf response full");
 
-	// -- For b-tagging correction after unfolding (at particle level): simple counts
-	// -- Think: Do you need to add 2svx cut on the Num? (I think so), and it should have the event weight as usual ?
+	// -- For b-tagging eff. correction after unfolding (at particle level)
 	TH3D* hgenjet_2b = new TH3D("hgenjet_2b", "b-tagging eff. DENO;m_{2B} [GeV];DeltaR;p_{T} [GeV]", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector); // before btagging
 	TH3D* hgenjet_2b_passbtag = new TH3D("hgenjet_2b_passbtag", "b-tagging eff. NUM;m_{2B} [GeV];DeltaR;p_{T} [GeV]",  n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector); // after btagging
-	
 	
   /////////////////////////////////////////////////////////
     //// Variables related to data/reco MC  
@@ -1887,7 +1885,7 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
 
       /////////----  To Fill templates: Require Jet kinematics + btagging (even if btag is false --> it is embedded in passBtag())
       /// NOTE: Templates use DATA or RECO MC 
-      if(passRecoJetKinematics(t, ijet, cfg) &&  passBtag(t, ijet, cfg)){
+      if(isMakeTemplates && passRecoJetKinematics(t, ijet, cfg) &&  passBtag(t, ijet, cfg)){
 
               // -- Fill here Selected jets histogram: selected jets after btagging + >=2svx (cut)
               if (t.jtNsvtx[ijet] >= 2){
@@ -1933,7 +1931,7 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
 
 
           /////////---- To Prepare Response matrix (of true >=2B) ---- ONLY for MC (both RECO, GEN) ----
-          if(cfg.dataset.isMC && t.jtNbHad[ijet] >= 2)  // -- select jets of 2b (truth)
+          if(isCreateRmatrix && cfg.dataset.isMC && t.jtNbHad[ijet] >= 2)  // -- select jets of 2b (truth)
           { 
 
             // -- common variables repeatdly used in fill histograms 
@@ -1941,7 +1939,7 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
             double jpt_gen = gen_jet_pt(t, ijet);
             double jeta_reco = reco_jet_eta(t, ijet);
             double jeta_gen = gen_jet_eta(t, ijet);
-              // -- for cout only
+            // -- for cout only
             double btagVar =  (cfg.dataset.RunN == 2) ? (t.discr_particleNet_BvsAll[ijet]) :
                               ( (cfg.dataset.RunN == 3) ? 
                                   (t.discr_unifiedParticleTransformer_probb[ijet] +
@@ -1967,75 +1965,53 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
                         double pp = gen_bh[gi].Pt() * gen_bh[gj].Pt();
                         if (pp > best_pt_prod) { best_pt_prod = pp; best_i = gi; best_j = gj; }
                 }
-
+				// gen pair info
                 double eec_gen = std::pow(gen_bh[best_i].Pt() * gen_bh[best_j].Pt(), cfg.n);
                 double mB_gen  = gen_bh[best_i].M() + gen_bh[best_j].M();
                 double dr_gen  = t.calc_dr(gen_bh[best_i].Eta(), gen_bh[best_i].Phi(),
                                            gen_bh[best_j].Eta(), gen_bh[best_j].Phi());
-
+				// overflow treatement at gen level	
+			    double mB_gen_fill = mB_gen, dr_gen_fill = dr_gen;
+                if (mB_gen_fill >= mb_max) mB_gen_fill = mb_max_fill;
+                if (dr_gen_fill >= dr_max)  dr_gen_fill = dr_max_fill;
 
 				// -- Gen EEC weight
 				double w_gen  = weight_tree * eec_gen;
-
- 				// here Fill total number of True 2b Jets (Deno of b tagging eff.): simialr axis to what we unfold to.
-			  		hgenjet_2b ->Fill(mB_gen, dr_gen, jpt_gen, w_gen); // no EEC weight for Eff., what about MC event weight? 
-			  
-			  	//using btaggin at the beggining: have only btagged jes to work with when build Response matrix, purity, and effeciency.
-					if (! passBtag(t, ijet, cfg)) continue; // select btagged jets only
-				
-			  // here Fill total number of True 2b Jets after btagging condition on the reco jet (Num of b tagging eff.)
-					hgenjet_2b_passbtag ->Fill(mB_gen, dr_gen, jpt_gen, w_gen);
-
-               // step2: for Response matrix ---- Reco SVs ----
+		
+			   // Fill total number of True 2b Jets (Deno of b-tagging eff. correction) before b-tagger: simialr axis to what we unfold to. - used after unfolding
+			  	hgenjet_2b ->Fill(mB_gen, dr_gen, jpt_gen, w_gen);
+			   
+			   // -- Prepare combined b-tagger: 
+               // ---- Reco SVs ----
                 vector<ROOT::Math::PtEtaPhiMVector> reco_sv_rm =
                   makeSvtxs_withBDT(t, ijet, ient, agg_fail_rm, nb_sv_rm, sv_fail_rm, merge_fail_rm, nullptr, nullptr);
+			  
+                bool reco_sv_ok = (reco_sv_rm.size() == 2);
+			   
+			   // -- Use combined b-tagger: Upart tagger + 2SV of aggreagted Bs., for Rmatrix unfolding, purity, reconstruction eff. 
+				if (!reco_sv_ok  || !passBtag(t, ijet, cfg)) continue; // select btagged jets only
+			  
+			   // Fill total number of True 2b Jets that survive after btagging condition (Num of b tagging eff. correction - used after unfolding)
+				hgenjet_2b_passbtag ->Fill(mB_gen, dr_gen, jpt_gen, w_gen);
 
-              double mB_reco = -1, dr_reco = -1, eec_reco = -1;
-              bool reco_sv_ok = (reco_sv_rm.size() == 2);// must equal 2
-               if (reco_sv_ok) {
+			   // -- Prepare to Fill Rmatrix -- 
+			   // -- Reco pair info 
+			   double mB_reco = -1, dr_reco = -1, eec_reco = -1;
                   mB_reco  = reco_sv_rm[0].M() + reco_sv_rm[1].M();
                   dr_reco  = t.calc_dr(reco_sv_rm[0].Eta(), reco_sv_rm[0].Phi(),
                                        reco_sv_rm[1].Eta(), reco_sv_rm[1].Phi());
                   eec_reco = std::pow(reco_sv_rm[0].Pt() * reco_sv_rm[1].Pt(), cfg.n);
-              }
-
-              // Overflow protection
-              double mB_reco_fill = mB_reco, dr_reco_fill = dr_reco;
-              if (reco_sv_ok) {
+			   double w_reco = weight_tree * eec_reco;
+	           // Overflow protection at reco level
+	              double mB_reco_fill = mB_reco, dr_reco_fill = dr_reco;
                   if (mB_reco_fill >= mb_max) mB_reco_fill = mb_max_fill;
                   if (dr_reco_fill >= dr_max) dr_reco_fill = dr_max_fill;
-                  //if (dr_reco_fill  < dr_min) dr_reco_fill = dr_min_fill; // underflow use or not ?
-              }
-              double mB_gen_fill = mB_gen, dr_gen_fill = dr_gen;
-                if (mB_gen_fill >= mb_max) mB_gen_fill = mb_max_fill;
-                if (dr_gen_fill >= dr_max)  dr_gen_fill = dr_max_fill;
-                //if (dr_gen_fill  < dr_min)  dr_gen_fill = dr_min_fill;  // underflow use or not ?
-
-
-                            // reco_pass: full detector-level selection
-            bool reco_pass = reco_sv_ok &&
-                             passRecoJetKinematics(t, ijet, cfg); 
-                             // passBtag(t, ijet, cfg); // Following suggestion1: no need for repetition
-                             //  && (mB_reco_fill >= mb_min && mB_reco_fill < mb_max) && (dr_reco_fill < dr_max); // Not needed since reco_sv_ok is already required.
-            /*
-            // -- Debugging paragraph-------
-            //std::cout << "reco_sv_ok: " << reco_sv_ok << std::endl;
-            //if (reco_sv_ok) {std::cout << "jpt_reco: " << jpt_reco << std::endl;}
-            //if (reco_sv_ok && (jpt_reco >= pT_low && jpt_reco < pT_high)) {
-                         //std::cout << "jteta_reco: " << t.jteta[ijet] << std::endl; }
-            //if (reco_sv_ok && (jpt_reco >= pT_low && jpt_reco < pT_high) && (std::abs(t.jteta[ijet]) < 1.6)) {
-             //std::cout << "btag: " << (t.discr_particleNet_BvsAll[ijet] ) << std::endl;}  
-            
-            //if (reco_sv_ok && (jpt_reco >= pT_low && jpt_reco < pT_high) && (std::abs(t.jteta[ijet]) < 1.6) && (!btag || t.discr_particleNet_BvsAll[ijet] > 0.898)){
-             //std::cout << "mB_reco: " << mb_min << " " << mB_reco_fill << " " << mb_max << std::endl;
-            //}
-            //if (reco_sv_ok && (jpt_reco >= pT_low && jpt_reco < pT_high) && (std::abs(t.jteta[ijet]) < 1.6) && (!btag || t.discr_particleNet_BvsAll[ijet] > 0.898 ) && (mB_reco_fill >= mb_min && mB_reco_fill < mb_max)){
-                //std::cout << "dr_reco: " << dr_reco << "MAX" <<dr_max << std::endl;}
-            */
-
-
-            // gen_pass: particle-level jet kinematics + gen observable range
-            bool gen_pass  = passGenJetKinematics(t, ijet, cfg); //  && (mB_gen_fill >= mb_min && mB_gen_fill < mb_max) && (dr_gen_fill < dr_max); // no need to repeat the condiiton above 
+			   
+            // Define reco_pass: full detector-level selection
+            bool reco_pass = passRecoJetKinematics(t, ijet, cfg); 
+                
+            // Define gen_pass: particle-level jet kinematics + gen observable range
+            bool gen_pass  = passGenJetKinematics(t, ijet, cfg);
           
             // --- debugging paragraph ----
             //std::cout << "gen_pass: " << gen_pass << std::endl;
@@ -2086,8 +2062,6 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
             // ---- Fill Response matrix -----------------
             // -------------------------------------------
             double num    = distr(generator);
-            double w_reco = weight_tree * eec_reco;
-            
 
             if (reco_pass) {
                 if (num < 0.5) h_half0_purity_den->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
@@ -2125,8 +2099,8 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
   std::cout << std::endl;
 
 
-  /////////// continue compute Response matrix related ef. and purity ------
-  if(cfg.dataset.isMC)
+  /////////// continue compute Response matrix related ef. and purity + WRITE to root file output ------
+  if(isCreateRmatrix && cfg.dataset.isMC)
   {
   // -- Debug output ----------
     std::cout << std::endl;
@@ -2181,6 +2155,10 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
 
     std::cout << "Creating: " << ResponseMatrix_fout_name << std::endl;
 
+	// -- Compute b-tagg. Eff. correction
+	TH3D* hbtagEff_correction_plevel = divide(hgenjet_2b_passbtag, hgenjet_2b, "hbtagEff_correction_plevel");	
+
+	  
     //// WRITE OUTPUT RESPONSE MATRIX 
     TFile *fout_rm = new TFile(ResponseMatrix_fout_name, "recreate");
     h_half0_purity_num->Write(); h_half0_purity_den->Write(); h_half0_purity->Write();
@@ -2195,13 +2173,16 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
     
 	hgenjet_2b ->Write();
 	hgenjet_2b_passbtag ->Write();
+	hbtagEff_correction_plevel ->Write();
     
 	fout_rm->Close();
     delete fout_rm;
   } // end if MC () after event loop  -- For Response matrix related hists.
   
 
-  ///////// Write Output hist to Templates output root file 
+///////// Write Output hist to Templates output root file 
+if(isMakeTemplates)
+{
   std::cout << "Creating: " << fout_name << std::endl;
   TFile* outFile = new TFile(fout_name, "RECREATE");
     hpt_selectedJets->Write();
@@ -2221,7 +2202,8 @@ void Build_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t 
   }
   outFile->Close();
   delete outFile;
-
+}
+	
 } // end Function 
 
 
@@ -2251,13 +2233,13 @@ void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t p
     // --  new make_templates() with with central selections 
       // make_templates(cfg, 1, 1e+04); 
     // -- test new create_response() with central selections 
-      cout << "Reponse matrix alone" << endl;
-      TString output_hist_response =  Form("response_templatefit_n1_bjet_Run%d", cfg.dataset.RunN);
-      create_response_templatefit(cfg, output_hist_response, 0, 1e+04);
+      // cout << "Reponse matrix alone" << endl;
+      // TString output_hist_response =  Form("response_templatefit_n1_bjet_Run%d", cfg.dataset.RunN);
+      // create_response_templatefit(cfg, output_hist_response, 0, 1e+04);
 
     // -- test central selections with merged macro(templates + RMatrix creation): read tree once ! --> Two outputs 
-    // cout << "Hello  : Build_templates " << endl; 
-    // Build_templates(cfg, 0, 1e+04);
+    cout << "Hello  : Build_templates " << endl; 
+    Build_templates(cfg, false, true, 0, 1e+04); // test few events: dont produce templates, but Rmatrix related hist. 
 
   std::cout << "finished :) :D " << std::endl;
   //filter_b_bb(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC, dataType);

@@ -476,7 +476,7 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
       cout << "Set branch address for some Run 2 specific branches" << endl;
       tree->SetBranchAddress("trkDistToAxisSig", trkDistToAxisSig, &b_trkDistToAxisSig);
       tree->SetBranchAddress("discr_particleNet_BvsAll", discr_particleNet_BvsAll, &b_discr_particleNet_BvsAll);
-      tree->SetBranchAddress("FNscore", FNscore, &b_FNscore); //
+      //tree->SetBranchAddress("FNscore", FNscore, &b_FNscore); //
       tree->SetBranchAddress("discr_deepCSV", discr_deepCSV, &b_discr_deepCSV);
       tree->SetBranchAddress("discr_deepFlavour_b", discr_deepFlavour_b, &b_discr_deepFlavour_b);
       tree->SetBranchAddress("discr_deepFlavour_bb", discr_deepFlavour_bb, &b_discr_deepFlavour_bb);
