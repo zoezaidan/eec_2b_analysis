@@ -508,7 +508,7 @@ vector<ROOT::Math::PtEtaPhiMVector> makeSvtxs_withBDT(
     if (secVtxs.size() <  2) {
       nb_sv += 1 ;
       // test: 
-      cout << "nb sv < 2 for ient# " << ient << endl; 
+      //cout << "nb sv < 2 for ient# " << ient << endl; 
       // if (nb_sv < 15 ) {} // not needed! 
       return empty;    
     }
@@ -1457,20 +1457,20 @@ void create_response_templatefit(
     int  n_debug_printed = 0;
 
     //purity
-    TH3D *h_half0_purity_num = new TH3D("h_half0_purity_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half0_purity_den = new TH3D("h_half0_purity_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_purity_num = new TH3D("h_half1_purity_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_purity_den = new TH3D("h_half1_purity_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_purity_num = new TH2D("h_half0_purity_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_purity_den = new TH2D("h_half0_purity_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_purity_num = new TH2D("h_half1_purity_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_purity_den = new TH2D("h_half1_purity_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
     //efficiency
-    TH3D *h_half0_eff_num    = new TH3D("h_half0_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half0_eff_den    = new TH3D("h_half0_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_eff_num    = new TH3D("h_half1_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_eff_den    = new TH3D("h_half1_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_eff_num = new TH2D("h_half0_efficiency_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_eff_den = new TH2D("h_half0_efficiency_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_eff_num = new TH2D("h_half1_efficiency_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_eff_den = new TH2D("h_half1_efficiency_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
     //btag efficiency
-    TH3D *h_half0_btag_eff_num    = new TH3D("h_half0_btag_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half0_btag_eff_den    = new TH3D("h_half0_btag_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_btag_eff_num    = new TH3D("h_half1_btag_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_btag_eff_den    = new TH3D("h_half1_btag_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_btag_eff_num = new TH2D("h_half0_btag_efficiency_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_btag_eff_den = new TH2D("h_half0_btag_efficiency_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_btag_eff_num = new TH2D("h_half1_btag_efficiency_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_btag_eff_den = new TH2D("h_half1_btag_efficiency_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
 
 
     RooUnfoldResponse *response_half0 = new RooUnfoldResponse(h_half0_purity_den, h_half0_eff_den, "response_tf_half0", "tf response half0");
@@ -1646,28 +1646,28 @@ void create_response_templatefit(
             double w_gen  = weight_tree * eec_gen;
 
             if (reco_pass) {
-                if (num < 0.5) h_half0_purity_den->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
-                else           h_half1_purity_den->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
+                if (num < 0.5) h_half0_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
+                else           h_half1_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
             }
             
             if (gen_pass) {
-                if (num < 0.5) h_half0_eff_den->Fill(mB_gen_fill, dr_gen_fill, jpt_gen, w_gen);
-                else           h_half1_eff_den->Fill(mB_gen_fill, dr_gen_fill, jpt_gen, w_gen);
+                if (num < 0.5) h_half0_eff_den->Fill(dr_gen_fill, jpt_gen, w_gen);
+                else           h_half1_eff_den->Fill(dr_gen_fill, jpt_gen, w_gen);
             }
             if (reco_pass && gen_pass) {
                 if (num < 0.5) {
-                    h_half0_purity_num->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
-                    h_half0_eff_num   ->Fill(mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_gen);
-                    response_half0->Fill(mB_reco_fill, dr_reco_fill, jpt_reco,
-                                         mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_reco);
+                    h_half0_purity_num->Fill(dr_reco_fill, jpt_reco, w_reco);
+                    h_half0_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_gen);
+                    response_half0->Fill(dr_reco_fill, jpt_reco,
+                                         dr_gen_fill,  jpt_gen,  w_reco);
                 } else {
-                    h_half1_purity_num->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
-                    h_half1_eff_num   ->Fill(mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_gen);
-                    response_half1->Fill(mB_reco_fill, dr_reco_fill, jpt_reco,
-                                         mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_reco);
+                    h_half1_purity_num->Fill( dr_reco_fill, jpt_reco, w_reco);
+                    h_half1_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_gen);
+                    response_half1->Fill(dr_reco_fill, dr_reco_fill, jpt_reco,
+                                         dr_gen_fill,  dr_gen_fill,  jpt_gen,  w_reco);
                 }
-                response_full->Fill(mB_reco_fill, dr_reco_fill, jpt_reco,
-                                     mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_reco);
+                response_full->Fill(dr_reco_fill, jpt_reco,
+                                    dr_gen_fill,  jpt_gen,  w_reco);
           }
 
         } // jet loop
@@ -1699,29 +1699,28 @@ void create_response_templatefit(
     //----------------------------
 
     // --- Compte Purity, Eff.  
-    auto divide = [](TH3D* num, TH3D* den, const char* name) -> TH3D* {
-        TH3D *h = (TH3D*) num->Clone(name);
+    auto divide = [](TH2D* num, TH2D* den, const char* name) -> TH2D* {
+        TH2D *h = (TH2D*) num->Clone(name);
         h->Divide(num, den, 1., 1., "b"); // Bionmial error propogation
         return h;
     };
       // For halfs
-    TH3D *h_half0_purity = divide(h_half0_purity_num, h_half0_purity_den, "h_half0_purity_tf");
-    TH3D *h_half1_purity = divide(h_half1_purity_num, h_half1_purity_den, "h_half1_purity_tf");
-    TH3D *h_half0_eff    = divide(h_half0_eff_num,    h_half0_eff_den,    "h_half0_efficiency_tf");
-    TH3D *h_half1_eff    = divide(h_half1_eff_num,    h_half1_eff_den,    "h_half1_efficiency_tf");
+    TH2D *h_half0_purity = divide(h_half0_purity_num, h_half0_purity_den, "h_half0_purity_tf");
+    TH2D *h_half1_purity = divide(h_half1_purity_num, h_half1_purity_den, "h_half1_purity_tf");
+    TH2D *h_half0_eff    = divide(h_half0_eff_num,    h_half0_eff_den,    "h_half0_efficiency_tf");
+    TH2D *h_half1_eff    = divide(h_half1_eff_num,    h_half1_eff_den,    "h_half1_efficiency_tf");
 
       // For full 
-    TH3D *h_full_purity_num = (TH3D*) h_half0_purity_num->Clone("h_full_purity_numerator_tf");
+    TH2D *h_full_purity_num = (TH2D*) h_half0_purity_num->Clone("h_full_purity_numerator_tf");
     h_full_purity_num->Add(h_half1_purity_num);
-    TH3D *h_full_purity_den = (TH3D*) h_half0_purity_den->Clone("h_full_purity_denominator_tf");
+    TH2D *h_full_purity_den = (TH2D*) h_half0_purity_den->Clone("h_full_purity_denominator_tf");
     h_full_purity_den->Add(h_half1_purity_den);
-    TH3D *h_full_purity = divide(h_full_purity_num, h_full_purity_den, "h_full_purity_tf");
-
-    TH3D *h_full_eff_num = (TH3D*) h_half0_eff_num->Clone("h_full_efficiency_numerator_tf");
+    TH2D *h_full_purity = divide(h_full_purity_num, h_full_purity_den, "h_full_purity_tf");
+    TH2D *h_full_eff_num = (TH2D*) h_half0_eff_num->Clone("h_full_efficiency_numerator_tf");
     h_full_eff_num->Add(h_half1_eff_num);
-    TH3D *h_full_eff_den = (TH3D*) h_half0_eff_den->Clone("h_full_efficiency_denominator_tf");
+    TH2D *h_full_eff_den = (TH2D*) h_half0_eff_den->Clone("h_full_efficiency_denominator_tf");
     h_full_eff_den->Add(h_half1_eff_den);
-    TH3D *h_full_eff = divide(h_full_eff_num, h_full_eff_den, "h_full_efficiency_tf");
+    TH2D *h_full_eff = divide(h_full_eff_num, h_full_eff_den, "h_full_efficiency_tf");
 
     std::cout << "Creating: " << fout_name << std::endl;
     TFile *fout = new TFile(fout_name, "recreate");
@@ -1802,22 +1801,22 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     std::cout << "dr range: [" << dr_min << ", " << dr_max << "]" << std::endl;
     // -------------------------------------------------------------------
 
-    TH3D *h_half0_purity_num = new TH3D("h_half0_purity_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half0_purity_den = new TH3D("h_half0_purity_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half0_eff_num    = new TH3D("h_half0_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half0_eff_den    = new TH3D("h_half0_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_purity_num = new TH3D("h_half1_purity_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_purity_den = new TH3D("h_half1_purity_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_eff_num    = new TH3D("h_half1_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_eff_den    = new TH3D("h_half1_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_purity_num = new TH2D("h_half0_purity_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_purity_den = new TH2D("h_half0_purity_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_eff_num    = new TH2D("h_half0_efficiency_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_eff_den    = new TH2D("h_half0_efficiency_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_purity_num = new TH2D("h_half1_purity_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_purity_den = new TH2D("h_half1_purity_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_eff_num    = new TH2D("h_half1_efficiency_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_eff_den    = new TH2D("h_half1_efficiency_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
 
     RooUnfoldResponse *response_half0 = new RooUnfoldResponse(h_half0_purity_den, h_half0_eff_den, "response_tf_half0", "tf response half0");
     RooUnfoldResponse *response_half1 = new RooUnfoldResponse(h_half1_purity_den, h_half1_eff_den, "response_tf_half1", "tf response half1");
     RooUnfoldResponse *response_full  = new RooUnfoldResponse(h_half0_purity_den, h_half0_eff_den, "response_tf_full",  "tf response full");
 
 	// -- For b-tagging eff. correction after unfolding (at particle level)
-	TH3D* hgenjet_2b = new TH3D("hgenjet_2b", "b-tagging eff. DENO;m_{2B} [GeV];DeltaR;p_{T} [GeV]", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector); // before btagging
-	TH3D* hgenjet_2b_passbtag = new TH3D("hgenjet_2b_passbtag", "b-tagging eff. NUM;m_{2B} [GeV];DeltaR;p_{T} [GeV]",  n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector); // after btagging
+	TH2D* hgenjet_2b = new TH2D("hgenjet_2b", "b-tagging eff. DENO;m_{2B} [GeV];DeltaR;p_{T} [GeV]", n_dr, dr_binsVector, n_pt, jtpt_binsVector); // before btagging
+	TH2D* hgenjet_2b_passbtag = new TH2D("hgenjet_2b_passbtag", "b-tagging eff. NUM;m_{2B} [GeV];DeltaR;p_{T} [GeV]",  n_dr, dr_binsVector, n_pt, jtpt_binsVector); // after btagging
 	
   /////////////////////////////////////////////////////////
     //// Variables related to data/reco MC  
@@ -1979,7 +1978,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 				double w_gen  = weight_tree * eec_gen;
 		
 			   // Fill total number of True 2b Jets (Deno of b-tagging eff. correction) before b-tagger: simialr axis to what we unfold to. - used after unfolding
-			  	hgenjet_2b ->Fill(mB_gen, dr_gen, jpt_gen, w_gen);
+			  	hgenjet_2b ->Fill(dr_gen, jpt_gen, w_gen);
 			   
 			   // -- Prepare combined b-tagger: 
                // ---- Reco SVs ----
@@ -1992,7 +1991,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 				if (!reco_sv_ok  || !passBtag(t, ijet, cfg)) continue; // select btagged jets only
 			  
 			   // Fill total number of True 2b Jets that survive after btagging condition (Num of b tagging eff. correction - used after unfolding)
-				hgenjet_2b_passbtag ->Fill(mB_gen, dr_gen, jpt_gen, w_gen);
+				hgenjet_2b_passbtag ->Fill(dr_gen, jpt_gen, w_gen);
 
 			   // -- Prepare to Fill Rmatrix -- 
 			   // -- Reco pair info 
@@ -2064,27 +2063,27 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
             double num    = distr(generator);
 
             if (reco_pass) {
-                if (num < 0.5) h_half0_purity_den->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
-                else           h_half1_purity_den->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
+                if (num < 0.5) h_half0_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
+                else           h_half1_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
             }
             if (gen_pass) {
-                if (num < 0.5) h_half0_eff_den->Fill(mB_gen_fill, dr_gen_fill, jpt_gen, w_gen);
-                else           h_half1_eff_den->Fill(mB_gen_fill, dr_gen_fill, jpt_gen, w_gen);
+                if (num < 0.5) h_half0_eff_den->Fill(dr_gen_fill, jpt_gen, w_gen);
+                else           h_half1_eff_den->Fill(dr_gen_fill, jpt_gen, w_gen);
             }
             if (reco_pass && gen_pass) {
                 if (num < 0.5) {
-                    h_half0_purity_num->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
-                    h_half0_eff_num   ->Fill(mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_gen);
-                    response_half0->Fill(mB_reco_fill, dr_reco_fill, jpt_reco,
-                                         mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_reco);
+                    h_half0_purity_num->Fill(dr_reco_fill, jpt_reco, w_reco);
+                    h_half0_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_gen);
+                    response_half0->Fill(dr_reco_fill, jpt_reco,
+                                         dr_gen_fill,  jpt_gen,  w_reco);
                 } else {
-                    h_half1_purity_num->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
-                    h_half1_eff_num   ->Fill(mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_gen);
-                    response_half1->Fill(mB_reco_fill, dr_reco_fill, jpt_reco,
-                                         mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_reco);
+                    h_half1_purity_num->Fill(dr_reco_fill, jpt_reco, w_reco);
+                    h_half1_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_gen);
+                    response_half1->Fill(dr_reco_fill, jpt_reco,
+                                        dr_gen_fill,  jpt_gen,  w_reco);
                 }
-                response_full->Fill(mB_reco_fill, dr_reco_fill, jpt_reco,
-                                     mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_reco);
+                response_full->Fill(dr_reco_fill, jpt_reco,
+                                    dr_gen_fill,  jpt_gen,  w_reco);
           }//end fill  (reco_pass && gen_pass)
 
 
@@ -2129,34 +2128,33 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     //----------------------------
 
     // --- Compte Purity, Eff.  
-    auto divide = [](TH3D* num, TH3D* den, const char* name) -> TH3D* {
-        TH3D *h = (TH3D*) num->Clone(name);
+    auto divide = [](TH2D* num, TH2D* den, const char* name) -> TH2D* {
+        TH2D *h = (TH2D*) num->Clone(name);
         h->Divide(num, den, 1., 1., "b"); // Bionmial error propogation
         return h;
     };
       // For halfs
-    TH3D *h_half0_purity = divide(h_half0_purity_num, h_half0_purity_den, "h_half0_purity_tf");
-    TH3D *h_half1_purity = divide(h_half1_purity_num, h_half1_purity_den, "h_half1_purity_tf");
-    TH3D *h_half0_eff    = divide(h_half0_eff_num,    h_half0_eff_den,    "h_half0_efficiency_tf");
-    TH3D *h_half1_eff    = divide(h_half1_eff_num,    h_half1_eff_den,    "h_half1_efficiency_tf");
+    TH2D *h_half0_purity = divide(h_half0_purity_num, h_half0_purity_den, "h_half0_purity_tf");
+    TH2D *h_half1_purity = divide(h_half1_purity_num, h_half1_purity_den, "h_half1_purity_tf");
+    TH2D *h_half0_eff    = divide(h_half0_eff_num,    h_half0_eff_den,    "h_half0_efficiency_tf");
+    TH2D *h_half1_eff    = divide(h_half1_eff_num,    h_half1_eff_den,    "h_half1_efficiency_tf");
 
       // For full 
-    TH3D *h_full_purity_num = (TH3D*) h_half0_purity_num->Clone("h_full_purity_numerator_tf");
+    TH2D *h_full_purity_num = (TH2D*) h_half0_purity_num->Clone("h_full_purity_numerator_tf");
     h_full_purity_num->Add(h_half1_purity_num);
-    TH3D *h_full_purity_den = (TH3D*) h_half0_purity_den->Clone("h_full_purity_denominator_tf");
+    TH2D *h_full_purity_den = (TH2D*) h_half0_purity_den->Clone("h_full_purity_denominator_tf");
     h_full_purity_den->Add(h_half1_purity_den);
-    TH3D *h_full_purity = divide(h_full_purity_num, h_full_purity_den, "h_full_purity_tf");
-
-    TH3D *h_full_eff_num = (TH3D*) h_half0_eff_num->Clone("h_full_efficiency_numerator_tf");
+    TH2D *h_full_purity = divide(h_full_purity_num, h_full_purity_den, "h_full_purity_tf");
+    TH2D *h_full_eff_num = (TH2D*) h_half0_eff_num->Clone("h_full_efficiency_numerator_tf");
     h_full_eff_num->Add(h_half1_eff_num);
-    TH3D *h_full_eff_den = (TH3D*) h_half0_eff_den->Clone("h_full_efficiency_denominator_tf");
+    TH2D *h_full_eff_den = (TH2D*) h_half0_eff_den->Clone("h_full_efficiency_denominator_tf");
     h_full_eff_den->Add(h_half1_eff_den);
-    TH3D *h_full_eff = divide(h_full_eff_num, h_full_eff_den, "h_full_efficiency_tf");
+    TH2D *h_full_eff = divide(h_full_eff_num, h_full_eff_den, "h_full_efficiency_tf");
 
     std::cout << "Creating: " << ResponseMatrix_fout_name << std::endl;
 
 	// -- Compute b-tagg. Eff. correction
-	TH3D* hbtagEff_correction_plevel = divide(hgenjet_2b_passbtag, hgenjet_2b, "hbtagEff_correction_plevel");	
+	TH2D* hbtagEff_correction_plevel = divide(hgenjet_2b_passbtag, hgenjet_2b, "hbtagEff_correction_plevel");	
 
 	  
     //// WRITE OUTPUT RESPONSE MATRIX 
@@ -2239,7 +2237,7 @@ void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t p
 
     // -- test central selections with merged macro(templates + RMatrix creation): read tree once ! --> Two outputs 
     cout << "Hello  : Build_templates " << endl; 
-    Build_templates(cfg, false, true, 0, 1e+04); // test few events: dont produce templates, but Rmatrix related hist. 
+    Build_templates(cfg, false, true, 0, -1); // test few events: dont produce templates, but Rmatrix related hist. 
 
   std::cout << "finished :) :D " << std::endl;
   //filter_b_bb(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC, dataType);
