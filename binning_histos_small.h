@@ -6,7 +6,7 @@
 // Define binnings
 
 //dr
-const Int_t dr_binsVectorSize = 12;
+const Int_t dr_binsVectorSize = 11;
 Int_t bins_dr = dr_binsVectorSize - 1;
 Int_t dr_bins = bins_dr;
 Double_t dr_binsVector[dr_binsVectorSize] = {
