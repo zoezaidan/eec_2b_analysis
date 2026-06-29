@@ -1019,8 +1019,10 @@ void filter_b_bb_as_data_and_mc(Int_t RunN, TString filename_bjet, TString outpu
 // Data: fills h3D_data with the same reco logic — no truth classification.
 void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t ev_last = -1, Int_t job_idx = -1) {
 
+  bool isMC = cfg.dataset.dataType == 1 ||   cfg.dataset.dataType == 2; 
+
   tTree t;
-  t.Init(cfg.dataset.filename, cfg.dataset.isMC, cfg.dataset.RunN);
+  t.Init(cfg.dataset.filename, cfg.dataset.dataType, cfg.dataset.RunN);
   t.SetBranchStatus("*", 0);
   auto active_branches = getActiveBranches(cfg);
   t.SetBranchStatus(active_branches, 1);
@@ -1066,7 +1068,7 @@ void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t e
       // -- test tree branches are read: 
       //cout << "jtpt = " << t.jtpt[0] << endl;
       
-      double weight_tree = cfg.dataset.isMC ? t.weight : 1.0;
+      double weight_tree = isMC ? t.weight : 1.0;
 
     // -- Trigger selections 
     if (! passEventSelection(t, cfg)) continue;
@@ -1102,13 +1104,13 @@ void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t e
       //std::cout << "weight: " << weight_tree << std::endl;
       //std::cout << "eec: " << eec << std::endl;
 
-      if (cfg.dataset.RunN == 2 && !cfg.dataset.isMC && t.HLT_HIAK4PFJet40_v1 && !(t.HLT_HIAK4PFJet60_v1 || t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) 
+      if (cfg.dataset.RunN == 2 && !isMC && t.HLT_HIAK4PFJet40_v1 && !(t.HLT_HIAK4PFJet60_v1 || t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) 
       {eec *= prescale;} 
 
-      if (cfg.dataset.RunN == 3 && !cfg.dataset.isMC && t.HLT_AK4PFJet60_v8 && !(t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8 || t.HLT_AK4PFJet120_v8) ) 
+      if (cfg.dataset.RunN == 3 && !isMC && t.HLT_AK4PFJet60_v8 && !(t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8 || t.HLT_AK4PFJet120_v8) ) 
       {eec *= prescale;} 
 
-      if (cfg.dataset.isMC) {
+      if (isMC) {
         // use truth to classify: fill separate 0b, b and bb templates
         if      (t.jtNbHad[ijet] == 0) { h3D_0b->Fill(mB, dr, jtpt, eec * weight_tree); h_count_0b->Fill(mB, dr, jtpt, weight_tree); }
         else if (t.jtNbHad[ijet] == 1) { h3D_b ->Fill(mB, dr, jtpt, eec * weight_tree); h_count_b ->Fill(mB, dr, jtpt, weight_tree); }
@@ -1124,7 +1126,7 @@ void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t e
   TString label = cfg.physics.useBtag ? "_btag" : "_nobtag";
   TString job_suffix = (job_idx >= 0) ? Form("_job%d", job_idx) : "";
   TFile outFile((cfg.dataset.output_folder + cfg.dataset.output_hist + label + job_suffix + cfg.dataset.domain).Data(), "RECREATE");
-  if (cfg.dataset.isMC) {
+  if (isMC) {
     h3D_0b->Write();
     h3D_b->Write();
     h3D_bb->Write();
@@ -1405,8 +1407,10 @@ void create_response_templatefit(
     Long64_t ev_last  = -1)
 {
 
+  bool isMC = cfg.dataset.dataType == 1 ||   cfg.dataset.dataType == 2; 
+
   // -- Only for MC------------ 
-  if(!cfg.dataset.isMC) { // For response matrix
+  if(!isMC) { // For response matrix
     std::cerr<< "ERROR: Input sample is not MC!, check sample or MC tag."<<endl;
     return;
   }
@@ -1431,7 +1435,7 @@ void create_response_templatefit(
 
 
     tTree t;
-    t.Init(cfg.dataset.filename, cfg.dataset.isMC, cfg.dataset.RunN);
+    t.Init(cfg.dataset.filename, cfg.dataset.dataType, cfg.dataset.RunN);
       t.SetBranchStatus("*", 0);
       auto active_branches = getActiveBranches(cfg);
       t.SetBranchStatus(active_branches, 1);
@@ -1486,7 +1490,7 @@ void create_response_templatefit(
             std::cout << "\rProcessing: " << 100.0 * ient / n_events << " %" << std::flush;
         t.GetEntry(ient);
 
-        double weight_tree = cfg.dataset.isMC ? t.weight : 1.0;
+        double weight_tree = isMC ? t.weight : 1.0;
 
         // MC trigger selection (run-dependent)
         if (! passEventSelection(t, cfg)) continue;
@@ -1744,6 +1748,8 @@ void create_response_templatefit(
 void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, bool isCreateRmatrix = true, Long64_t ev_first = 0, Long64_t ev_last = -1, Int_t job_idx = -1) {
   // -- make templates of Data/MC, and Response matrix for MC 
 
+  bool isMC = cfg.dataset.dataType == 1 ||   cfg.dataset.dataType == 2; 
+
   // -- Output files name
   TString job_suffix = (job_idx >= 0) ? Form("_job%d", job_idx) : "";
   TString fout_name = cfg.dataset.output_folder + cfg.dataset.output_hist + job_suffix + ".root"; // for reposnse matrix: has Prefix: Response
@@ -1844,7 +1850,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
   /////////////////////////////////////////////////////////
   ///////// Loop over events ///////// 
   tTree t;
-  t.Init(cfg.dataset.filename, cfg.dataset.isMC, cfg.dataset.RunN);
+  t.Init(cfg.dataset.filename, cfg.dataset.dataType, cfg.dataset.RunN);
   t.SetBranchStatus("*", 0);
   auto active_branches = getActiveBranches(cfg);
   t.SetBranchStatus(active_branches, 1);
@@ -1867,13 +1873,13 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
       // -- test tree branches are read: 
         // cout << "jtpt = " << t.jtpt[0] << endl;
       
-      double weight_tree = cfg.dataset.isMC ? t.weight : 1.0;
+      double weight_tree = isMC ? t.weight : 1.0;
 
       // -- NEW: 
       if (! passPVQuality_EventSelection(t, cfg)) continue;
 
         // cout << "PV quality pass ok: t.vz = "<< t.vz  << endl;
-          // if (cfg.dataset.RunN == 3 &&  !cfg.dataset.isMC ) cout << " and t.pprimaryVertexFilter = "<< t.pprimaryVertexFilter << endl;
+          // if (cfg.dataset.RunN == 3 &&  !isMC ) cout << " and t.pprimaryVertexFilter = "<< t.pprimaryVertexFilter << endl;
 
       // -- Trigger selections for all 
       if (! passEventSelection(t, cfg)) continue;
@@ -1910,13 +1916,13 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
                 if(mB >= mb_max) mB = mb_max_fill;
 
                 // Prescale factor for data 
-                if (cfg.dataset.RunN == 2 && !cfg.dataset.isMC && t.HLT_HIAK4PFJet40_v1 && !(t.HLT_HIAK4PFJet60_v1 || t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) 
+                if (cfg.dataset.RunN == 2 && !isMC && t.HLT_HIAK4PFJet40_v1 && !(t.HLT_HIAK4PFJet60_v1 || t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) 
                 {eec *= prescale;} 
 
-                if (cfg.dataset.RunN == 3 && !cfg.dataset.isMC && t.HLT_AK4PFJet60_v8 && !(t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8 || t.HLT_AK4PFJet120_v8) ) 
+                if (cfg.dataset.RunN == 3 && !isMC && t.HLT_AK4PFJet60_v8 && !(t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8 || t.HLT_AK4PFJet120_v8) ) 
                 {eec *= prescale;} 
 
-                if (cfg.dataset.isMC) {
+                if (isMC) {
                   // use truth to classify: fill separate 0b, b and bb templates
                   if      (t.jtNbHad[ijet] == 0) { h3D_0b->Fill(mB, dr, jtpt, eec * weight_tree); h_count_0b->Fill(mB, dr, jtpt, weight_tree); }
                   else if (t.jtNbHad[ijet] == 1) { h3D_b ->Fill(mB, dr, jtpt, eec * weight_tree); h_count_b ->Fill(mB, dr, jtpt, weight_tree); }
@@ -1930,7 +1936,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 
 
           /////////---- To Prepare Response matrix (of true >=2B) ---- ONLY for MC (both RECO, GEN) ----
-          if(isCreateRmatrix && cfg.dataset.isMC && t.jtNbHad[ijet] >= 2)  // -- select jets of 2b (truth)
+          if(isCreateRmatrix && isMC && t.jtNbHad[ijet] >= 2)  // -- select jets of 2b (truth)
           { 
 
             // -- common variables repeatdly used in fill histograms 
@@ -2099,7 +2105,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 
 
   /////////// continue compute Response matrix related ef. and purity + WRITE to root file output ------
-  if(isCreateRmatrix && cfg.dataset.isMC)
+  if(isCreateRmatrix && isMC)
   {
   // -- Debug output ----------
     std::cout << std::endl;
@@ -2186,7 +2192,7 @@ if(isMakeTemplates)
     hpt_selectedJets->Write();
     hpt_selectedJets_noweight->Write();
 
-  if (cfg.dataset.isMC) { // Reco MC 
+  if (isMC) { // Reco MC 
     h3D_0b->Write();
     h3D_b->Write();
     h3D_bb->Write();
@@ -2201,19 +2207,23 @@ if(isMakeTemplates)
   outFile->Close();
   delete outFile;
 }
+
+// -- Close input file 
+
 	
 } // end Function 
 
 
 //Step 1: filter bb from b. Only MC
 //Step 2: filter bb from b, but split the sample in 2 and treat one as data and one as MC (to be used as template fit input)
-void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t pT_low = 80, Float_t pT_high = 200,Float_t etaCut = 2,Int_t n = 1, bool btag = true, bool isMC = true, Double_t btagWP = -1){
+void create_files_for_template_fit( Int_t RunN = 3, Int_t dataType = 0,
+                                    Float_t pT_low = 80, Float_t pT_high = 200, Float_t etaCut = 2,
+                                    Int_t n = 1,
+                                    bool btag = true, Double_t btagWP = -1)
+{
+
  // load at prompt: gSystem->Load("libGenVector");
  std::cout << "ENTER FUNCTION" << std::endl;
-
-  RunN = 3;
-  dataType = 2;
-  isMC = true;
 
 
  // -- test use of central configuration
@@ -2225,7 +2235,6 @@ void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t p
     etaCut,
     n,
     btag,
-    isMC,
     btagWP);
 
     // --  new make_templates() with with central selections 
@@ -2237,7 +2246,7 @@ void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t p
 
     // -- test central selections with merged macro(templates + RMatrix creation): read tree once ! --> Two outputs 
     cout << "Hello  : Build_templates " << endl; 
-    Build_templates(cfg, false, true, 0, -1); // test few events: dont produce templates, but Rmatrix related hist. 
+    Build_templates(cfg, true, false, 0, 10); // test entries [0-1000]
 
   std::cout << "finished :) :D " << std::endl;
   //filter_b_bb(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC, dataType);
