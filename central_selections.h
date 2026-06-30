@@ -293,7 +293,7 @@ AnalysisConfig buildConfig(
   cfg.physics.useBtag = btag;
   if (btagWP > 0) cfg.physics.btagWP = btagWP; // custom value 
   else{ // default value 
-    cfg.physics.btagWP = (RunN == 2) ? 0.898 : 0.872;
+    cfg.physics.btagWP = (RunN == 2) ? 0.898 : 0.868;
   }
 
   cfg.n = n;
