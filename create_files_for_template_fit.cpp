@@ -1097,6 +1097,7 @@ void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t e
       //Fix the under/overflow
       //if(dr < dr_min) dr = dr_min_fill;
       if(dr >= dr_max) dr = dr_max_fill;
+      if(dr < 0.005) continue;
       if(mB >= mb_max) mB = mb_max_fill;
 
       //std::cout << "weight: " << weight_tree << std::endl;
@@ -1136,252 +1137,6 @@ void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t e
     h_count_data->Write();
   }
   outFile.Close();
-}
-
-
-//________________________________________________________________________________________________________
-//_______________________Check dr and eec bin migrations__________________________________________________
-//________________________________________________________________________________________________________
-
-//Draws the migration (so you can just plot it without rerunning the histogram filling)
-void draw_migration(RooUnfoldResponse* &response, TString &observable, TString &filename,  TString &sample, TString &label, TString &folder){
-   
-    //Define the canvas
-    TCanvas *c = new TCanvas("c", " ",500,500,904,804);
-    c->SetFillColor(0);
-    c->SetBorderMode(0);
-    c->SetBorderSize(2);
-    c->SetFrameBorderMode(0);
-    c->SetFrameBorderMode(0);
-    c->SetRightMargin(0.2);
-
-    //Get response matrix as a 2D histogram
-    TMatrixD response_matrix = response->Mresponse();
-    TH2D *h = new TH2D(response_matrix);
-
-    //Draw histograms
-    h->SetStats(0);
-    if(observable == "dr") h->SetTitle("\\mbox{Effect of bin-to-bin migration for the }\\Delta\\mbox{r distribution}");
-    else h->SetTitle("Effect of bin-to-bin migration for the " + observable + " distribution");
-    h->GetZaxis()->SetTitle("Migration probability");
-    h->GetZaxis()->SetTitleOffset(1.5);
-    if(observable == "dr"){
-        h->GetXaxis()->SetTitle("\\Delta\\mbox{r at detector level}");
-        h->GetYaxis()->SetTitle("\\Delta\\mbox{r at particle level}");
-    }
-    else{
-        h->GetXaxis()->SetTitle(observable + " at detector level");
-        h->GetYaxis()->SetTitle(observable + " at particle level");
-    }
-    h->GetXaxis()->CenterTitle(true);
-    h->GetYaxis()->CenterTitle(true);
-    gStyle->SetPaintTextFormat("4.2f");
-    h->Draw("colz text");
-
-    //Save plot as pdf
-    c->Print(folder + observable +"_migration_effect_" + sample + "_" + label + ".pdf");
-    //c->Print(folder + observable +"_migration_effect_" + sample + "_" + label + ".cpp");
-}
-
-//Fills the dr and eec bin migration histograms (already normalized as "response matrices")
-// -- Looks like reading Franc tree (not original tree)
-void get_eec_dr_migration(TString &filename, TString &sample, TString &label, TString &folder, bool &btag){
-    TString flav = label; 
-    std::cout << "flav:" << flav << std::endl;
-
-    
-    TString fin_name = filename; 
-
-    std::cout << "fin: " << fin_name << std::endl;
-    TFile *fin = new TFile(fin_name);
-
-    TString tree_name = "tree";
-
-    std::cout << "tree: " << tree_name << std::endl;
-    TTree *tree = (TTree *) fin->Get(tree_name);
-
-    // Set tree addresses
-    Int_t evt_nr;
-    Double_t weight;
-    Double_t pthat;
-    Int_t ndr_reco;
-    Int_t ndr_gen;
-    Int_t ntrk_reco;
-    Int_t ntrk_gen;
-    Int_t passcuts_reco;
-    Int_t passcuts_gen;
-    Int_t njet_reco;
-    Int_t njet_gen;
-    Int_t jt_index_reco;
-    Int_t jt_index_gen;
-    Double_t jpt_reco;
-    Double_t jpt_gen;
-    Float_t mb_reco;
-    Float_t mb_gen;
-    Float_t dr_reco[4000];
-    Float_t dr_gen[4000];
-    Float_t eec_reco[4000];
-    Float_t eec_gen[4000];
-    Double_t jt_eta_reco;
-    Double_t jt_eta_gen;
-    Double_t discr;
-    Int_t jtHadFlav;
-    Int_t jtNbHad;
-
-
-    //tree->SetBranchAddress("evt_nr", &evt_nr);
-    tree->SetBranchAddress("weight", &weight);
-    tree->SetBranchAddress("pthat", &pthat);
-    tree->SetBranchAddress("ndr_reco", &ndr_reco);
-    tree->SetBranchAddress("ndr_gen", &ndr_gen);
-    tree->SetBranchAddress("ntrk_reco", &ntrk_reco);
-    tree->SetBranchAddress("ntrk_gen", &ntrk_gen);
-    tree->SetBranchAddress("passcuts_reco", &passcuts_reco);
-    tree->SetBranchAddress("passcuts_gen", &passcuts_gen);
-    tree->SetBranchAddress("njet_reco", &njet_reco);
-    tree->SetBranchAddress("njet_gen", &njet_gen);
-    tree->SetBranchAddress("jt_index_reco", &jt_index_reco);
-    tree->SetBranchAddress("jt_index_gen", &jt_index_gen);
-    tree->SetBranchAddress("jpt_reco", &jpt_reco);
-    tree->SetBranchAddress("jpt_gen", &jpt_gen);
-    tree->SetBranchAddress("mB_reco", &mb_reco);
-    tree->SetBranchAddress("mB_gen", &mb_gen);
-    tree->SetBranchAddress("dr_reco", &dr_reco);
-    tree->SetBranchAddress("dr_gen", &dr_gen);
-    tree->SetBranchAddress("eec_reco", &eec_reco);
-    tree->SetBranchAddress("eec_gen", &eec_gen);
-    tree->SetBranchAddress("jt_eta_reco", &jt_eta_reco);
-    tree->SetBranchAddress("jt_eta_gen", &jt_eta_gen);
-    tree->SetBranchAddress("discr", &discr);
-    tree->SetBranchAddress("jtHadFlav", &jtHadFlav);                                                                                         
-	  tree->SetBranchAddress("jtNbHad", &jtNbHad);       
-
-    //Define dr and eec histograms and response matrices
-    TH1D *h_dr_migration = new TH1D("h_dr_migration", "h_dr_migration", dr_bins, dr_binsVector);
-    RooUnfoldResponse *response_dr = new RooUnfoldResponse(h_dr_migration, h_dr_migration, "response_dr", "response for 1d: dr"); 
-
-    TH1D *h_eec_migration = new TH1D("h_eec_migration", "h_eec_migration", eec_bins, eec_binsVector);
-    RooUnfoldResponse *response_eec = new RooUnfoldResponse(h_eec_migration, h_eec_migration, "response_eec", "response for 1d: eec"); 
-
-    // Loop over tree entries
-    Long64_t nentries = tree->GetEntries();
-    std::cout << "Entries: " << nentries << std::endl;
-    for (Long64_t ient = 0; ient < nentries; ient++) {
-        //Print progress
-        if (ient%1000000==0) cout << "ient=" << ient << std::endl; 
-
-        tree->GetEntry(ient);
-        cout << "test: jpt_gen = "<< jpt_gen << endl;
-        
-        Int_t cuts = 1;                                                                                                                                               
-        if      (flav == "b1")    cuts = 1;                                                                                                                           
-        else if (flav == "b2")    cuts = 2;                                                                                                                           
-        else if (flav == "nonb")  cuts = 3;                                                                                                                           
-        else if (flav == "all")   cuts = 4;                                                                                                                           
-        else if (flav == "c")     cuts = 5;                                                                                                                           
-        else if (flav == "light") cuts = 6;                                                                                                                           
-        else {                                                                                                                                                      
-        std::cerr << "ERROR: Unknown label '" << label << "'\n";                                                                                                  
-        exit(1);                                                                                                                                                       
-        }       
-
-        bool skip = false;                                                                  
-        // Select jet flavour and/or select on the number of b hadrons                                                                                                                                                                                                                                          
-        switch(cuts){                                                                                                                                                
-        //b-jet with one b hadron                                                                                                                                  
-        case 1:                                                                                                                                                               	  
-        if (std::abs(jtHadFlav) < 5) skip = true;                                                                                                                         	  
-        if (std::abs(jtNbHad) != 1) skip = true;                                                                                                                        	  
-        break;                                                                                                                                                       	  
-        //b-jet with more than 1 b hadron                                                                                                                           
-        case 2:                                                                                                                                                              	  
-        if (std::abs(jtHadFlav) < 5) skip = true;                                                                                                                          	  
-        if (std::abs(jtNbHad) < 2) skip = true;                                                                                                                     	  
-        break;                                                                                                                                                                   	  
-        //non-b jets                                                                                                                                                                                                                                                                                          
-        case 3:                                                                                                                                                              	  
-        if (std::abs(jtHadFlav) == 5) skip = true;                                                                                                                         	  
-        break;                                                                                                                                                             	  
-        //no flavour selection                                                                                                                                                                                                                                                                                
-        case 4:                                                                                                                                                              	  
-        skip = false;                                                                                                                                                    	  
-        break;                                                                                                                                                         	  
-        //c-jets                                                                                                                                                     
-        case 5:                                                                                                                                                              	  
-        if(std::abs(jtHadFlav) != 4) skip = true;                                                                                                                 	  
-        break;                                                                                                                                                          	  
-        //light (non-b non-c) jets                                                                                                                                                                                                                                                                            
-        case 6:                                                                                                                                                       	  
-        if(std::abs(jtHadFlav) >= 4) skip = true;                                                                                                                         	  
-        break;                                                                                                                                                                  
-        }                                                                                                                                                                     
-        if (skip) continue;      
-        /////////////////////////////
-
-        // if (skipMC(jpt_reco, jpt_gen, pthat)) continue;
-          if (skipMC_gen(jpt_gen)) continue;
-          if (skipMC_event(jpt_reco, pthat)) continue;
-
-
-        // Check if pass cuts
-        bool has_gen_match = (jpt_gen > 0);
-
-        // Fill histograms
-        if (!has_gen_match) {   
-            // fill fakes
-            continue; 
-        } 
-        
-        // Skip jets outside tracker 
-        if (std::abs(jt_eta_reco) > 1.6) continue;
-        if (std::abs(jt_eta_gen) > 1.6) continue;
-
-        //Select jets passing the reco b-jet tagging (to see the bias that the tagging introduces on the measurements)
-        if (btag && std::abs(discr) <= 0.99) continue;
-
-
-        
-        // The rest of the histograms don;t include any fakes
-
-        //Debug
-        if(ndr_gen != ndr_reco) std::cout << "!! Different ndr_reco and ndr_gen" << std::endl;
-        
-        //Loop over matched dr to fill the dr and eec histograms
-        for (Int_t j = 0; j < ndr_reco; j++){
-            Float_t dr_reco_j = dr_reco[j];
-            Float_t dr_gen_j = dr_gen[j];
-            
-            Float_t eec_reco_j = eec_reco[j];
-            Float_t eec_gen_j = eec_gen[j];
-
-            response_dr->Fill(dr_reco_j, dr_gen_j, weight);
-            response_eec->Fill(eec_reco_j, eec_gen_j, weight);
-        }
-    }
-
-    //Draw dr migration
-    TString observable = "dr";
-    draw_migration(response_dr, observable, filename, sample, label, folder);
-
-    fin->Close();
-    delete fin;
-
-    //Save dr migration histograms
-    TString fout_dr_name = "dr_migration_hist_" + sample + "_" + label + ".root";
-    TFile *fout_dr = new TFile(folder + fout_dr_name, "recreate");
-    response_dr->Write();
-    fout_dr->Close();
-
-    //Draw eec histogram
-    observable = "eec";
-    draw_migration(response_eec, observable, filename, sample, label, folder);
-
-    //Save eec migration histogram
-    TString fout_eec_name = "eec_migration_hist_" + sample + "_" + label + ".root";
-    TFile *fout_eec = new TFile(folder+fout_eec_name, "recreate");
-    response_eec->Write();
-    fout_eec->Close();
-
 }
 
 
@@ -1907,6 +1662,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
                 //Fix the under/overflow
                 //if(dr < dr_min) dr = dr_min_fill;
                 if(dr >= dr_max) dr = dr_max_fill;
+                if(dr < 0.005) continue;
                 if(mB >= mb_max) mB = mb_max_fill;
 
                 // Prescale factor for data 
@@ -2207,13 +1963,13 @@ if(isMakeTemplates)
 
 //Step 1: filter bb from b. Only MC
 //Step 2: filter bb from b, but split the sample in 2 and treat one as data and one as MC (to be used as template fit input)
-void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t pT_low = 80, Float_t pT_high = 200,Float_t etaCut = 2,Int_t n = 1, bool btag = true, bool isMC = true, Double_t btagWP = -1){
+void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 0, Float_t pT_low = 80, Float_t pT_high = 200,Float_t etaCut = 2,Int_t n = 1, bool btag = true, bool isMC = false, Double_t btagWP = -1){
  // load at prompt: gSystem->Load("libGenVector");
  std::cout << "ENTER FUNCTION" << std::endl;
 
   RunN = 3;
-  dataType = 2;
-  isMC = true;
+  dataType = 0;
+  isMC = false;
 
 
  // -- test use of central configuration
@@ -2237,63 +1993,10 @@ void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t p
 
     // -- test central selections with merged macro(templates + RMatrix creation): read tree once ! --> Two outputs 
     cout << "Hello  : Build_templates " << endl; 
-    Build_templates(cfg, false, true, 0, -1); // test few events: dont produce templates, but Rmatrix related hist. 
+    Build_templates(cfg, true, true, 0, -1); // test few events: dont produce templates, but Rmatrix related hist. 
 
   std::cout << "finished :) :D " << std::endl;
   //filter_b_bb(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC, dataType);
   //filter_b_bb_as_data_and_mc(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC);
 }
 
-/*
-Build_templates(cfg, 0, 1e+04):
---- Jet statistics (bb jets, jtNbHad >= 2) ---
-  selected bb jets (after triggers):      101
-  Gen bh ok (>= 2 gen bh):     92
-  Passing reco cuts:           17
-  Passing gen cuts:            42
-  Passing both (numerator):    17
-  Reco SV failures (< 2 SVs): 46
-  SV purity failures:          19
-  SV merging failures:         20
-  No-SV track agg failures:    21
---- Reco-pass per-condition failures (first failing cond shown) ---
-  fail reco_sv_ok:   46
-  fail reco jpt:     23
-  fail reco eta:     0
-  fail reco btag:    6
-  fail reco mB:      0
-  fail reco dr:      0
---- Gen-pass per-condition failures (first failing cond shown) ---
-  fail gen jpt:      48
-  fail gen eta:      2
-  fail gen mB:       0
-  fail gen dr:       0
-
-*/
-
-/*
- create_response_templatefit(cfg, output_hist_response, 0, 1e+04);
---- Jet statistics (bb jets, jtNbHad >= 2) ---
-  selected bb jets (after triggers):      101
-  Gen bh ok (>= 2 gen bh):     92
-  Passing reco cuts:           17
-  Passing gen cuts:            42
-  Passing both (numerator):    17
-  Reco SV failures (< 2 SVs): 46
-  SV purity failures:          19
-  SV merging failures:         20
-  No-SV track agg failures:    21
---- Reco-pass per-condition failures (first failing cond shown) ---
-  fail reco_sv_ok:   46
-  fail reco jpt:     23
-  fail reco eta:     0
-  fail reco btag:    6
-  fail reco mB:      0
-  fail reco dr:      0
---- Gen-pass per-condition failures (first failing cond shown) ---
-  fail gen jpt:      48
-  fail gen eta:      2
-  fail gen mB:       0
-  fail gen dr:       0
-
-*/
