@@ -1528,18 +1528,20 @@ void create_response_templatefit(
             }
             
             if (gen_pass) {
-                if (num < 0.5) h_half0_eff_den->Fill(dr_gen_fill, jpt_gen, w_gen);
-                else           h_half1_eff_den->Fill(dr_gen_fill, jpt_gen, w_gen);
+                // Intentional: the efficiency is binned at gen level but weighted with
+                // the reco-side EEC weight, matching the response matrix convention.
+                if (num < 0.5) h_half0_eff_den->Fill(dr_gen_fill, jpt_gen, w_reco);
+                else           h_half1_eff_den->Fill(dr_gen_fill, jpt_gen, w_reco);
             }
             if (reco_pass && gen_pass) {
                 if (num < 0.5) {
                     h_half0_purity_num->Fill(dr_reco_fill, jpt_reco, w_reco);
-                    h_half0_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_gen);
+                    h_half0_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_reco);
                     response_half0->Fill(dr_reco_fill, jpt_reco,
                                          dr_gen_fill,  jpt_gen,  w_reco);
                 } else {
                     h_half1_purity_num->Fill( dr_reco_fill, jpt_reco, w_reco);
-                    h_half1_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_gen);
+                    h_half1_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_reco);
                     response_half1->Fill(dr_reco_fill, dr_reco_fill, jpt_reco,
                                          dr_gen_fill,  dr_gen_fill,  jpt_gen,  w_reco);
                 }
@@ -1747,6 +1749,16 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     long n_fail_gen_pt  = 0, n_fail_gen_eta = 0;
     long n_fail_gen_mb  = 0, n_fail_gen_dr  = 0;
     int  n_debug_printed = 10;
+    int  n_weight_debug_printed = 10;
+    long n_weight_checked = 0;
+    long n_zero_weight_tree = 0;
+    long n_zero_eec_gen = 0;
+    long n_zero_eec_reco = 0;
+    long n_zero_w_gen = 0;
+    long n_zero_w_reco = 0;
+    double sum_weight_tree_checked = 0.0;
+    double sum_w_gen_checked = 0.0;
+    double sum_w_reco_checked = 0.0;
 
   /////////////////////////////////////////////////////////
   ///////// Loop over events ///////// 
@@ -1755,6 +1767,28 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
   t.SetBranchStatus("*", 0);
   auto active_branches = getActiveBranches(cfg);
   t.SetBranchStatus(active_branches, 1);
+
+  TFile* weightFile = nullptr;
+  TTree* weightTree = nullptr;
+  Float_t hiEvtWeight = 1.0;
+  if (cfg.dataset.isMC) {
+    weightFile = TFile::Open(cfg.dataset.filename);
+    if (weightFile && !weightFile->IsZombie()) {
+      weightTree = (TTree*)weightFile->Get("hiEvtAnalyzer/HiTree");
+      if (weightTree && weightTree->GetBranch("weight")) {
+        weightTree->SetBranchStatus("*", 0);
+        weightTree->SetBranchStatus("weight", 1);
+        weightTree->SetBranchAddress("weight", &hiEvtWeight);
+        std::cout << "Reading MC event weights from hiEvtAnalyzer/HiTree::weight" << std::endl;
+      } else {
+        std::cout << "WARNING: could not find hiEvtAnalyzer/HiTree::weight; falling back to t.weight" << std::endl;
+        weightTree = nullptr;
+      }
+    } else {
+      std::cout << "WARNING: could not reopen input file for hiEvtAnalyzer/HiTree weights; falling back to t.weight" << std::endl;
+      weightTree = nullptr;
+    }
+  }
 
   ///// Tree related variables 
   double prescale = cfg.dataset.data_prescale;
@@ -1769,11 +1803,12 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     // Keep batch logs compact; final counters are printed after the loop.
       
       t.GetEntry(ient);
+      if (weightTree) weightTree->GetEntry(ient);
 
       // -- test tree branches are read: 
         // cout << "jtpt = " << t.jtpt[0] << endl;
       
-      double weight_tree = cfg.dataset.isMC ? t.weight : 1.0;
+      double weight_tree = cfg.dataset.isMC ? (weightTree ? hiEvtWeight : t.weight) : 1.0;
 
       // -- NEW: 
       if (! passPVQuality_EventSelection(t, cfg)) continue;
@@ -1973,6 +2008,33 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
                 
             // Define gen_pass: particle-level jet kinematics + gen observable range
             bool gen_pass  = passGenJetKinematics(t, ijet, cfg);
+
+            ++n_weight_checked;
+            sum_weight_tree_checked += weight_tree;
+            sum_w_gen_checked += w_gen;
+            sum_w_reco_checked += w_reco;
+            if (weight_tree == 0.0) ++n_zero_weight_tree;
+            if (eec_gen == 0.0) ++n_zero_eec_gen;
+            if (eec_reco == 0.0) ++n_zero_eec_reco;
+            if (w_gen == 0.0) ++n_zero_w_gen;
+            if (w_reco == 0.0) ++n_zero_w_reco;
+            if (n_weight_debug_printed < 10) {
+                std::cout << "[WEIGHT DBG " << n_weight_debug_printed << "]"
+                    << " entry=" << ient
+                    << " jet=" << ijet
+                    << " cfg.isMC=" << cfg.dataset.isMC
+                    << " dataType=" << cfg.dataset.dataType
+                    << " raw t.weight=" << t.weight
+                    << " weight_tree=" << weight_tree
+                    << " eec_gen=" << eec_gen
+                    << " eec_reco=" << eec_reco
+                    << " w_gen=" << w_gen
+                    << " w_reco=" << w_reco
+                    << " reco_pass=" << reco_pass
+                    << " gen_pass=" << gen_pass
+                    << std::endl;
+                ++n_weight_debug_printed;
+            }
           
             // --- debugging paragraph ----
             //std::cout << "gen_pass: " << gen_pass << std::endl;
@@ -2029,18 +2091,20 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
                 else           h_half1_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
             }
             if (gen_pass) {
-                if (num < 0.5) h_half0_eff_den->Fill(dr_gen_fill, jpt_gen, w_gen);
-                else           h_half1_eff_den->Fill(dr_gen_fill, jpt_gen, w_gen);
+                // Intentional: the efficiency is binned at gen level but weighted with
+                // the reco-side EEC weight, matching the response matrix convention.
+                if (num < 0.5) h_half0_eff_den->Fill(dr_gen_fill, jpt_gen, w_reco);
+                else           h_half1_eff_den->Fill(dr_gen_fill, jpt_gen, w_reco);
             }
             if (reco_pass && gen_pass) {
                 if (num < 0.5) {
                     h_half0_purity_num->Fill(dr_reco_fill, jpt_reco, w_reco);
-                    h_half0_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_gen);
+                    h_half0_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_reco);
                     response_half0->Fill(dr_reco_fill, jpt_reco,
                                          dr_gen_fill,  jpt_gen,  w_reco);
                 } else {
                     h_half1_purity_num->Fill(dr_reco_fill, jpt_reco, w_reco);
-                    h_half1_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_gen);
+                    h_half1_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_reco);
                     response_half1->Fill(dr_reco_fill, jpt_reco,
                                         dr_gen_fill,  jpt_gen,  w_reco);
                 }
@@ -2064,6 +2128,10 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 	    aggBHadronTree->Write();
 	    fout_agg->Close();
 	    delete fout_agg;
+	  }
+	  if (weightFile) {
+	    weightFile->Close();
+	    delete weightFile;
 	  }
 
 	  /////////// continue compute Response matrix related ef. and purity + WRITE to root file output ------
@@ -2093,6 +2161,16 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     std::cout << "  fail gen eta:      " << n_fail_gen_eta   << std::endl;
     std::cout << "  fail gen mB:       " << n_fail_gen_mb    << std::endl;
     std::cout << "  fail gen dr:       " << n_fail_gen_dr    << std::endl;
+    std::cout << "--- Response-matrix weight diagnostics ---" << std::endl;
+    std::cout << "  checked selected reco-aggregate jets: " << n_weight_checked << std::endl;
+    std::cout << "  zero weight_tree: " << n_zero_weight_tree << std::endl;
+    std::cout << "  zero eec_gen:     " << n_zero_eec_gen << std::endl;
+    std::cout << "  zero eec_reco:    " << n_zero_eec_reco << std::endl;
+    std::cout << "  zero w_gen:       " << n_zero_w_gen << std::endl;
+    std::cout << "  zero w_reco:      " << n_zero_w_reco << std::endl;
+    std::cout << "  sum weight_tree:  " << sum_weight_tree_checked << std::endl;
+    std::cout << "  sum w_gen:        " << sum_w_gen_checked << std::endl;
+    std::cout << "  sum w_reco:       " << sum_w_reco_checked << std::endl;
     //----------------------------
 
     // --- Compte Purity, Eff.  
@@ -2220,4 +2298,3 @@ void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t p
   //filter_b_bb(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC, dataType);
   //filter_b_bb_as_data_and_mc(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC);
 }
-
