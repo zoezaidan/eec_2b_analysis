@@ -35,11 +35,11 @@
 
 
 // name for outpur directory (in path) 
-TString sDirname = "TemplateFits_Run3_minHLT60_correctPrescale_19June"; // "TemplateFits_Run3_minHLT60"; // Must use before Help_Functions.h
+TString sDirname = "TemplateFits_Run3_minHLT60_LinearFineBin"; // "TemplateFits_Run3_minHLT60"; // Must use before Help_Functions.h
 
 // -- For systematic uncertainti study 
-enum Variation {NOMINAL, VARIED0B_UP, VARIED0B_DOWN, NVAR}; // add other variations before NVAR to keep the size 
-TString varNames[NVAR] = {"nominal", "var0B_2", "var0B_0"};
+enum Variation {NOMINAL, VARIED0B_UP, VARIED0B_DOWN, FITRANGE_0_8,  FITRANGE_0_7, NVAR}; // add other variations before NVAR to keep the size 
+TString varNames[NVAR] = {"nominal", "var0B_2", "var0B_0", "fitRange0to8", "fitRange0to7"};
 
 
 std::unique_ptr<TCanvas> draw_template_fit_result(
@@ -121,7 +121,7 @@ void draw_variation_uncertainity(TFile *foutputPlots, TFile *fsys, int ibin_pt){
             pad1->Draw();
             pad2->Draw(); 
             pad1->cd();
-                pad1->SetLogx();
+                // pad1->SetLogx();
                 pad1->SetTickx(1);
                 pad1->SetTicky(1);
                 // Draw: nominal, and variation histograms 
@@ -146,7 +146,7 @@ void draw_variation_uncertainity(TFile *foutputPlots, TFile *fsys, int ibin_pt){
 
             // Lower panel: Draw envelop 
              pad2->cd();  
-                pad2->SetLogx(); 
+                // pad2->SetLogx(); 
                 pad2->SetTickx(1);
                 pad2->SetTicky(1);
                 pad2->SetTitle("");
@@ -293,6 +293,98 @@ TH3D* CutAndRebinY(TH3D* h3, double yMin, int newNyBins, const double* newyBins,
 
     return hNew;
 }
+
+// ----TH3D:  Rebin historgam in xaxis from 0-10 to 0-7 where last bin contain all the overflow ---
+TH3D* MergeLastMassBinTo7GeV(TH3D* h3)
+{
+    // New X-axis: 0-1, 1-2, ..., 5-6, 6-7
+    double xbins_new[8] = {0,1,2,3,4,5,6,7};
+
+    TH3D* h3_new = new TH3D(
+        Form("%s_0to7", h3->GetName()),
+        h3->GetTitle(),
+        7, 0, 7,
+        h3->GetNbinsY(),
+        h3->GetYaxis()->GetXmin(),
+        h3->GetYaxis()->GetXmax(),
+        h3->GetNbinsZ(),
+        h3->GetZaxis()->GetXmin(),
+        h3->GetZaxis()->GetXmax()
+    );
+
+    // Keep Sumw2 for proper error propagation
+    h3_new->Sumw2();
+
+    for (int ix = 1; ix <= h3->GetNbinsX(); ++ix) {
+
+        // Assuming original bins are:
+        // 1:(0-1), ..., 6:(5-6), 7:(6-7), 8:(7-8), 9:(8-9), 10:(9-10)
+        int ix_new = (ix <= 6) ? ix : 7;
+
+        for (int iy = 1; iy <= h3->GetNbinsY(); ++iy) {
+            for (int iz = 1; iz <= h3->GetNbinsZ(); ++iz) {
+
+                double c = h3->GetBinContent(ix, iy, iz);
+                double e = h3->GetBinError(ix, iy, iz);
+
+                int bin_new = h3_new->GetBin(ix_new, iy, iz);
+
+                h3_new->AddBinContent(bin_new, c);
+
+                double e_old = h3_new->GetBinError(bin_new);
+                h3_new->SetBinError(bin_new, std::hypot(e_old, e)); // hypot is srt(quad sum of errors)
+            }
+        }
+    }
+
+    return h3_new;
+} 
+TH3D* MergeLastMassBinTo8GeV(TH3D* h3)
+{
+    // New X-axis: 0-1, 1-2, ..., 5-6, 6-7
+    double xbins_new[9] = {0,1,2,3,4,5,6,7, 8};
+
+    TH3D* h3_new = new TH3D(
+        Form("%s_0to7", h3->GetName()),
+        h3->GetTitle(),
+        7, 0, 8,
+        h3->GetNbinsY(),
+        h3->GetYaxis()->GetXmin(),
+        h3->GetYaxis()->GetXmax(),
+        h3->GetNbinsZ(),
+        h3->GetZaxis()->GetXmin(),
+        h3->GetZaxis()->GetXmax()
+    );
+
+    // Keep Sumw2 for proper error propagation
+    h3_new->Sumw2();
+
+    for (int ix = 1; ix <= h3->GetNbinsX(); ++ix) {
+
+        // Assuming original bins are:
+        // 1:(0-1), ..., 6:(5-6), 7:(6-7), 8:(7-8), 9:(8-9), 10:(9-10)
+        int ix_new = (ix <= 7) ? ix : 8;
+
+        for (int iy = 1; iy <= h3->GetNbinsY(); ++iy) {
+            for (int iz = 1; iz <= h3->GetNbinsZ(); ++iz) {
+
+                double c = h3->GetBinContent(ix, iy, iz);
+                double e = h3->GetBinError(ix, iy, iz);
+
+                int bin_new = h3_new->GetBin(ix_new, iy, iz);
+
+                h3_new->AddBinContent(bin_new, c);
+
+                double e_old = h3_new->GetBinError(bin_new);
+                h3_new->SetBinError(bin_new, std::hypot(e_old, e)); // hypot is srt(quad sum of errors)
+            }
+        }
+    }
+
+    return h3_new;
+} 
+
+
 
 // -----------------------
 TLegend* CreateLegend(
@@ -524,7 +616,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
         hbkg->Draw("Hist E same");
         hbkg_true->Draw("Hist E same");
 
-    TLegend *leg = new TLegend(0.32,0.39, 0.61,0.55, ""); //get position from legend.C file (lower left corner is 0,0)
+    TLegend *leg = new TLegend(0.6,0.39, 0.85,0.55, "");  //0.32,0.39, 0.61,0.55 //get position from legend.C file (lower left corner is 0,0)
     // 0.406 ,0.39,0.7,0.55, ""
     leg->SetTextSize(0.03);
     leg->SetFillStyle(0);
@@ -682,7 +774,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
             pad2_val->Draw();
             // 
             pad1_val ->cd();
-            pad1_val->SetLogx();
+            // pad1_val->SetLogx();
 
                 h_dr->SetStats(0);
                 h_dr->SetTitle("");
@@ -694,7 +786,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
                 htrue_dr->Draw("Hist E same");
                 hbkg_dr->Draw("Hist E same");
                 hbkg_true_dr->Draw("Hist E same");
-                TLegend *leg_val = new TLegend(0.32,0.39, 0.61,0.55, "");
+                TLegend *leg_val = new TLegend(0.6,0.39, 0.85,0.55, ""); // 0.32,0.39, 0.61,0.55
                     leg_val->SetTextSize(0.03);
                     leg_val->SetFillStyle(0);
                     leg_val->SetBorderSize(0);
@@ -707,7 +799,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
                     leg_val->Draw("same");
 
             pad2_val->cd();
-            pad2_val->SetLogx();
+            // pad2_val->SetLogx();
 
             TH1D* h_ratio_dr = (TH1D*) h_dr->Clone("h_ratio_dr"); h_ratio_dr->Reset();
             h_ratio_dr->Divide(h_dr, htrue_dr);
