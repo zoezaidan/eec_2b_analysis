@@ -4,7 +4,7 @@
 #include "binning_histos_small.h"
 #include "Help_Functions.h"
 #include "Draw_EEC.h"
-#include "../CMSStyle.C" // CMS style impored from Matthew
+// #include "../CMSStyle.C" // CMS style impored from Matthew
 
 
 void do_template_fit_combined(const TString &HighEGdata_name, const TString &LowEGdata_name, TString &templates, TString &templates_bjet, TString pT_selection, TString folder, TString &fout_name, bool& alsoLowEG, bool& also_bjet,  Variation ivar = NOMINAL){
@@ -16,7 +16,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
     */
 
     // Test CMS style 
-    setCMSStyle();
+    // setCMSStyle();
 
     // -- Make subdirectory for printed canvases only. The root files are in main directory 
     TString sDir_canvas = Form("%s/%s", sDirname.Data(), varNames[ivar].Data());
@@ -127,6 +127,49 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
     const double* yBins = nullptr; //dr array 
     int N_bins_dr = 0; N_bins_dr = bins_dr; yBins = dr_binsVector;     
 
+
+    // -- Rebinning in mass axis when needed 
+    if(ivar == FITRANGE_0_7)
+    {
+        // TH3D* h3_fitRange0to7 = MergeLastMassBinTo7GeV(h3_original);
+        h3D_data = MergeLastMassBinTo7GeV(h3D_data);
+                h3D_data->SetMarkerStyle(20);
+                h3D_data->SetMarkerColor(kBlack);
+                h3D_data->SetLineColor(kBlack);
+                h3D_data->SetLineWidth(3);
+
+        h3D_b    = MergeLastMassBinTo7GeV(h3D_b);
+        h3D_bb   = MergeLastMassBinTo7GeV(h3D_bb);
+        if(also_bjet)
+            {
+                h3D_b_bjet  = MergeLastMassBinTo7GeV(h3D_b_bjet);
+                h3D_bb_bjet = MergeLastMassBinTo7GeV(h3D_bb_bjet);
+            }
+
+        // update mass bins 
+        mb_bins = h3D_data->GetNbinsX();
+    }
+    else if(ivar == FITRANGE_0_8)
+    {
+        h3D_data = MergeLastMassBinTo8GeV(h3D_data);
+                h3D_data->SetMarkerStyle(20);
+                h3D_data->SetMarkerColor(kBlack);
+                h3D_data->SetLineColor(kBlack);
+                h3D_data->SetLineWidth(3);
+
+        h3D_b    = MergeLastMassBinTo8GeV(h3D_b);
+        h3D_bb   = MergeLastMassBinTo8GeV(h3D_bb);
+        if(also_bjet)
+            {
+                h3D_b_bjet  = MergeLastMassBinTo8GeV(h3D_b_bjet);
+                h3D_bb_bjet = MergeLastMassBinTo8GeV(h3D_bb_bjet);
+            }
+
+        // update mass bins 
+        mb_bins = h3D_data->GetNbinsX();
+    }
+   
+
     // ---------------------------------------------------------
     /// -- For later drawing of S/B fractions, store true and fit result in the following histograms
         // Note that: since inetgaretd bins are pt 0 and dr 0, the hist of fractions should have #bins + 1 size 
@@ -151,8 +194,8 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
 
     // Fitting - loop over dr and jtpt entries
     // Bin0: is integarted over the range 
-    for(Int_t ibin_pt = 0; ibin_pt <= bins_pt; ibin_pt++){
-    // for(Int_t ibin_pt = 0 ; ibin_pt <= 1; ibin_pt++){
+    // for(Int_t ibin_pt = 0; ibin_pt <= bins_pt; ibin_pt++){
+    for(Int_t ibin_pt = 1 ; ibin_pt <= 3; ibin_pt++){
         for(Int_t ibin_dr = 0; ibin_dr <= N_bins_dr; ibin_dr++){
         // for(Int_t ibin_dr = 0; ibin_dr <= 0; ibin_dr++){
             
@@ -806,7 +849,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                         // Add (dr, pt) bins legend 
                         DrawCommonTextTopRight(pad1, ibin_dr, ibin_pt, yBins,N_bins_dr ,false); // without default bildlegend of other objects
                         // use new Legend for enties (withut hframe)
-                        TLegend* leg = CreateLegend(0.6, 0.50, 0.85, 0.8, // 0.54, 0.6, 0.85, 0.8,
+                        TLegend* leg = CreateLegend(0.63, 0.6, 0.85, 0.75, // 0.54, 0.6, 0.85, 0.8, // .6, 0.50, 0.85, 0.8
                             {h_data_mb, h_sig_fit, h_bkg_fit_1b, h_bkg_fit_nob},
                             {"LPE", "LF", "LF", "LF"},
                             {"Data", "", "", ""} // use default titles 
@@ -1703,7 +1746,7 @@ void Draw_template_Run3(TString &templates, TString pT_selection, TString folder
 void template_fit(){
     // -- Output folder to save the result of the tests 
     gSystem->mkdir(sDirname, kTRUE);// Predefined in Help.h
-    TString folder = Form("/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/%s/", sDirname.Data()); // this is sDirname 
+    TString folder = Form("/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/TemplateFit_Run3_WP0868_LinearFineBin/%s/", sDirname.Data()); // this is sDirname 
         cout << "Output folder path: "<< folder << endl;
 
     Int_t RunN = 3; // 3; 
@@ -1729,8 +1772,8 @@ void template_fit(){
         alsoLowEG = false; 
         also_bjet = false;
         // TString templates_dijet_HLT40 = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/condor_Run3/MergedJobResult/MergedAllFiles_Run3_WP90_template_for_fit_histos_3D_qcd_btag.root";
-        dataset_HG = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/condor_Run3_corrected/MergedJobResult/MergedAllFiles_Run3_secondbinsplitting_WP0872_template_for_fit_histos_3D_data_btag.root";
-        templates_dijet = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/condor_Run3_corrected/MergedJobResult/MergedAllFiles_Run3_secondbinsplitting_WP0872_template_for_fit_histos_3D_qcd_btag.root";
+        dataset_HG = "/data_CMS/cms/zaidan/analysis_lise/Run3/Run3_btagWP868_template_for_fit_histos_3D_data_f.root";
+        templates_dijet = "/data_CMS/cms/zaidan/analysis_lise/Run3/Run3_btagWP868_template_for_fit_histos_3D_qcd_f.root";
         fout_name = Form("Run%d_TemplateFits_histos_3d_%s.root", RunN, pT_selection.Data());
     }
     else if (RunN == 2){
@@ -1746,11 +1789,12 @@ void template_fit(){
 
     // --- Start work from here -----
     TString sfoutputPlots_dijet = Form("Run%d_Summary_histo_templatefits.root", RunN);
-    TFile *foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "RECREATE");
-        if (!foutputPlots_dijet || foutputPlots_dijet->IsZombie()) {
-            std::cout << "Error opening file!" << std::endl;
-            return;
-        }
+    
+    // TFile *foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "RECREATE");
+    //     if (!foutputPlots_dijet || foutputPlots_dijet->IsZombie()) {
+    //         std::cout << "Error opening file!" << std::endl;
+    //         return;
+    //     }
     
        
         // -- Draw Prefit templates for Run3 MC (qcd sample)
@@ -1758,7 +1802,7 @@ void template_fit(){
 
         // --  Loop over variations on templates: one root file per variation 
         // --  other png drawings are on seperate directories, for simplisity.
-        for (int ivar = 0; ivar < 3; ivar++) // 1 nominal only
+        for (int ivar = 3; ivar < 4; ivar++) // 1 nominal only
         {
             TString newfout_name = varNames[ivar]+ "_" + fout_name;
             do_template_fit_combined(dataset_HG,dataset_LG,templates_dijet, templates_bjet,  pT_selection, folder, newfout_name, alsoLowEG, also_bjet, (Variation) ivar); // default: NOMINAL variation 
@@ -1767,18 +1811,23 @@ void template_fit(){
             for(Int_t ibin_pt = 0; ibin_pt <= bins_pt; ibin_pt++){
                 /// Draw S/B fractions 
                 // -- to test Draw fraction only: READ foutputPlots_dijet instead of RECREATE
-                //     TFile *foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "Update"); 
-                //     if (! foutputPlots_dijet->IsOpen()){ foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "Read"); }
-                //     if (!foutputPlots_dijet || foutputPlots_dijet->IsZombie()) {std::cout << "Error opening file!" << std::endl; return;}
+                    TFile *foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "Update"); 
+                    if (! foutputPlots_dijet->IsOpen()){ foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "Read"); }
+                    if (!foutputPlots_dijet || foutputPlots_dijet->IsZombie()) {std::cout << "Error opening file!" << std::endl; return;}
                 
                 draw_template_fit_result(newfout_name, foutputPlots_dijet, dataname, folder, pT_selection, ibin_pt, (Variation) ivar); 
                 
                 /// Draw EEC 
-                draw_eec_simple(newfout_name, foutputPlots_dijet ,folder, also_bjet, ibin_pt, (Variation) ivar);
+                // draw_eec_simple(newfout_name, foutputPlots_dijet ,folder, also_bjet, ibin_pt, (Variation) ivar);
 
             }
+        
+
         } 
-       
+
+
+    
+    /*
         //-- Get systematics 
         cout << "Calculate systematic uncertaintiy " << endl;
         TFile *fsys = new TFile( Form("%s/Result_syst_uncert_templatefit.root", sDirname.Data()),"recreate");
@@ -1793,10 +1842,34 @@ void template_fit(){
             fsys->Print();
             fsys->Close();
             delete fsys;
-     
-    foutputPlots_dijet->Print();
-    foutputPlots_dijet->Close();
-    delete foutputPlots_dijet;
+    
+       */
+
+    // foutputPlots_dijet->Print();
+    // foutputPlots_dijet->Close();
+    // delete foutputPlots_dijet;
+ 
+
+    // // Test draw EEC again 
+    //  for (int ivar = 0; ivar < 3; ivar++) // 1 nominal only
+    //     {
+    //         TString newfout_name = varNames[ivar]+ "_" + fout_name;
+        
+    //         for(Int_t ibin_pt = 0; ibin_pt <= 3; ibin_pt++){
+    //             /// Draw S/B fractions 
+    //             // -- to test Draw fraction only: READ foutputPlots_dijet instead of RECREATE
+    //                 TFile *foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "Update"); 
+    //                 if (! foutputPlots_dijet->IsOpen()){ foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "Read"); }
+    //                 if (!foutputPlots_dijet || foutputPlots_dijet->IsZombie()) {std::cout << "Error opening file!" << std::endl; return;}
+                
+    //             draw_template_fit_result(newfout_name, foutputPlots_dijet, dataname, folder, pT_selection, ibin_pt, (Variation) ivar); 
+                
+    //             /// Draw EEC 
+    //             // draw_eec_simple(newfout_name, foutputPlots_dijet ,folder, also_bjet, ibin_pt, (Variation) ivar);
+
+    //         }
+    //     } 
+
 }
 
 
