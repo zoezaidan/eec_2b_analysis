@@ -12,12 +12,16 @@
 class tTree {
 public :
    TString         fname;
-   TTree           *tree;
+   TTree           *tree = nullptr;
 
    // Declaration of leaf types
    Int_t           run;
    Int_t           evt;
    Int_t           lumi;
+   // Event selections: Run3 data/reco MC
+   Int_t          pprimaryVertexFilter;
+   Float_t        vz;
+
    Int_t           nref;
    Int_t           nvtx;
    Float_t         rawpt[500];   //[nref]
@@ -93,10 +97,12 @@ public :
    Int_t           HLT_HIAK4PFJet30_v1;
 
    // HLT selection (Run 3)
+   Int_t           HLT_AK4PFJet40_v8;
    Int_t           HLT_AK4PFJet60_v8;
    Int_t           HLT_AK4PFJet80_v8;
    Int_t           HLT_AK4PFJet100_v8;
    Int_t           HLT_AK4PFJet120_v8;
+
    // Run 3: b tag discriminating variables 
    Float_t         discr_unifiedParticleTransformer_probb[500]; // [nref]
    Float_t         discr_unifiedParticleTransformer_problepb[500]; // [nref]
@@ -200,6 +206,10 @@ public :
    TBranch        *b_run;   //!
    TBranch        *b_evt;   //!
    TBranch        *b_lumi;   //!
+   // Event selections: Run3 data/reco MC
+   TBranch         *b_pprimaryVertexFilter;
+   TBranch         *b_vz;
+
    TBranch        *b_nref;   //!
    TBranch        *b_nvtx;   //!
    TBranch        *b_rawpt;   //!
@@ -275,6 +285,7 @@ public :
    TBranch        *b_HLT_HIAK4PFJet30_v1;
 
    // HLT branches (Run 3)
+   TBranch        *b_HLT_AK4PFJet40_v8;
    TBranch        *b_HLT_AK4PFJet60_v8;
    TBranch        *b_HLT_AK4PFJet80_v8;
    TBranch        *b_HLT_AK4PFJet100_v8;
@@ -375,12 +386,17 @@ public :
   ~tTree();
   Int_t GetEntry(Long64_t entry);
   Long64_t GetEntries();
-  void Init(TString, bool, Int_t RunN = 2); // it was RunN = 2! 
+  void Init(TString rootf, Int_t dataType, Int_t RunN = 2); // it was RunN = 2! 
   void SetBranchStatus(TString branchName, Int_t status);
   void SetBranchStatus(std::vector<TString> branchNames, Int_t status);
   // void plot_rgzgkt(TString foutname, Float_t bTagWP);
   Float_t calc_dr(Float_t eta1, Float_t phi1, Float_t eta2, Float_t phi2);
   // Float_t calc_rg(Float_t y1, Float_t phi1, Float_t y2, Float_t phi2);
+
+
+private: // new to update tree destructor to suite the friend structure addition.
+    TFile *fin = nullptr;
+
 };
 
 //tTree::tTree(TString rootf)
@@ -392,8 +408,19 @@ tTree::tTree()
 
 tTree::~tTree()
 {
-   if (!tree) return;
-   delete tree;
+   //  if only use of tree structure
+      // if (!tree) return;
+      // delete tree;
+
+   // use of tree and chain structure
+   if (fin) {
+        fin->Close();   // close first
+        delete fin;
+        fin = nullptr;
+    }
+
+   tree = nullptr;
+
 }
 
 Int_t tTree::GetEntry(Long64_t entry)
@@ -408,11 +435,12 @@ Long64_t tTree::GetEntries()
    return tree->GetEntries();
 }
 
-void tTree::Init(TString rootf, bool isMC, Int_t RunN)
+void tTree::Init(TString rootf, Int_t dataType, Int_t RunN)
 {
    
   std::cout << "Opening ROOT file: [" << rootf << "]" << std::endl;
-  TFile *fin = TFile::Open(rootf);
+  // TFile *fin = TFile::Open(rootf); // added in private 
+   fin = TFile::Open(rootf);
 
       // Safety
       if (!fin || fin->IsZombie()) {
@@ -421,9 +449,9 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
       }
 
 
-   if(!isMC && RunN == 2) tree = (TTree*) fin->Get("akCs4PFJetAnalyzer/t"); // does not exist in Run3 data 
+   if( RunN == 2 && (dataType == 0 || dataType == -1)) tree = (TTree*) fin->Get("akCs4PFJetAnalyzer/t"); // does not exist in Run3 data 
    else tree = (TTree*) fin->Get("ak4PFJetAnalyzer/t"); // run3 data and MC, run2 MC 
-   
+
       // Safety
       if (!tree) {
        std::cout << "ERROR: tree not found in file " << rootf << std::endl;
@@ -433,13 +461,25 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
    // -- Add tree friends
    // tree->AddFriend("hiEvtAnalyzer/HiTree"); // Works only for TTree
    // tree->AddFriend("hltanalysis/HltTree"); // Works only for TTree
-   tree->AddFriend((TTree*)fin->Get("hiEvtAnalyzer/HiTree"));
-   tree->AddFriend((TTree*)fin->Get("hltanalysis/HltTree"));  
+
+   // tree->AddFriend((TTree*)fin->Get("hiEvtAnalyzer/HiTree")); // works for TChain too 
+   // tree->AddFriend((TTree*)fin->Get("hltanalysis/HltTree"));  // works for TChain too
+   // if(RunN == 3 && dataType == 0){tree->AddFriend((TTree*)fin->Get("skimanalysis/HltTree"));} // Run3 data only ?(for the branch pprimaryVertexFilter) 
+
+   TTree* t1 = (TTree*)fin->Get("hiEvtAnalyzer/HiTree");
+   TTree* t2 = (TTree*)fin->Get("hltanalysis/HltTree");
+   if(RunN == 3 && dataType == 0)
+   {
+      TTree* t3 = (TTree*)fin->Get("skimanalysis/HltTree"); 
+      if (t3){tree->AddFriend(t3); t3->SetDirectory(nullptr);}
+   }
+   if (t1){tree->AddFriend(t1); t1->SetDirectory(nullptr);}
+   if (t2) {tree->AddFriend(t2); t2->SetDirectory(nullptr);}
+
+
+
    // sanity check : print list of friends 
    tree->GetListOfFriends()->Print();
-      
-
-
 
    // Set branch addresses and branch pointers
    tree->SetBranchAddress("run", &run, &b_run);
@@ -449,14 +489,20 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
    tree->SetBranchAddress("nvtx", &nvtx, &b_nvtx);
    tree->SetBranchAddress("rawpt", rawpt, &b_rawpt);
    tree->SetBranchAddress("jtpt", jtpt, &b_jtpt);
+
+   tree->SetBranchAddress("vz", &vz, &b_vz);
+   if (RunN == 3 && dataType == 0 ){
+       tree->SetBranchAddress("pprimaryVertexFilter", &pprimaryVertexFilter, &b_pprimaryVertexFilter);
+   }
    
-   // if(isMC)tree->SetBranchAddress("jtpt_gen", jtpt_gen, &b_jtpt_gen); // does not exist
+   // if(dataType == 1 || dataType == 2)tree->SetBranchAddress("jtpt_gen", jtpt_gen, &b_jtpt_gen); // does not exist
+
 
    if (RunN == 2) {
       cout << "Set branch address for some Run 2 specific branches" << endl;
       tree->SetBranchAddress("trkDistToAxisSig", trkDistToAxisSig, &b_trkDistToAxisSig);
       tree->SetBranchAddress("discr_particleNet_BvsAll", discr_particleNet_BvsAll, &b_discr_particleNet_BvsAll);
-      tree->SetBranchAddress("FNscore", FNscore, &b_FNscore); //
+      //tree->SetBranchAddress("FNscore", FNscore, &b_FNscore); //
       tree->SetBranchAddress("discr_deepCSV", discr_deepCSV, &b_discr_deepCSV);
       tree->SetBranchAddress("discr_deepFlavour_b", discr_deepFlavour_b, &b_discr_deepFlavour_b);
       tree->SetBranchAddress("discr_deepFlavour_bb", discr_deepFlavour_bb, &b_discr_deepFlavour_bb);
@@ -480,7 +526,7 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
       tree->SetBranchAddress("HLT_HIAK4PFJet40_v1", &HLT_HIAK4PFJet40_v1, &b_HLT_HIAK4PFJet40_v1);
       tree->SetBranchAddress("HLT_HIAK4PFJet30_v1", &HLT_HIAK4PFJet30_v1, &b_HLT_HIAK4PFJet30_v1);
       
-      if (isMC){
+      if (dataType == 1 || dataType == 2){ // MC only
          tree->SetBranchAddress("jtHadFlav", jtHadFlav, &b_jtHadFlav);
          tree->SetBranchAddress("jtParFlav", jtParFlav, &b_jtParFlav);
          tree->SetBranchAddress("rsjt1Pt", rsjt1Pt, &b_rsjt1Pt);
@@ -535,7 +581,7 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
    tree->SetBranchAddress("trkDistToAxis", trkDistToAxis, &b_trkDistToAxis);
    tree->SetBranchAddress("trkMatchSta", trkMatchSta, &b_trkMatchSta);
    tree->SetBranchAddress("trkBdtScore", trkBdtScore, &b_trkBdtScore); //
-	
+   
 
    tree->SetBranchAddress("jtNsvtx", jtNsvtx, &b_jtNsvtx);
    tree->SetBranchAddress("nsvtx", &nsvtx, &b_nsvtx);
@@ -565,25 +611,24 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
    tree->SetBranchAddress("jtDiscDeepFlavourLEPB", jtDiscDeepFlavourLEPB, &b_jtDiscDeepFlavourLEPB);
    */
 
-	tree->SetBranchAddress("discr_pfJP", discr_pfJP, &b_discr_pfJP); // exist for both Run 2 and 3
+   tree->SetBranchAddress("discr_pfJP", discr_pfJP, &b_discr_pfJP); // exist for both Run 2 and 3
    tree->SetBranchAddress("jtptCh", jtptCh, &b_jtptCh);
    tree->SetBranchAddress("trkMass", trkMass, &b_trkMass);
 
-
-
-// HLT (Run 3 — set only when RunN==3; Run 3 files also keep the HIAK4 prescale triggers)
-// ----- Are you sure that Run3 allow the old HLT branches of Run 2 ? (I dont think so, since Run2 trigger names does not exist anymore). See Run 2 Triggers suggestion above.	
    if (RunN == 3) {
+     tree->SetBranchAddress("HLT_AK4PFJet40_v8",    &HLT_AK4PFJet40_v8,    &b_HLT_AK4PFJet40_v8);
      tree->SetBranchAddress("HLT_AK4PFJet60_v8",    &HLT_AK4PFJet60_v8,    &b_HLT_AK4PFJet60_v8);
      tree->SetBranchAddress("HLT_AK4PFJet80_v8",    &HLT_AK4PFJet80_v8,    &b_HLT_AK4PFJet80_v8);
      tree->SetBranchAddress("HLT_AK4PFJet100_v8",   &HLT_AK4PFJet100_v8,   &b_HLT_AK4PFJet100_v8);
      tree->SetBranchAddress("HLT_AK4PFJet120_v8",   &HLT_AK4PFJet120_v8,   &b_HLT_AK4PFJet120_v8);
-	  tree->SetBranchAddress("discr_unifiedParticleTransformer_probb", discr_unifiedParticleTransformer_probb, &b_discr_unifiedParticleTransformer_probb);
+     tree->SetBranchAddress("discr_unifiedParticleTransformer_probb", discr_unifiedParticleTransformer_probb, &b_discr_unifiedParticleTransformer_probb);
      tree->SetBranchAddress("discr_unifiedParticleTransformer_problepb", discr_unifiedParticleTransformer_problepb, &b_discr_unifiedParticleTransformer_problepb);
      tree->SetBranchAddress("discr_unifiedParticleTransformer_probbb", discr_unifiedParticleTransformer_probbb, &b_discr_unifiedParticleTransformer_probbb);
+
    }
    
-   if(isMC){
+
+   if(dataType == 1 || dataType == 2){ // Common for Run 2 and Run 3: MC 
      tree->SetBranchAddress("pthat", &pthat, &b_pthat);
      tree->SetBranchAddress("refpt", refpt, &b_refpt);
      tree->SetBranchAddress("refeta", refeta, &b_refeta);
@@ -610,7 +655,9 @@ void tTree::Init(TString rootf, bool isMC, Int_t RunN)
      tree->SetBranchAddress("gendphijt", gendphijt, &b_gendphijt);
      tree->SetBranchAddress("gendrjt", gendrjt, &b_gendrjt);
 
-	  tree->SetBranchAddress("jtNbHad", jtNbHad, &b_jtNbHad);
+
+     tree->SetBranchAddress("jtNbHad", jtNbHad, &b_jtNbHad);
+
      tree->SetBranchAddress("jtNcHad", jtNcHad, &b_jtNcHad);
      tree->SetBranchAddress("jtNbPar", jtNbPar, &b_jtNbPar);
      tree->SetBranchAddress("jtNcPar", jtNcPar, &b_jtNcPar);

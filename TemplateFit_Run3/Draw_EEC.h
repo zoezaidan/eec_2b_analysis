@@ -22,7 +22,7 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
 
     // -- Draw EEC after fit
     TCanvas *c_data = new TCanvas(Form("c_EEC_data_%s", sname_canvas.Data()), " ",900,800);
-        c_data->SetLogx();
+        // c_data->SetLogx();
         c_data->SetTitle("EEC extracted from template fits");
 
         // read template fit result
@@ -62,8 +62,10 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
             // -- Scale Raw data EEC(dr) by the signal fraction, bin by bin in dr
             TH1D* heec_sigfrac = (TH1D*) h1D_scaled->Clone("heec_sigfrac"); heec_sigfrac->Multiply(hsigfrac_dr);
                 heec_sigfrac ->SetLineColor(kRed+1); heec_sigfrac ->SetLineWidth(3); heec_sigfrac->SetMarkerColor(kRed+1);
+                heec_sigfrac->GetYaxis()->SetTitle("EEC");
             TH1D* heec_bkgfrac = (TH1D*) h1D_scaled->Clone("heec_bkgfrac"); heec_bkgfrac->Multiply(hbkgfrac_dr);
                 heec_bkgfrac ->SetLineColor(kGreen+2); heec_bkgfrac ->SetLineWidth(3); heec_bkgfrac->SetMarkerColor(kGreen+2); heec_bkgfrac->SetMarkerStyle(25); // open square
+                heec_bkgfrac->GetYaxis()->SetTitle("EEC");
 
             // -- Read MC histograms: use qcd sample only
             TH3D* h3D_bb = (TH3D*) file->Get("h3D_bb"); if(!h3D_bb) cout << "hist does not exist" << endl;
@@ -83,7 +85,7 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
                 // 2B : MC = qcd + bjet
                 TH1D* h1D_bb_combined =  (TH1D*) h1D_bb->Clone("h1D_bb_combined");
                     if (also_bjet) {h1D_bb_combined->Add(h1D_bb_bjets); h1D_bb_combined->SetName("2B (MC: qcd+bjet)");}
-                    else { h1D_bb_combined->SetName("2B (MC: qcd)");}
+                    else { h1D_bb_combined->SetName("2B (MC: qcd only)");}
                     // scale it to qcd integral
                         h1D_bb_combined->Scale(1. *h1D_bb->Integral(1, N_dr_bins, "width") /h1D_bb_combined->Integral(1, N_dr_bins, "width"));
 
@@ -121,7 +123,7 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
             h1D_scaled->Draw("hist E");
             heec_sigfrac->Draw("hist E same");
             heec_bkgfrac->Draw("hist E  same");
-            TLegend* leg = CreateLegend(0.14, 0.6, 0.5, 0.8, // suggested: 0.6,0.7,0.9,0.9
+            TLegend* leg = CreateLegend(0.6, 0.6, 0.88, 0.8, // suggested: 0.6,0.7,0.9,0.9 // Left: 0.14, 0.6, 0.5, 0.8
                         {h1D_scaled, heec_sigfrac, heec_bkgfrac},
                         {"LPE", "LPE", "LPE"},
                         {"Data", "2B fraction (Data)", "1B+0B fraction (Data)"}
@@ -133,20 +135,27 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
 
             // -- Draw MC EEC
              TCanvas *c_MC = new TCanvas(Form("c_EEC_MC_%s", sname_canvas.Data()), " ",900, 800);
-                c_MC->SetLogx();
+                // c_MC->SetLogx();
                 c_MC->SetTitle("EEC (reco MC)");
                 c_MC->cd();
+                
+                h1D_b_0b->SetTitle("");
+                h1D_b_0b->GetXaxis()->SetTitle("#DeltaR");
+                h1D_b_0b->GetYaxis()->SetTitle("EEC");
+                h1D_b_0b->SetMaximum( 1.3 *  h1D_b_0b->GetMaximum() );
+                h1D_b_0b ->Draw("hist E ");
+                h1D_b->Draw("hist E same");
+                h1D_0b->Draw("hist E  same");
+
                 h1D_bb->SetTitle("");
                 h1D_bb->GetXaxis()->SetTitle("#DeltaR");
                 h1D_bb->GetYaxis()->SetTitle("EEC");
                 if (also_bjet) h1D_bb->SetMaximum(1.3 *  h1D_bb_bjets->GetMaximum()); // bjets is larger
-                h1D_bb->Draw("hist E");
+                h1D_bb->Draw("hist E same");
                 if (also_bjet) h1D_bb_bjets->Draw("hist E same");
                 h1D_bb_combined->Draw("hist E same");
-                h1D_b_0b ->Draw("hist E same");
-                h1D_b->Draw("hist E same");
-                h1D_0b->Draw("hist E  same");
-                TLegend* leg_mc = CreateLegend(0.14, 0.6, 0.5, 0.8, // suggested: 0.6,0.7,0.9,0.9
+                
+                TLegend* leg_mc = CreateLegend(0.6,0.7,0.9,0.9,  // suggested: 0.6,0.7,0.9,0.9 // Left :  0.14, 0.6, 0.5, 0.8,
                         {h1D_bb_combined, h1D_bb, h1D_bb_bjets, h1D_b_0b, h1D_b, h1D_0b},
                         {"LPE", "LPE", "LPE"},
                         {h1D_bb_combined->GetName(),"2B (qcd)", "2B (bjets)" , "1B+0B (MC)", "1B (MC)", "0B (MC)"}
@@ -185,6 +194,65 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
                     cout << "After scaling MC histograms --> they should be as their corresponding in data" << endl;
                     cout << "Scaled 2B (MC) int = "<< heec_bb_MC_scaled->Integral(1, N_dr_bins, "width") << endl;
                     cout << "Scaled 1B +0B (MC) int = "<< heec_b_0b_MC_scaled->Integral(1, N_dr_bins, "width") << endl;
+                
+            // Draw relevant contributions: 2B only (etracted from Data and normlaized MC)
+                TCanvas *c_EEC_2B = new TCanvas(Form("c_EEC_2B_%s", sname_canvas.Data()), " ",950, 1100);
+                    c_EEC_2B->cd();
+                    TPad* pad1_2B = new TPad("pad1_2B","",0,0.2,1,1);
+                    TPad* pad2_2B = new TPad("pad2_2B","",0,0,1,0.24);
+                    pad1_2B->SetBottomMargin(0.07);
+                    pad1_2B->SetLeftMargin(0.10); // for y axis title space
+                    pad2_2B->SetTopMargin(0.02);     // bottom pad (very small)
+                    pad2_2B->SetBottomMargin(0.40);  // keep space for x-axis labels
+                    pad2_2B->SetLeftMargin(0.10);
+                    pad1_2B->Draw();
+                    pad2_2B->Draw();
+                    pad1_2B->cd();
+                    // pad1_2B->SetLogx();
+                    pad1_2B->SetTickx(1);
+                    pad1_2B->SetTicky(1);
+                        // only 2B
+                        heec_sigfrac->SetTitle("");
+                        heec_sigfrac->SetMinimum(0);
+                        heec_sigfrac->SetMaximum(1.3 * heec_sigfrac->GetMaximum());
+                        heec_sigfrac->GetXaxis()->SetTitle("");
+                        heec_sigfrac->GetXaxis()->SetLabelSize(0);
+                        heec_sigfrac->Draw("hist E ");
+                        heec_bb_MC_scaled->Draw("hist E  same");
+                       
+                        TLegend* leg_2B= CreateLegend(0.65, 0.55, 0.88, 0.85, // suggested: 0.6,0.7,0.9,0.9 // Left: 0.15, 0.55, 0.45, 0.85
+                            {heec_sigfrac, heec_bb_MC_scaled},
+                            {"LPE", "LE"},
+                            {"2B (Data)", "2B (MC)"}
+                            );
+                            leg_2B->SetHeader(Form("%g < p_{T} < %g GeV", pt_first, pt_last), "L"); //centered
+                            leg_2B->Draw("same");
+                        pad1_2B->Modified(); // force refresh
+                        pad1_2B->Update();
+                    pad2_2B->cd();
+                    pad2_2B->SetTickx(1);
+                    pad2_2B->SetTicky(1);
+                    
+                    AddRatioPlot(heec_sigfrac, heec_bb_MC_scaled, "", kRed+1);
+                            // change its y axis name
+                            TH1* h1_2B = (TH1*) pad2_2B->GetPrimitive(Form("ratio_%s_%s", heec_sigfrac->GetName(), heec_bb_MC_scaled->GetName()));
+                            h1_2B->GetYaxis()->SetTitle("Data/MC");
+                            h1_2B->GetXaxis()->SetTitle("#DeltaR");
+                            h1_2B->SetMinimum(0.1);
+                            h1_2B->SetMaximum(1.9);
+                            TLegend* leg_ratio_2B = CreateLegend(0.7, 0.8, 0.88, 0.90,  // suggested: 0.6,0.7,0.9,0.9 // Right: 0.7, 0.62, 0.89, 0.90
+                                {h1_2B},
+                                {"LP"},
+                                {"2B"}
+                                );
+                                leg_ratio_2B->Draw("same");
+                        pad2_2B->Modified(); // force refresh
+                        pad2_2B->Update();
+                    c_EEC_2B->SaveAs( sresultDir_eec + "/" + "EEC_2B_" + ibin_pt + ".pdf");
+                    c_EEC_2B->SaveAs( sresultDir_eec + "/" + "EEC_2B_" + ibin_pt + ".png");
+
+
+
                 // Draw relevant contributions
                 TCanvas *c_all_norm = new TCanvas(Form("c_EEC_all_norm_%s", sname_canvas.Data()), " ",950, 1100);
                     c_all_norm->cd();
@@ -198,21 +266,22 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
                     pad1->Draw();
                     pad2->Draw();
                     pad1->cd();
-                    pad1->SetLogx();
+                    // pad1->SetLogx();
                     pad1->SetTickx(1);
                     pad1->SetTicky(1);
 
                         // Add ratioplot ? ratio for Data/MC for each type
                         heec_sigfrac->SetTitle("");
                         heec_sigfrac->SetMinimum(0);
-                        heec_sigfrac->SetMaximum(1.3 * heec_sigfrac->GetMaximum());
+                        // heec_sigfrac->SetMaximum(1.3 * heec_sigfrac->GetMaximum());
+                        heec_sigfrac->SetMaximum(1.3 * heec_bkgfrac->GetMaximum()); // bkg fraction is high 
                         heec_sigfrac->GetXaxis()->SetTitle("");
                         heec_sigfrac->GetXaxis()->SetLabelSize(0);
                         heec_sigfrac->Draw("hist E ");
                         heec_bb_MC_scaled->Draw("hist E  same");
                         heec_bkgfrac->Draw("hist E  same");
                         heec_b_0b_MC_scaled->Draw("hist E  same");
-                        TLegend* leg_all = CreateLegend(0.15, 0.55, 0.45, 0.85, // suggested: 0.6,0.7,0.9,0.9
+                        TLegend* leg_all = CreateLegend(0.65, 0.55, 0.88, 0.85, // suggested: 0.6,0.7,0.9,0.9 // Left: 0.15, 0.55, 0.45, 0.85
                             {heec_sigfrac, heec_bkgfrac, heec_bb_MC_scaled,  heec_b_0b_MC_scaled},
                             {"LPE", "LPE", "LE", "LE"},
                             {"2B (Data)", "1B+0B (Data)", "2B (MC)",  "1B+0B (MC)"}
@@ -222,7 +291,7 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
                         pad1->Modified(); // force refresh
                         pad1->Update();
                     pad2->cd();
-                    pad2->SetLogx();
+                    // pad2->SetLogx();
                     pad2->SetTickx(1);
                     pad2->SetTicky(1);
                     AddRatioPlot(heec_sigfrac, heec_bb_MC_scaled, "", kRed+1);
@@ -230,10 +299,11 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
                             TH1* h1 = (TH1*) pad2->GetPrimitive(Form("ratio_%s_%s", heec_sigfrac->GetName(), heec_bb_MC_scaled->GetName()));
                             h1->GetYaxis()->SetTitle("Data/MC");
                             h1->GetXaxis()->SetTitle("#DeltaR");
-                            h1->SetMinimum(0.1);
+                            // h1->SetMinimum(0.1);
+                            // h1->SetMaximum(1.9);
                     AddRatioPlot(heec_bkgfrac, heec_b_0b_MC_scaled, "EP same", kGreen+2);
                             TH1* h2 = (TH1*) pad2->GetPrimitive(Form("ratio_%s_%s", heec_bkgfrac->GetName(), heec_b_0b_MC_scaled->GetName()));
-                            TLegend* leg_ratio = CreateLegend(0.7, 0.62, 0.89, 0.90,  // suggested: 0.6,0.7,0.9,0.9
+                            TLegend* leg_ratio = CreateLegend(0.2, 0.62, 0.45, 0.90,  // suggested: 0.6,0.7,0.9,0.9 // Right: 0.7, 0.62, 0.89, 0.90
                                 {h1, h2},
                                 {"LP", "LP"},
                                 {"2B", "1B+0B"}
@@ -244,6 +314,8 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
                     c_all_norm->SaveAs( sresultDir_eec + "/" + "AllNorm_ EEC_" + ibin_pt + ".pdf");
                     c_all_norm->SaveAs( sresultDir_eec + "/" + "AllNorm_ EEC_" + ibin_pt + ".png");
 
+
+ 
       // -- Write plotted canvas to output file
      if (!foutputPlots) {
         std::cerr << "Invalid output file pointer!" << std::endl;
@@ -251,6 +323,7 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
     }
 
     foutputPlots->cd();
+    c_EEC_2B->Write();
     c_all_norm->Write();
     c_data->Write();
     c_MC->Write();
