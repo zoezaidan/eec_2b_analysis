@@ -1187,7 +1187,7 @@ void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t e
       // -- test tree branches are read: 
       //cout << "jtpt = " << t.jtpt[0] << endl;
       
-      double weight_tree = isMC ? t.weight : 1.0;
+      double weight_tree = cfg.dataset.isMC ? t.weight : 1.0;
 
     // -- Trigger selections 
     if (! passEventSelection(t, cfg)) continue;
@@ -1223,13 +1223,13 @@ void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t e
       //std::cout << "weight: " << weight_tree << std::endl;
       //std::cout << "eec: " << eec << std::endl;
 
-      if (cfg.dataset.RunN == 2 && !isMC && t.HLT_HIAK4PFJet40_v1 && !(t.HLT_HIAK4PFJet60_v1 || t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) 
+      if (cfg.dataset.RunN == 2 && !cfg.dataset.isMC && t.HLT_HIAK4PFJet40_v1 && !(t.HLT_HIAK4PFJet60_v1 || t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) 
       {eec *= prescale;} 
 
-      if (cfg.dataset.RunN == 3 && !isMC && t.HLT_AK4PFJet60_v8 && !(t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8 || t.HLT_AK4PFJet120_v8) ) 
+      if (cfg.dataset.RunN == 3 && !cfg.dataset.isMC && t.HLT_AK4PFJet60_v8 && !(t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8 || t.HLT_AK4PFJet120_v8) ) 
       {eec *= prescale;} 
 
-      if (isMC && dr > 0.005) {
+      if (cfg.dataset.isMC && dr > 0.005) {
         // use truth to classify: fill separate 0b, b and bb templates
         if      (t.jtNbHad[ijet] == 0) { h3D_0b->Fill(mB, dr, jtpt, eec * weight_tree); h_count_0b->Fill(mB, dr, jtpt, weight_tree); }
         else if (t.jtNbHad[ijet] == 1) { h3D_b ->Fill(mB, dr, jtpt, eec * weight_tree); h_count_b ->Fill(mB, dr, jtpt, weight_tree); }
@@ -1363,7 +1363,7 @@ void create_response_templatefit(
             std::cout << "\rProcessing: " << 100.0 * ient / n_events << " %" << std::flush;
         t.GetEntry(ient);
 
-        double weight_tree = isMC ? t.weight : 1.0;
+        double weight_tree = cfg.dataset.isMC ? t.weight : 1.0;
 
         // MC trigger selection (run-dependent)
         if (! passEventSelection(t, cfg)) continue;
@@ -1773,7 +1773,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
       // -- test tree branches are read: 
         // cout << "jtpt = " << t.jtpt[0] << endl;
       
-      double weight_tree = isMC ? t.weight : 1.0;
+      double weight_tree = cfg.dataset.isMC ? t.weight : 1.0;
 
       // -- NEW: 
       if (! passPVQuality_EventSelection(t, cfg)) continue;
@@ -1816,14 +1816,14 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
                 if(mB >= mb_max) mB = mb_max_fill;
 
                 // Prescale factor for data 
-                if (cfg.dataset.RunN == 2 && !isMC && t.HLT_HIAK4PFJet40_v1 && !(t.HLT_HIAK4PFJet60_v1 || t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) 
+                if (cfg.dataset.RunN == 2 && !cfg.dataset.isMC && t.HLT_HIAK4PFJet40_v1 && !(t.HLT_HIAK4PFJet60_v1 || t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) 
                 {eec *= prescale;} 
 
-                if (cfg.dataset.RunN == 3 && !isMC && t.HLT_AK4PFJet60_v8 && !(t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8 || t.HLT_AK4PFJet120_v8) ) 
+                if (cfg.dataset.RunN == 3 && !cfg.dataset.isMC && t.HLT_AK4PFJet60_v8 && !(t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8 || t.HLT_AK4PFJet120_v8) ) 
                 {eec *= prescale;} 
                 
 
-                if (isMC && dr > 0.005) {
+                if (cfg.dataset.isMC && dr > 0.005) {
                   // use truth to classify: fill separate 0b, b and bb templates
                   if      (t.jtNbHad[ijet] == 0) { h3D_0b->Fill(mB, dr, jtpt, eec * weight_tree); h_count_0b->Fill(mB, dr, jtpt, weight_tree); }
                   else if (t.jtNbHad[ijet] == 1) { h3D_b ->Fill(mB, dr, jtpt, eec * weight_tree); h_count_b ->Fill(mB, dr, jtpt, weight_tree); }
@@ -2154,7 +2154,7 @@ if(isMakeTemplates)
     hpt_selectedJets->Write();
     hpt_selectedJets_noweight->Write();
 
-  if (isMC) { // Reco MC 
+  if (cfg.dataset.isMC) { // Reco MC 
     h3D_0b->Write();
     h3D_b->Write();
     h3D_bb->Write();
@@ -2181,10 +2181,7 @@ if(isMakeTemplates)
 void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t pT_low = 80, Float_t pT_high = 200,Float_t etaCut = 2,Int_t n = 1, bool btag = true, bool isMC = true, Double_t btagWP = 0.868, bool makeTemplates = false, bool createRmatrix = true, bool makeAggNtuple = true, Long64_t ev_first = 0, Long64_t ev_last = -1, const char* inputFileOverride = "", const char* outputFolderOverride = ""){
  // load at prompt: gSystem->Load("libGenVector");
  std::cout << "ENTER FUNCTION" << std::endl;
-
-  RunN = 3;
-  dataType = 0;
-  isMC = false;
+  // Use RunN and dataType passed to this wrapper; cfg.dataset.isMC is derived from dataType.
 
  // -- test use of central configuration
   AnalysisConfig cfg =  buildConfig(
