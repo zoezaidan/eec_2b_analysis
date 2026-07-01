@@ -14,10 +14,9 @@ struct KinematicConfig {
 struct DatasetConfig {
   int RunN;        // 2 or 3
   int dataType;    // data / MC type (0: Data, 1: bjet MC, 2: qcd MC), and for Run2: -1 is for lowEG, and 0 for HighEG
-  bool isMC;
-
+  bool isMC;      // true for MC, false for data
   TString filename; // input sample full path to root file 
-  TString output_folder = gSystem->ExpandPathName("$mydata/analysis_lise/"); // base path; Run2/ or Run3/ subfolder appended in buildDataset()
+  TString output_folder =  gSystem->ExpandPathName("$mydata/analysis_lise/"); // base path; Run2/ or Run3/ subfolder appended in buildDataset()
   TString output_hist; // for output file name (for templates)
   TString domain = ".root";
 
@@ -153,6 +152,8 @@ bool passRecoJetKinematics(const tTree& t,
     if (t.pthat < 0.40 * t.jtpt[ijet]) // reco jet is used for this cut
       return false;
   }
+
+  
 
   float pt  = reco_jet_pt(t, ijet);
   float eta = reco_jet_eta(t, ijet);
@@ -293,7 +294,7 @@ AnalysisConfig buildConfig(
   cfg.physics.useBtag = btag;
   if (btagWP > 0) cfg.physics.btagWP = btagWP; // custom value 
   else{ // default value 
-    cfg.physics.btagWP = (RunN == 2) ? 0.898 : 0.872;
+    cfg.physics.btagWP = (RunN == 2) ? 0.898 : 0.868;
   }
 
   cfg.n = n;

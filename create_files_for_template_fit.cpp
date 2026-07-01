@@ -1137,8 +1137,10 @@ void filter_b_bb_as_data_and_mc(Int_t RunN, TString filename_bjet, TString outpu
 // Data: fills h3D_data with the same reco logic — no truth classification.
 void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t ev_last = -1, Int_t job_idx = -1) {
 
+  bool isMC = cfg.dataset.dataType == 1 ||   cfg.dataset.dataType == 2; 
+
   tTree t;
-  t.Init(cfg.dataset.filename, cfg.dataset.isMC, cfg.dataset.RunN);
+  t.Init(cfg.dataset.filename, cfg.dataset.dataType, cfg.dataset.RunN);
   t.SetBranchStatus("*", 0);
   auto active_branches = getActiveBranches(cfg);
   t.SetBranchStatus(active_branches, 1);
@@ -1185,7 +1187,7 @@ void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t e
       // -- test tree branches are read: 
       //cout << "jtpt = " << t.jtpt[0] << endl;
       
-      double weight_tree = cfg.dataset.isMC ? t.weight : 1.0;
+      double weight_tree = isMC ? t.weight : 1.0;
 
     // -- Trigger selections 
     if (! passEventSelection(t, cfg)) continue;
@@ -1221,13 +1223,13 @@ void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t e
       //std::cout << "weight: " << weight_tree << std::endl;
       //std::cout << "eec: " << eec << std::endl;
 
-      if (cfg.dataset.RunN == 2 && !cfg.dataset.isMC && t.HLT_HIAK4PFJet40_v1 && !(t.HLT_HIAK4PFJet60_v1 || t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) 
+      if (cfg.dataset.RunN == 2 && !isMC && t.HLT_HIAK4PFJet40_v1 && !(t.HLT_HIAK4PFJet60_v1 || t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) 
       {eec *= prescale;} 
 
-      if (cfg.dataset.RunN == 3 && !cfg.dataset.isMC && t.HLT_AK4PFJet60_v8 && !(t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8 || t.HLT_AK4PFJet120_v8) ) 
+      if (cfg.dataset.RunN == 3 && !isMC && t.HLT_AK4PFJet60_v8 && !(t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8 || t.HLT_AK4PFJet120_v8) ) 
       {eec *= prescale;} 
 
-      if (cfg.dataset.isMC) {
+      if (isMC && dr > 0.005) {
         // use truth to classify: fill separate 0b, b and bb templates
         if      (t.jtNbHad[ijet] == 0) { h3D_0b->Fill(mB, dr, jtpt, eec * weight_tree); h_count_0b->Fill(mB, dr, jtpt, weight_tree); }
         else if (t.jtNbHad[ijet] == 1) { h3D_b ->Fill(mB, dr, jtpt, eec * weight_tree); h_count_b ->Fill(mB, dr, jtpt, weight_tree); }
@@ -1243,7 +1245,7 @@ void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t e
   TString label = cfg.physics.useBtag ? "_btag" : "_nobtag";
   TString job_suffix = (job_idx >= 0) ? Form("_job%d", job_idx) : "";
   TFile outFile((cfg.dataset.output_folder + cfg.dataset.output_hist + label + job_suffix + cfg.dataset.domain).Data(), "RECREATE");
-  if (cfg.dataset.isMC) {
+  if (isMC) {
     h3D_0b->Write();
     h3D_b->Write();
     h3D_bb->Write();
@@ -1255,252 +1257,6 @@ void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t e
     h_count_data->Write();
   }
   outFile.Close();
-}
-
-
-//________________________________________________________________________________________________________
-//_______________________Check dr and eec bin migrations__________________________________________________
-//________________________________________________________________________________________________________
-
-//Draws the migration (so you can just plot it without rerunning the histogram filling)
-void draw_migration(RooUnfoldResponse* &response, TString &observable, TString &filename,  TString &sample, TString &label, TString &folder){
-   
-    //Define the canvas
-    TCanvas *c = new TCanvas("c", " ",500,500,904,804);
-    c->SetFillColor(0);
-    c->SetBorderMode(0);
-    c->SetBorderSize(2);
-    c->SetFrameBorderMode(0);
-    c->SetFrameBorderMode(0);
-    c->SetRightMargin(0.2);
-
-    //Get response matrix as a 2D histogram
-    TMatrixD response_matrix = response->Mresponse();
-    TH2D *h = new TH2D(response_matrix);
-
-    //Draw histograms
-    h->SetStats(0);
-    if(observable == "dr") h->SetTitle("\\mbox{Effect of bin-to-bin migration for the }\\Delta\\mbox{r distribution}");
-    else h->SetTitle("Effect of bin-to-bin migration for the " + observable + " distribution");
-    h->GetZaxis()->SetTitle("Migration probability");
-    h->GetZaxis()->SetTitleOffset(1.5);
-    if(observable == "dr"){
-        h->GetXaxis()->SetTitle("\\Delta\\mbox{r at detector level}");
-        h->GetYaxis()->SetTitle("\\Delta\\mbox{r at particle level}");
-    }
-    else{
-        h->GetXaxis()->SetTitle(observable + " at detector level");
-        h->GetYaxis()->SetTitle(observable + " at particle level");
-    }
-    h->GetXaxis()->CenterTitle(true);
-    h->GetYaxis()->CenterTitle(true);
-    gStyle->SetPaintTextFormat("4.2f");
-    h->Draw("colz text");
-
-    //Save plot as pdf
-    c->Print(folder + observable +"_migration_effect_" + sample + "_" + label + ".pdf");
-    //c->Print(folder + observable +"_migration_effect_" + sample + "_" + label + ".cpp");
-}
-
-//Fills the dr and eec bin migration histograms (already normalized as "response matrices")
-// -- Looks like reading Franc tree (not original tree)
-void get_eec_dr_migration(TString &filename, TString &sample, TString &label, TString &folder, bool &btag){
-    TString flav = label; 
-    std::cout << "flav:" << flav << std::endl;
-
-    
-    TString fin_name = filename; 
-
-    std::cout << "fin: " << fin_name << std::endl;
-    TFile *fin = new TFile(fin_name);
-
-    TString tree_name = "tree";
-
-    std::cout << "tree: " << tree_name << std::endl;
-    TTree *tree = (TTree *) fin->Get(tree_name);
-
-    // Set tree addresses
-    Int_t evt_nr;
-    Double_t weight;
-    Double_t pthat;
-    Int_t ndr_reco;
-    Int_t ndr_gen;
-    Int_t ntrk_reco;
-    Int_t ntrk_gen;
-    Int_t passcuts_reco;
-    Int_t passcuts_gen;
-    Int_t njet_reco;
-    Int_t njet_gen;
-    Int_t jt_index_reco;
-    Int_t jt_index_gen;
-    Double_t jpt_reco;
-    Double_t jpt_gen;
-    Float_t mb_reco;
-    Float_t mb_gen;
-    Float_t dr_reco[4000];
-    Float_t dr_gen[4000];
-    Float_t eec_reco[4000];
-    Float_t eec_gen[4000];
-    Double_t jt_eta_reco;
-    Double_t jt_eta_gen;
-    Double_t discr;
-    Int_t jtHadFlav;
-    Int_t jtNbHad;
-
-
-    //tree->SetBranchAddress("evt_nr", &evt_nr);
-    tree->SetBranchAddress("weight", &weight);
-    tree->SetBranchAddress("pthat", &pthat);
-    tree->SetBranchAddress("ndr_reco", &ndr_reco);
-    tree->SetBranchAddress("ndr_gen", &ndr_gen);
-    tree->SetBranchAddress("ntrk_reco", &ntrk_reco);
-    tree->SetBranchAddress("ntrk_gen", &ntrk_gen);
-    tree->SetBranchAddress("passcuts_reco", &passcuts_reco);
-    tree->SetBranchAddress("passcuts_gen", &passcuts_gen);
-    tree->SetBranchAddress("njet_reco", &njet_reco);
-    tree->SetBranchAddress("njet_gen", &njet_gen);
-    tree->SetBranchAddress("jt_index_reco", &jt_index_reco);
-    tree->SetBranchAddress("jt_index_gen", &jt_index_gen);
-    tree->SetBranchAddress("jpt_reco", &jpt_reco);
-    tree->SetBranchAddress("jpt_gen", &jpt_gen);
-    tree->SetBranchAddress("mB_reco", &mb_reco);
-    tree->SetBranchAddress("mB_gen", &mb_gen);
-    tree->SetBranchAddress("dr_reco", &dr_reco);
-    tree->SetBranchAddress("dr_gen", &dr_gen);
-    tree->SetBranchAddress("eec_reco", &eec_reco);
-    tree->SetBranchAddress("eec_gen", &eec_gen);
-    tree->SetBranchAddress("jt_eta_reco", &jt_eta_reco);
-    tree->SetBranchAddress("jt_eta_gen", &jt_eta_gen);
-    tree->SetBranchAddress("discr", &discr);
-    tree->SetBranchAddress("jtHadFlav", &jtHadFlav);                                                                                         
-	  tree->SetBranchAddress("jtNbHad", &jtNbHad);       
-
-    //Define dr and eec histograms and response matrices
-    TH1D *h_dr_migration = new TH1D("h_dr_migration", "h_dr_migration", dr_bins, dr_binsVector);
-    RooUnfoldResponse *response_dr = new RooUnfoldResponse(h_dr_migration, h_dr_migration, "response_dr", "response for 1d: dr"); 
-
-    TH1D *h_eec_migration = new TH1D("h_eec_migration", "h_eec_migration", eec_bins, eec_binsVector);
-    RooUnfoldResponse *response_eec = new RooUnfoldResponse(h_eec_migration, h_eec_migration, "response_eec", "response for 1d: eec"); 
-
-    // Loop over tree entries
-    Long64_t nentries = tree->GetEntries();
-    std::cout << "Entries: " << nentries << std::endl;
-    for (Long64_t ient = 0; ient < nentries; ient++) {
-        //Print progress
-        if (ient%1000000==0) cout << "ient=" << ient << std::endl; 
-
-        tree->GetEntry(ient);
-        cout << "test: jpt_gen = "<< jpt_gen << endl;
-        
-        Int_t cuts = 1;                                                                                                                                               
-        if      (flav == "b1")    cuts = 1;                                                                                                                           
-        else if (flav == "b2")    cuts = 2;                                                                                                                           
-        else if (flav == "nonb")  cuts = 3;                                                                                                                           
-        else if (flav == "all")   cuts = 4;                                                                                                                           
-        else if (flav == "c")     cuts = 5;                                                                                                                           
-        else if (flav == "light") cuts = 6;                                                                                                                           
-        else {                                                                                                                                                      
-        std::cerr << "ERROR: Unknown label '" << label << "'\n";                                                                                                  
-        exit(1);                                                                                                                                                       
-        }       
-
-        bool skip = false;                                                                  
-        // Select jet flavour and/or select on the number of b hadrons                                                                                                                                                                                                                                          
-        switch(cuts){                                                                                                                                                
-        //b-jet with one b hadron                                                                                                                                  
-        case 1:                                                                                                                                                               	  
-        if (std::abs(jtHadFlav) < 5) skip = true;                                                                                                                         	  
-        if (std::abs(jtNbHad) != 1) skip = true;                                                                                                                        	  
-        break;                                                                                                                                                       	  
-        //b-jet with more than 1 b hadron                                                                                                                           
-        case 2:                                                                                                                                                              	  
-        if (std::abs(jtHadFlav) < 5) skip = true;                                                                                                                          	  
-        if (std::abs(jtNbHad) < 2) skip = true;                                                                                                                     	  
-        break;                                                                                                                                                                   	  
-        //non-b jets                                                                                                                                                                                                                                                                                          
-        case 3:                                                                                                                                                              	  
-        if (std::abs(jtHadFlav) == 5) skip = true;                                                                                                                         	  
-        break;                                                                                                                                                             	  
-        //no flavour selection                                                                                                                                                                                                                                                                                
-        case 4:                                                                                                                                                              	  
-        skip = false;                                                                                                                                                    	  
-        break;                                                                                                                                                         	  
-        //c-jets                                                                                                                                                     
-        case 5:                                                                                                                                                              	  
-        if(std::abs(jtHadFlav) != 4) skip = true;                                                                                                                 	  
-        break;                                                                                                                                                          	  
-        //light (non-b non-c) jets                                                                                                                                                                                                                                                                            
-        case 6:                                                                                                                                                       	  
-        if(std::abs(jtHadFlav) >= 4) skip = true;                                                                                                                         	  
-        break;                                                                                                                                                                  
-        }                                                                                                                                                                     
-        if (skip) continue;      
-        /////////////////////////////
-
-        // if (skipMC(jpt_reco, jpt_gen, pthat)) continue;
-          if (skipMC_gen(jpt_gen)) continue;
-          if (skipMC_event(jpt_reco, pthat)) continue;
-
-
-        // Check if pass cuts
-        bool has_gen_match = (jpt_gen > 0);
-
-        // Fill histograms
-        if (!has_gen_match) {   
-            // fill fakes
-            continue; 
-        } 
-        
-        // Skip jets outside tracker 
-        if (std::abs(jt_eta_reco) > 1.6) continue;
-        if (std::abs(jt_eta_gen) > 1.6) continue;
-
-        //Select jets passing the reco b-jet tagging (to see the bias that the tagging introduces on the measurements)
-        if (btag && std::abs(discr) <= 0.99) continue;
-
-
-        
-        // The rest of the histograms don;t include any fakes
-
-        //Debug
-        if(ndr_gen != ndr_reco) std::cout << "!! Different ndr_reco and ndr_gen" << std::endl;
-        
-        //Loop over matched dr to fill the dr and eec histograms
-        for (Int_t j = 0; j < ndr_reco; j++){
-            Float_t dr_reco_j = dr_reco[j];
-            Float_t dr_gen_j = dr_gen[j];
-            
-            Float_t eec_reco_j = eec_reco[j];
-            Float_t eec_gen_j = eec_gen[j];
-
-            response_dr->Fill(dr_reco_j, dr_gen_j, weight);
-            response_eec->Fill(eec_reco_j, eec_gen_j, weight);
-        }
-    }
-
-    //Draw dr migration
-    TString observable = "dr";
-    draw_migration(response_dr, observable, filename, sample, label, folder);
-
-    fin->Close();
-    delete fin;
-
-    //Save dr migration histograms
-    TString fout_dr_name = "dr_migration_hist_" + sample + "_" + label + ".root";
-    TFile *fout_dr = new TFile(folder + fout_dr_name, "recreate");
-    response_dr->Write();
-    fout_dr->Close();
-
-    //Draw eec histogram
-    observable = "eec";
-    draw_migration(response_eec, observable, filename, sample, label, folder);
-
-    //Save eec migration histogram
-    TString fout_eec_name = "eec_migration_hist_" + sample + "_" + label + ".root";
-    TFile *fout_eec = new TFile(folder+fout_eec_name, "recreate");
-    response_eec->Write();
-    fout_eec->Close();
-
 }
 
 
@@ -1524,8 +1280,10 @@ void create_response_templatefit(
     Long64_t ev_last  = -1)
 {
 
+  bool isMC = cfg.dataset.dataType == 1 ||   cfg.dataset.dataType == 2; 
+
   // -- Only for MC------------ 
-  if(!cfg.dataset.isMC) { // For response matrix
+  if(!isMC) { // For response matrix
     std::cerr<< "ERROR: Input sample is not MC!, check sample or MC tag."<<endl;
     return;
   }
@@ -1550,7 +1308,7 @@ void create_response_templatefit(
 
 
     tTree t;
-    t.Init(cfg.dataset.filename, cfg.dataset.isMC, cfg.dataset.RunN);
+    t.Init(cfg.dataset.filename, cfg.dataset.dataType, cfg.dataset.RunN);
       t.SetBranchStatus("*", 0);
       auto active_branches = getActiveBranches(cfg);
       t.SetBranchStatus(active_branches, 1);
@@ -1576,20 +1334,20 @@ void create_response_templatefit(
     int  n_debug_printed = 0;
 
     //purity
-    TH3D *h_half0_purity_num = new TH3D("h_half0_purity_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half0_purity_den = new TH3D("h_half0_purity_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_purity_num = new TH3D("h_half1_purity_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_purity_den = new TH3D("h_half1_purity_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_purity_num = new TH2D("h_half0_purity_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_purity_den = new TH2D("h_half0_purity_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_purity_num = new TH2D("h_half1_purity_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_purity_den = new TH2D("h_half1_purity_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
     //efficiency
-    TH3D *h_half0_eff_num    = new TH3D("h_half0_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half0_eff_den    = new TH3D("h_half0_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_eff_num    = new TH3D("h_half1_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_eff_den    = new TH3D("h_half1_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_eff_num = new TH2D("h_half0_efficiency_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_eff_den = new TH2D("h_half0_efficiency_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_eff_num = new TH2D("h_half1_efficiency_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_eff_den = new TH2D("h_half1_efficiency_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
     //btag efficiency
-    TH3D *h_half0_btag_eff_num    = new TH3D("h_half0_btag_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half0_btag_eff_den    = new TH3D("h_half0_btag_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_btag_eff_num    = new TH3D("h_half1_btag_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_btag_eff_den    = new TH3D("h_half1_btag_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_btag_eff_num = new TH2D("h_half0_btag_efficiency_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_btag_eff_den = new TH2D("h_half0_btag_efficiency_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_btag_eff_num = new TH2D("h_half1_btag_efficiency_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_btag_eff_den = new TH2D("h_half1_btag_efficiency_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
 
 
     RooUnfoldResponse *response_half0 = new RooUnfoldResponse(h_half0_purity_den, h_half0_eff_den, "response_tf_half0", "tf response half0");
@@ -1605,7 +1363,7 @@ void create_response_templatefit(
             std::cout << "\rProcessing: " << 100.0 * ient / n_events << " %" << std::flush;
         t.GetEntry(ient);
 
-        double weight_tree = cfg.dataset.isMC ? t.weight : 1.0;
+        double weight_tree = isMC ? t.weight : 1.0;
 
         // MC trigger selection (run-dependent)
         if (! passEventSelection(t, cfg)) continue;
@@ -1683,7 +1441,7 @@ void create_response_templatefit(
                              //passBtag(t, ijet, cfg);
                              //  && (mB_reco_fill >= mb_min && mB_reco_fill < mb_max) && (dr_reco_fill < dr_max); // Not needed since reco_sv_ok is already required.
 
-            bool reco_pass = reco_sv_ok && passRecoJetKinematics(t, ijet, cfg);
+            bool reco_pass = reco_sv_ok && passRecoJetKinematics(t, ijet, cfg) && dr_reco_fill > 0.005; 
             
             bool reco_pass_btag = reco_sv_ok && passBtag(t, ijet, cfg); //check
 
@@ -1765,28 +1523,28 @@ void create_response_templatefit(
             double w_gen  = weight_tree * eec_gen;
 
             if (reco_pass) {
-                if (num < 0.5) h_half0_purity_den->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
-                else           h_half1_purity_den->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
+                if (num < 0.5) h_half0_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
+                else           h_half1_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
             }
             
             if (gen_pass) {
-                if (num < 0.5) h_half0_eff_den->Fill(mB_gen_fill, dr_gen_fill, jpt_gen, w_gen);
-                else           h_half1_eff_den->Fill(mB_gen_fill, dr_gen_fill, jpt_gen, w_gen);
+                if (num < 0.5) h_half0_eff_den->Fill(dr_gen_fill, jpt_gen, w_gen);
+                else           h_half1_eff_den->Fill(dr_gen_fill, jpt_gen, w_gen);
             }
             if (reco_pass && gen_pass) {
                 if (num < 0.5) {
-                    h_half0_purity_num->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
-                    h_half0_eff_num   ->Fill(mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_gen);
-                    response_half0->Fill(mB_reco_fill, dr_reco_fill, jpt_reco,
-                                         mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_reco);
+                    h_half0_purity_num->Fill(dr_reco_fill, jpt_reco, w_reco);
+                    h_half0_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_gen);
+                    response_half0->Fill(dr_reco_fill, jpt_reco,
+                                         dr_gen_fill,  jpt_gen,  w_reco);
                 } else {
-                    h_half1_purity_num->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
-                    h_half1_eff_num   ->Fill(mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_gen);
-                    response_half1->Fill(mB_reco_fill, dr_reco_fill, jpt_reco,
-                                         mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_reco);
+                    h_half1_purity_num->Fill( dr_reco_fill, jpt_reco, w_reco);
+                    h_half1_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_gen);
+                    response_half1->Fill(dr_reco_fill, dr_reco_fill, jpt_reco,
+                                         dr_gen_fill,  dr_gen_fill,  jpt_gen,  w_reco);
                 }
-                response_full->Fill(mB_reco_fill, dr_reco_fill, jpt_reco,
-                                     mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_reco);
+                response_full->Fill(dr_reco_fill, jpt_reco,
+                                    dr_gen_fill,  jpt_gen,  w_reco);
           }
 
         } // jet loop
@@ -1818,29 +1576,28 @@ void create_response_templatefit(
     //----------------------------
 
     // --- Compte Purity, Eff.  
-    auto divide = [](TH3D* num, TH3D* den, const char* name) -> TH3D* {
-        TH3D *h = (TH3D*) num->Clone(name);
+    auto divide = [](TH2D* num, TH2D* den, const char* name) -> TH2D* {
+        TH2D *h = (TH2D*) num->Clone(name);
         h->Divide(num, den, 1., 1., "b"); // Bionmial error propogation
         return h;
     };
       // For halfs
-    TH3D *h_half0_purity = divide(h_half0_purity_num, h_half0_purity_den, "h_half0_purity_tf");
-    TH3D *h_half1_purity = divide(h_half1_purity_num, h_half1_purity_den, "h_half1_purity_tf");
-    TH3D *h_half0_eff    = divide(h_half0_eff_num,    h_half0_eff_den,    "h_half0_efficiency_tf");
-    TH3D *h_half1_eff    = divide(h_half1_eff_num,    h_half1_eff_den,    "h_half1_efficiency_tf");
+    TH2D *h_half0_purity = divide(h_half0_purity_num, h_half0_purity_den, "h_half0_purity_tf");
+    TH2D *h_half1_purity = divide(h_half1_purity_num, h_half1_purity_den, "h_half1_purity_tf");
+    TH2D *h_half0_eff    = divide(h_half0_eff_num,    h_half0_eff_den,    "h_half0_efficiency_tf");
+    TH2D *h_half1_eff    = divide(h_half1_eff_num,    h_half1_eff_den,    "h_half1_efficiency_tf");
 
       // For full 
-    TH3D *h_full_purity_num = (TH3D*) h_half0_purity_num->Clone("h_full_purity_numerator_tf");
+    TH2D *h_full_purity_num = (TH2D*) h_half0_purity_num->Clone("h_full_purity_numerator_tf");
     h_full_purity_num->Add(h_half1_purity_num);
-    TH3D *h_full_purity_den = (TH3D*) h_half0_purity_den->Clone("h_full_purity_denominator_tf");
+    TH2D *h_full_purity_den = (TH2D*) h_half0_purity_den->Clone("h_full_purity_denominator_tf");
     h_full_purity_den->Add(h_half1_purity_den);
-    TH3D *h_full_purity = divide(h_full_purity_num, h_full_purity_den, "h_full_purity_tf");
-
-    TH3D *h_full_eff_num = (TH3D*) h_half0_eff_num->Clone("h_full_efficiency_numerator_tf");
+    TH2D *h_full_purity = divide(h_full_purity_num, h_full_purity_den, "h_full_purity_tf");
+    TH2D *h_full_eff_num = (TH2D*) h_half0_eff_num->Clone("h_full_efficiency_numerator_tf");
     h_full_eff_num->Add(h_half1_eff_num);
-    TH3D *h_full_eff_den = (TH3D*) h_half0_eff_den->Clone("h_full_efficiency_denominator_tf");
+    TH2D *h_full_eff_den = (TH2D*) h_half0_eff_den->Clone("h_full_efficiency_denominator_tf");
     h_full_eff_den->Add(h_half1_eff_den);
-    TH3D *h_full_eff = divide(h_full_eff_num, h_full_eff_den, "h_full_efficiency_tf");
+    TH2D *h_full_eff = divide(h_full_eff_num, h_full_eff_den, "h_full_efficiency_tf");
 
     std::cout << "Creating: " << fout_name << std::endl;
     TFile *fout = new TFile(fout_name, "recreate");
@@ -1932,22 +1689,22 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     std::cout << "dr range: [" << dr_min << ", " << dr_max << "]" << std::endl;
     // -------------------------------------------------------------------
 
-    TH3D *h_half0_purity_num = new TH3D("h_half0_purity_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half0_purity_den = new TH3D("h_half0_purity_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half0_eff_num    = new TH3D("h_half0_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half0_eff_den    = new TH3D("h_half0_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_purity_num = new TH3D("h_half1_purity_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_purity_den = new TH3D("h_half1_purity_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_eff_num    = new TH3D("h_half1_efficiency_numerator_tf",   "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
-    TH3D *h_half1_eff_den    = new TH3D("h_half1_efficiency_denominator_tf", "x=mB, y=dr_SV, z=jtpt", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_purity_num = new TH2D("h_half0_purity_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_purity_den = new TH2D("h_half0_purity_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_eff_num    = new TH2D("h_half0_efficiency_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_eff_den    = new TH2D("h_half0_efficiency_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_purity_num = new TH2D("h_half1_purity_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_purity_den = new TH2D("h_half1_purity_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_eff_num    = new TH2D("h_half1_efficiency_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_eff_den    = new TH2D("h_half1_efficiency_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
 
     RooUnfoldResponse *response_half0 = new RooUnfoldResponse(h_half0_purity_den, h_half0_eff_den, "response_tf_half0", "tf response half0");
     RooUnfoldResponse *response_half1 = new RooUnfoldResponse(h_half1_purity_den, h_half1_eff_den, "response_tf_half1", "tf response half1");
     RooUnfoldResponse *response_full  = new RooUnfoldResponse(h_half0_purity_den, h_half0_eff_den, "response_tf_full",  "tf response full");
 
 	// -- For b-tagging eff. correction after unfolding (at particle level)
-	TH3D* hgenjet_2b = new TH3D("hgenjet_2b", "b-tagging eff. DENO;m_{2B} [GeV];DeltaR;p_{T} [GeV]", n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector); // before btagging
-	TH3D* hgenjet_2b_passbtag = new TH3D("hgenjet_2b_passbtag", "b-tagging eff. NUM;m_{2B} [GeV];DeltaR;p_{T} [GeV]",  n_mb, mb_binsVector, n_dr, dr_binsVector, n_pt, jtpt_binsVector); // after btagging
+	TH2D* hgenjet_2b = new TH2D("hgenjet_2b", "b-tagging eff. DENO;m_{2B} [GeV];DeltaR;p_{T} [GeV]", n_dr, dr_binsVector, n_pt, jtpt_binsVector); // before btagging
+	TH2D* hgenjet_2b_passbtag = new TH2D("hgenjet_2b_passbtag", "b-tagging eff. NUM;m_{2B} [GeV];DeltaR;p_{T} [GeV]",  n_dr, dr_binsVector, n_pt, jtpt_binsVector); // after btagging
 	const bool doAggNtuple = makeAggNtuple && cfg.dataset.isMC;
 	TFile* fout_agg = nullptr;
 	TTree* aggBHadronTree = nullptr;
@@ -1994,7 +1751,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
   /////////////////////////////////////////////////////////
   ///////// Loop over events ///////// 
   tTree t;
-  t.Init(cfg.dataset.filename, cfg.dataset.isMC, cfg.dataset.RunN);
+  t.Init(cfg.dataset.filename, cfg.dataset.dataType, cfg.dataset.RunN);
   t.SetBranchStatus("*", 0);
   auto active_branches = getActiveBranches(cfg);
   t.SetBranchStatus(active_branches, 1);
@@ -2016,13 +1773,13 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
       // -- test tree branches are read: 
         // cout << "jtpt = " << t.jtpt[0] << endl;
       
-      double weight_tree = cfg.dataset.isMC ? t.weight : 1.0;
+      double weight_tree = isMC ? t.weight : 1.0;
 
       // -- NEW: 
       if (! passPVQuality_EventSelection(t, cfg)) continue;
 
         // cout << "PV quality pass ok: t.vz = "<< t.vz  << endl;
-          // if (cfg.dataset.RunN == 3 &&  !cfg.dataset.isMC ) cout << " and t.pprimaryVertexFilter = "<< t.pprimaryVertexFilter << endl;
+          // if (cfg.dataset.RunN == 3 &&  !isMC ) cout << " and t.pprimaryVertexFilter = "<< t.pprimaryVertexFilter << endl;
 
       // -- Trigger selections for all 
       if (! passEventSelection(t, cfg)) continue;
@@ -2059,13 +1816,14 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
                 if(mB >= mb_max) mB = mb_max_fill;
 
                 // Prescale factor for data 
-                if (cfg.dataset.RunN == 2 && !cfg.dataset.isMC && t.HLT_HIAK4PFJet40_v1 && !(t.HLT_HIAK4PFJet60_v1 || t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) 
+                if (cfg.dataset.RunN == 2 && !isMC && t.HLT_HIAK4PFJet40_v1 && !(t.HLT_HIAK4PFJet60_v1 || t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) 
                 {eec *= prescale;} 
 
-                if (cfg.dataset.RunN == 3 && !cfg.dataset.isMC && t.HLT_AK4PFJet60_v8 && !(t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8 || t.HLT_AK4PFJet120_v8) ) 
+                if (cfg.dataset.RunN == 3 && !isMC && t.HLT_AK4PFJet60_v8 && !(t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8 || t.HLT_AK4PFJet120_v8) ) 
                 {eec *= prescale;} 
+                
 
-                if (cfg.dataset.isMC) {
+                if (isMC && dr > 0.005) {
                   // use truth to classify: fill separate 0b, b and bb templates
                   if      (t.jtNbHad[ijet] == 0) { h3D_0b->Fill(mB, dr, jtpt, eec * weight_tree); h_count_0b->Fill(mB, dr, jtpt, weight_tree); }
                   else if (t.jtNbHad[ijet] == 1) { h3D_b ->Fill(mB, dr, jtpt, eec * weight_tree); h_count_b ->Fill(mB, dr, jtpt, weight_tree); }
@@ -2161,7 +1919,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 				double w_gen  = weight_tree * eec_gen;
 		
 			   // Fill total number of True 2b Jets (Deno of b-tagging eff. correction) before b-tagger: simialr axis to what we unfold to. - used after unfolding
-			  	hgenjet_2b ->Fill(mB_gen, dr_gen, jpt_gen, w_gen);
+			  	hgenjet_2b ->Fill(dr_gen, jpt_gen, w_gen);
 			   
 			   // -- Prepare combined b-tagger: 
                // ---- Reco SVs ----
@@ -2195,7 +1953,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 					if (!reco_sv_ok  || !passBtag(t, ijet, cfg)) continue; // select btagged jets only
 			  
 			   // Fill total number of True 2b Jets that survive after btagging condition (Num of b tagging eff. correction - used after unfolding)
-				hgenjet_2b_passbtag ->Fill(mB_gen, dr_gen, jpt_gen, w_gen);
+				hgenjet_2b_passbtag ->Fill(dr_gen, jpt_gen, w_gen);
 
 			   // -- Prepare to Fill Rmatrix -- 
 			   // -- Reco pair info 
@@ -2211,7 +1969,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
                   if (dr_reco_fill >= dr_max) dr_reco_fill = dr_max_fill;
 			   
             // Define reco_pass: full detector-level selection
-            bool reco_pass = passRecoJetKinematics(t, ijet, cfg); 
+            bool reco_pass = passRecoJetKinematics(t, ijet, cfg) && dr_reco_fill > 0.005; 
                 
             // Define gen_pass: particle-level jet kinematics + gen observable range
             bool gen_pass  = passGenJetKinematics(t, ijet, cfg);
@@ -2267,27 +2025,27 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
             double num    = distr(generator);
 
             if (reco_pass) {
-                if (num < 0.5) h_half0_purity_den->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
-                else           h_half1_purity_den->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
+                if (num < 0.5) h_half0_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
+                else           h_half1_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
             }
             if (gen_pass) {
-                if (num < 0.5) h_half0_eff_den->Fill(mB_gen_fill, dr_gen_fill, jpt_gen, w_gen);
-                else           h_half1_eff_den->Fill(mB_gen_fill, dr_gen_fill, jpt_gen, w_gen);
+                if (num < 0.5) h_half0_eff_den->Fill(dr_gen_fill, jpt_gen, w_gen);
+                else           h_half1_eff_den->Fill(dr_gen_fill, jpt_gen, w_gen);
             }
             if (reco_pass && gen_pass) {
                 if (num < 0.5) {
-                    h_half0_purity_num->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
-                    h_half0_eff_num   ->Fill(mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_gen);
-                    response_half0->Fill(mB_reco_fill, dr_reco_fill, jpt_reco,
-                                         mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_reco);
+                    h_half0_purity_num->Fill(dr_reco_fill, jpt_reco, w_reco);
+                    h_half0_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_gen);
+                    response_half0->Fill(dr_reco_fill, jpt_reco,
+                                         dr_gen_fill,  jpt_gen,  w_reco);
                 } else {
-                    h_half1_purity_num->Fill(mB_reco_fill, dr_reco_fill, jpt_reco, w_reco);
-                    h_half1_eff_num   ->Fill(mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_gen);
-                    response_half1->Fill(mB_reco_fill, dr_reco_fill, jpt_reco,
-                                         mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_reco);
+                    h_half1_purity_num->Fill(dr_reco_fill, jpt_reco, w_reco);
+                    h_half1_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_gen);
+                    response_half1->Fill(dr_reco_fill, jpt_reco,
+                                        dr_gen_fill,  jpt_gen,  w_reco);
                 }
-                response_full->Fill(mB_reco_fill, dr_reco_fill, jpt_reco,
-                                     mB_gen_fill,  dr_gen_fill,  jpt_gen,  w_reco);
+                response_full->Fill(dr_reco_fill, jpt_reco,
+                                    dr_gen_fill,  jpt_gen,  w_reco);
           }//end fill  (reco_pass && gen_pass)
 
 
@@ -2338,34 +2096,33 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     //----------------------------
 
     // --- Compte Purity, Eff.  
-    auto divide = [](TH3D* num, TH3D* den, const char* name) -> TH3D* {
-        TH3D *h = (TH3D*) num->Clone(name);
+    auto divide = [](TH2D* num, TH2D* den, const char* name) -> TH2D* {
+        TH2D *h = (TH2D*) num->Clone(name);
         h->Divide(num, den, 1., 1., "b"); // Bionmial error propogation
         return h;
     };
       // For halfs
-    TH3D *h_half0_purity = divide(h_half0_purity_num, h_half0_purity_den, "h_half0_purity_tf");
-    TH3D *h_half1_purity = divide(h_half1_purity_num, h_half1_purity_den, "h_half1_purity_tf");
-    TH3D *h_half0_eff    = divide(h_half0_eff_num,    h_half0_eff_den,    "h_half0_efficiency_tf");
-    TH3D *h_half1_eff    = divide(h_half1_eff_num,    h_half1_eff_den,    "h_half1_efficiency_tf");
+    TH2D *h_half0_purity = divide(h_half0_purity_num, h_half0_purity_den, "h_half0_purity_tf");
+    TH2D *h_half1_purity = divide(h_half1_purity_num, h_half1_purity_den, "h_half1_purity_tf");
+    TH2D *h_half0_eff    = divide(h_half0_eff_num,    h_half0_eff_den,    "h_half0_efficiency_tf");
+    TH2D *h_half1_eff    = divide(h_half1_eff_num,    h_half1_eff_den,    "h_half1_efficiency_tf");
 
       // For full 
-    TH3D *h_full_purity_num = (TH3D*) h_half0_purity_num->Clone("h_full_purity_numerator_tf");
+    TH2D *h_full_purity_num = (TH2D*) h_half0_purity_num->Clone("h_full_purity_numerator_tf");
     h_full_purity_num->Add(h_half1_purity_num);
-    TH3D *h_full_purity_den = (TH3D*) h_half0_purity_den->Clone("h_full_purity_denominator_tf");
+    TH2D *h_full_purity_den = (TH2D*) h_half0_purity_den->Clone("h_full_purity_denominator_tf");
     h_full_purity_den->Add(h_half1_purity_den);
-    TH3D *h_full_purity = divide(h_full_purity_num, h_full_purity_den, "h_full_purity_tf");
-
-    TH3D *h_full_eff_num = (TH3D*) h_half0_eff_num->Clone("h_full_efficiency_numerator_tf");
+    TH2D *h_full_purity = divide(h_full_purity_num, h_full_purity_den, "h_full_purity_tf");
+    TH2D *h_full_eff_num = (TH2D*) h_half0_eff_num->Clone("h_full_efficiency_numerator_tf");
     h_full_eff_num->Add(h_half1_eff_num);
-    TH3D *h_full_eff_den = (TH3D*) h_half0_eff_den->Clone("h_full_efficiency_denominator_tf");
+    TH2D *h_full_eff_den = (TH2D*) h_half0_eff_den->Clone("h_full_efficiency_denominator_tf");
     h_full_eff_den->Add(h_half1_eff_den);
-    TH3D *h_full_eff = divide(h_full_eff_num, h_full_eff_den, "h_full_efficiency_tf");
+    TH2D *h_full_eff = divide(h_full_eff_num, h_full_eff_den, "h_full_efficiency_tf");
 
     std::cout << "Creating: " << ResponseMatrix_fout_name << std::endl;
 
 	// -- Compute b-tagg. Eff. correction
-	TH3D* hbtagEff_correction_plevel = divide(hgenjet_2b_passbtag, hgenjet_2b, "hbtagEff_correction_plevel");	
+	TH2D* hbtagEff_correction_plevel = divide(hgenjet_2b_passbtag, hgenjet_2b, "hbtagEff_correction_plevel");	
 
 	  
     //// WRITE OUTPUT RESPONSE MATRIX 
@@ -2397,7 +2154,7 @@ if(isMakeTemplates)
     hpt_selectedJets->Write();
     hpt_selectedJets_noweight->Write();
 
-  if (cfg.dataset.isMC) { // Reco MC 
+  if (isMC) { // Reco MC 
     h3D_0b->Write();
     h3D_b->Write();
     h3D_bb->Write();
@@ -2412,6 +2169,9 @@ if(isMakeTemplates)
   outFile->Close();
   delete outFile;
 }
+
+// -- Close input file 
+
 	
 } // end Function 
 
@@ -2423,9 +2183,8 @@ void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t p
  std::cout << "ENTER FUNCTION" << std::endl;
 
   RunN = 3;
-  dataType = 2;
-  isMC = true;
-
+  dataType = 0;
+  isMC = false;
 
  // -- test use of central configuration
   AnalysisConfig cfg =  buildConfig(
@@ -2465,56 +2224,3 @@ void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t p
   //filter_b_bb_as_data_and_mc(filename, output_folder, output_hist, domain, pT_low, pT_high, n, btag, isMC);
 }
 
-/*
-Build_templates(cfg, 0, 1e+04):
---- Jet statistics (bb jets, jtNbHad >= 2) ---
-  selected bb jets (after triggers):      101
-  Gen bh ok (>= 2 gen bh):     92
-  Passing reco cuts:           17
-  Passing gen cuts:            42
-  Passing both (numerator):    17
-  Reco SV failures (< 2 SVs): 46
-  SV purity failures:          19
-  SV merging failures:         20
-  No-SV track agg failures:    21
---- Reco-pass per-condition failures (first failing cond shown) ---
-  fail reco_sv_ok:   46
-  fail reco jpt:     23
-  fail reco eta:     0
-  fail reco btag:    6
-  fail reco mB:      0
-  fail reco dr:      0
---- Gen-pass per-condition failures (first failing cond shown) ---
-  fail gen jpt:      48
-  fail gen eta:      2
-  fail gen mB:       0
-  fail gen dr:       0
-
-*/
-
-/*
- create_response_templatefit(cfg, output_hist_response, 0, 1e+04);
---- Jet statistics (bb jets, jtNbHad >= 2) ---
-  selected bb jets (after triggers):      101
-  Gen bh ok (>= 2 gen bh):     92
-  Passing reco cuts:           17
-  Passing gen cuts:            42
-  Passing both (numerator):    17
-  Reco SV failures (< 2 SVs): 46
-  SV purity failures:          19
-  SV merging failures:         20
-  No-SV track agg failures:    21
---- Reco-pass per-condition failures (first failing cond shown) ---
-  fail reco_sv_ok:   46
-  fail reco jpt:     23
-  fail reco eta:     0
-  fail reco btag:    6
-  fail reco mB:      0
-  fail reco dr:      0
---- Gen-pass per-condition failures (first failing cond shown) ---
-  fail gen jpt:      48
-  fail gen eta:      2
-  fail gen mB:       0
-  fail gen dr:       0
-
-*/

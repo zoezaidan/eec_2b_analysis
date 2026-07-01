@@ -1,6 +1,6 @@
-#include "rootlogon.C"
 #include "CMSStyle.C"
 
+// usage:  root -l rootlogon.C plotNice_bdt_roc.C
 
 void plotNice_bdt_roc(){
 
@@ -39,7 +39,7 @@ void plotNice_bdt_roc(){
   g2b->Draw("l");
   gAll->Draw("l");
 
-  TLegend* leg = new TLegend(0.2, 0.55, 0.45, 0.8);
+  TLegend* leg = new TLegend(0.2, 0.55, 0.45, 0.77);
   leg->SetBorderSize(0); leg->SetFillStyle(0);
   leg->SetTextFont(42);
   leg->SetTextSize(0.04);
@@ -54,7 +54,14 @@ void plotNice_bdt_roc(){
   btagLbl->SetNDC();
   btagLbl->SetTextFont(42);
   btagLbl->SetTextSize(0.04);
-  btagLbl->DrawLatex(0.2, 0.85, "b-tag WP > 0.872 (UParT)");
+  btagLbl->DrawLatex(0.2, 0.78, "b-tag WP > 0.872 (UParT)");
+
+
+  TLatex *latex2 = new TLatex();
+  latex2->SetNDC();
+  latex2->SetTextSize(0.04);
+  latex2->DrawLatex(0.2, 0.85,"100 < p_{T,jet} < 120 GeV, |#eta_{jet}| < 2");
+
   
   drawCMSLabel(c, "Internal Simulation", "2024 pp (5.36 TeV)");
 }
