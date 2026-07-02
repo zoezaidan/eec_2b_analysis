@@ -282,6 +282,9 @@ AnalysisConfig buildConfig(
     bool isMC,
     double btagWP
 ){
+  // Backward-compatible argument: MC/data is derived from dataType below.
+  (void)isMC;
+
   // -- USER: SET HERE YOUR DESIRED ANALYSIS CONFIG -------
 
   AnalysisConfig cfg;
@@ -300,7 +303,8 @@ AnalysisConfig buildConfig(
   cfg.n = n;
 
   // Dataset setting
-  cfg.dataset = buildDataset(RunN, dataType, isMC, cfg.physics); 
+  const bool isMCFromDataType = dataType > 0;
+  cfg.dataset = buildDataset(RunN, dataType, isMCFromDataType, cfg.physics); 
 
   return cfg;
 }
