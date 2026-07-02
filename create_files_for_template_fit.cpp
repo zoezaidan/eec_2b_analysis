@@ -1768,26 +1768,82 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
   auto active_branches = getActiveBranches(cfg);
   t.SetBranchStatus(active_branches, 1);
 
-  TFile* weightFile = nullptr;
+  TFile* eventInfoFile = nullptr;
+  TTree* hiEvtTree = nullptr;
+  TTree* hltTree = nullptr;
+  TTree* skimTree = nullptr;
   TTree* weightTree = nullptr;
+  Float_t hiEvtVz = 999.0;
   Float_t hiEvtWeight = 1.0;
-  if (cfg.dataset.isMC) {
-    weightFile = TFile::Open(cfg.dataset.filename);
-    if (weightFile && !weightFile->IsZombie()) {
-      weightTree = (TTree*)weightFile->Get("hiEvtAnalyzer/HiTree");
-      if (weightTree && weightTree->GetBranch("weight")) {
-        weightTree->SetBranchStatus("*", 0);
-        weightTree->SetBranchStatus("weight", 1);
-        weightTree->SetBranchAddress("weight", &hiEvtWeight);
-        std::cout << "Reading MC event weights from hiEvtAnalyzer/HiTree::weight" << std::endl;
-      } else {
-        std::cout << "WARNING: could not find hiEvtAnalyzer/HiTree::weight; falling back to t.weight" << std::endl;
-        weightTree = nullptr;
+  Int_t skimPprimaryVertexFilter = 1;
+  Int_t hltAK4PFJet40 = 0;
+  Int_t hltAK4PFJet60 = 0;
+  Int_t hltAK4PFJet80 = 0;
+  Int_t hltAK4PFJet100 = 0;
+  Int_t hltAK4PFJet120 = 0;
+
+  eventInfoFile = TFile::Open(cfg.dataset.filename);
+  if (eventInfoFile && !eventInfoFile->IsZombie()) {
+    hiEvtTree = (TTree*)eventInfoFile->Get("hiEvtAnalyzer/HiTree");
+    if (hiEvtTree) {
+      hiEvtTree->SetBranchStatus("*", 0);
+      if (hiEvtTree->GetBranch("vz")) {
+        hiEvtTree->SetBranchStatus("vz", 1);
+        hiEvtTree->SetBranchAddress("vz", &hiEvtVz);
+        std::cout << "Reading event vz from hiEvtAnalyzer/HiTree::vz" << std::endl;
       }
-    } else {
-      std::cout << "WARNING: could not reopen input file for hiEvtAnalyzer/HiTree weights; falling back to t.weight" << std::endl;
-      weightTree = nullptr;
+      if (cfg.dataset.isMC) {
+        weightTree = hiEvtTree;
+        if (weightTree && weightTree->GetBranch("weight")) {
+          weightTree->SetBranchStatus("weight", 1);
+          weightTree->SetBranchAddress("weight", &hiEvtWeight);
+          std::cout << "Reading MC event weights from hiEvtAnalyzer/HiTree::weight" << std::endl;
+        } else {
+          std::cout << "WARNING: could not find hiEvtAnalyzer/HiTree::weight; falling back to t.weight" << std::endl;
+          weightTree = nullptr;
+        }
+      }
     }
+    hltTree = (TTree*)eventInfoFile->Get("hltanalysis/HltTree");
+    if (hltTree && cfg.dataset.RunN == 3) {
+      hltTree->SetBranchStatus("*", 0);
+      if (hltTree->GetBranch("HLT_AK4PFJet40_v8")) {
+        hltTree->SetBranchStatus("HLT_AK4PFJet40_v8", 1);
+        hltTree->SetBranchAddress("HLT_AK4PFJet40_v8", &hltAK4PFJet40);
+      }
+      if (hltTree->GetBranch("HLT_AK4PFJet60_v8")) {
+        hltTree->SetBranchStatus("HLT_AK4PFJet60_v8", 1);
+        hltTree->SetBranchAddress("HLT_AK4PFJet60_v8", &hltAK4PFJet60);
+      }
+      if (hltTree->GetBranch("HLT_AK4PFJet80_v8")) {
+        hltTree->SetBranchStatus("HLT_AK4PFJet80_v8", 1);
+        hltTree->SetBranchAddress("HLT_AK4PFJet80_v8", &hltAK4PFJet80);
+      }
+      if (hltTree->GetBranch("HLT_AK4PFJet100_v8")) {
+        hltTree->SetBranchStatus("HLT_AK4PFJet100_v8", 1);
+        hltTree->SetBranchAddress("HLT_AK4PFJet100_v8", &hltAK4PFJet100);
+      }
+      if (hltTree->GetBranch("HLT_AK4PFJet120_v8")) {
+        hltTree->SetBranchStatus("HLT_AK4PFJet120_v8", 1);
+        hltTree->SetBranchAddress("HLT_AK4PFJet120_v8", &hltAK4PFJet120);
+      }
+      std::cout << "Reading Run3 HLT bits from hltanalysis/HltTree" << std::endl;
+    }
+    skimTree = (TTree*)eventInfoFile->Get("skimanalysis/HltTree");
+    if (skimTree && cfg.dataset.RunN == 3 && !cfg.dataset.isMC) {
+      skimTree->SetBranchStatus("*", 0);
+      if (skimTree->GetBranch("pprimaryVertexFilter")) {
+        skimTree->SetBranchStatus("pprimaryVertexFilter", 1);
+        skimTree->SetBranchAddress("pprimaryVertexFilter", &skimPprimaryVertexFilter);
+        std::cout << "Reading pprimaryVertexFilter from skimanalysis/HltTree" << std::endl;
+      }
+    }
+  } else {
+    std::cout << "WARNING: could not reopen input file for event-level friend trees; falling back to tTree friends" << std::endl;
+    eventInfoFile = nullptr;
+  }
+  if (!cfg.dataset.isMC) {
+    weightTree = nullptr;
   }
 
   ///// Tree related variables 
@@ -1803,7 +1859,22 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     // Keep batch logs compact; final counters are printed after the loop.
       
       t.GetEntry(ient);
-      if (weightTree) weightTree->GetEntry(ient);
+      if (hiEvtTree) {
+        hiEvtTree->GetEntry(ient);
+        t.vz = hiEvtVz;
+      }
+      if (hltTree && cfg.dataset.RunN == 3) {
+        hltTree->GetEntry(ient);
+        t.HLT_AK4PFJet40_v8 = hltAK4PFJet40;
+        t.HLT_AK4PFJet60_v8 = hltAK4PFJet60;
+        t.HLT_AK4PFJet80_v8 = hltAK4PFJet80;
+        t.HLT_AK4PFJet100_v8 = hltAK4PFJet100;
+        t.HLT_AK4PFJet120_v8 = hltAK4PFJet120;
+      }
+      if (skimTree && cfg.dataset.RunN == 3 && !cfg.dataset.isMC) {
+        skimTree->GetEntry(ient);
+        t.pprimaryVertexFilter = skimPprimaryVertexFilter;
+      }
 
       // -- test tree branches are read: 
         // cout << "jtpt = " << t.jtpt[0] << endl;
@@ -2129,9 +2200,9 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 	    fout_agg->Close();
 	    delete fout_agg;
 	  }
-	  if (weightFile) {
-	    weightFile->Close();
-	    delete weightFile;
+	  if (eventInfoFile) {
+	    eventInfoFile->Close();
+	    delete eventInfoFile;
 	  }
 
 	  /////////// continue compute Response matrix related ef. and purity + WRITE to root file output ------
