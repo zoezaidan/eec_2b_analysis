@@ -2,23 +2,18 @@
 #include "binning_histos_small.h"
 
 
-void apply_unfolding(TString &dataset, TString &label, TString &folder, bool matched, bool btag, Int_t n, TString pT_selection)
+void apply_unfolding(TString &dataset, TString &folder, bool btag, Int_t n, TString pT_selection)
 {   
     //Select unfolding options
     bool unfoldBayes =  false;
     bool multiply_sigfrac = true;
     bool correct_tageff = false;
-    bool reduced = false;
+    
     TString dataset_response = "bjet";
-    TString filename_template_fit = folder + "FRAN_histos_3d_from_templ_" + dataset + "_" + pT_selection + ".root";
-    //histos_3d_from_templ_data_80_140.root
-
-    TString fin_name;
-    if(matched) fin_name = "histos_response_2D_";
-    else fin_name = "histos_response_1D_";
-    if(!btag) label += "_notag"; 
-    fin_name += TString(Form("n%i_", n)) + dataset_response + "_" + label + ".root";
-    TString filename_response = folder + fin_name;
+    TString filename_template_fit = folder + "Run3_btagWP868_template_for_fit_histos_3D_data_f.root"; 
+     //"/home/llr/cms/zaidan/analysis_lise/eec_2b_analysis/TemplateFit_Run3/TemplateFits_Run3_minHLT60_LinearFineBin/nominal_Run3_TemplateFits_histos_3d_80_200.root"; 
+    //after fit!!!!???
+    TString filename_response = folder + "RMatrix_Run3_btagWP868_template_for_fit_histos_3D_qcd_f.root";
     std::cout << "Using response file: " << filename_response << std::endl;
     
     //Select central pT bin
@@ -33,30 +28,23 @@ void apply_unfolding(TString &dataset, TString &label, TString &folder, bool mat
               << std::endl;
 
 
+    TString label = dataset;
     if(unfoldBayes) label += "_bayesian";
     if(correct_tageff) label += "_tageff_corrected";
     TString fout_name;
-    if(matched) fout_name = folder + "histos_" + label + "_after_unfolding_2D.root";
-    else fout_name = folder + "histos_" + label + "_after_unfolding_1D.root";
+    fout_name = folder + "histos_" + label + "_after_unfolding_1D.root";
 
     // ---------------- Plotting setup ------------
     gSystem->Load("libRooUnfold.so");
     gStyle->SetErrorX(0.5);
-
     Float_t text_size = 20.;
-    /*gStyle->SetTextSize(text_size);
-    gStyle->SetLegendTextSize(text_size);
-    gStyle->SetLabelSize(text_size, "XYZ");
-    gStyle->SetTitleSize(text_size, "XYZ");*/
-    // --------------------------------------------
-
 
     // ----------- Grab data ----------- 
 
-    TString fname_data = filename_template_fit;
+    TString fname_data = folder + "Run3_btagWP868_template_for_fit_histos_3D_data_f.root";
     std::cout << "Getting data from " << fname_data << std::endl;
     TFile *fin_data = new TFile(fname_data);
-    TH3D *h_data_reco_3D = (TH3D*)fin_data->Get("h_data")->Clone("h_data_reco_3D");
+    TH3D *h_data_reco_3D = (TH3D*)fin_data->Get("h3D_data")->Clone("h_data_reco_3D");
     TH2D *h_data_reco = (TH2D*)h_data_reco_3D->Project3D("zy");
 
     //Dimension of the response matrix
@@ -124,7 +112,6 @@ void apply_unfolding(TString &dataset, TString &label, TString &folder, bool mat
     h_data_purity_corrected->Multiply(h_full_purity);
 
     // ---- Unfold
-    // ACA!!
     std::cout << "\t---->Unfolding" << std::endl;
     RooUnfold::ErrorTreatment errorTreatment = RooUnfold::kCovariance;
     TH2D *h_data_unfolded;
@@ -255,8 +242,8 @@ void apply_unfolding(TString &dataset, TString &label, TString &folder, bool mat
         h_data_refolded_1d->SetLineColor(kBlue);
         h_data_refolded_1d->SetMarkerStyle(kFullCross);
         h_data_refolded_1d->SetMarkerSize(1);
-        //if(!reduced) leg->AddEntry(h_data_refolded_1d, "Refolded data", "pe1");
-
+        
+        
         TCanvas *c_unfold = new TCanvas("c_unfold", "", 800, 600);
         TPad *pad1 = new TPad("pad1", "", 0., 0., 1., 0.3);
         TPad *pad2 = new TPad("pad2", "", 0., 0.3, 1., 1.);
@@ -274,15 +261,14 @@ void apply_unfolding(TString &dataset, TString &label, TString &folder, bool mat
         h_mc_reco_1d->Draw("pe1 same");
         h_data_fully_corrected_1d->Draw("pe1 same");
         h_mc_true_1d->Draw("pe1 same");
-        //if(!reduced) h_data_refolded_1d->Draw("pe1 same");
+
         leg->Draw();
         TLatex *test_info_text = new TLatex;
         test_info_text->SetNDC();
         test_info_text->SetTextSize(0.03);
         test_info_text->DrawLatex(0.69, 0.7, "Data HighEGJet + LowEGJet");
         test_info_text->DrawLatex(0.69, 0.75, "MC bjet response matrix");
-        if(matched) test_info_text->DrawLatex(0.69, 0.65, "2D jet p_{T} and #Deltar unfolding");
-        else test_info_text->DrawLatex(0.69, 0.65, "1D jet p_{T} unfolding");
+        test_info_text->DrawLatex(0.69, 0.65, "1D jet p_{T} unfolding");
         test_info_text->Draw("same");
         //drawHeader();    
 
@@ -336,11 +322,9 @@ void apply_unfolding(TString &dataset, TString &label, TString &folder, bool mat
         pad1->Draw();
         pad2->Draw();
         c_unfold->Draw();
-        if(matched) dataset += "_matched";
-        if(reduced) dataset += "_reduced";
+        dataset += "_reduced??";
         if(unfoldBayes) dataset += "_bayesian";
-        if(matched) c_unfold->Print(folder + "unfolding_plot"+dataset+"_bottomline_test_eec_2D.pdf");
-        else c_unfold->Print(folder + "unfolding_plot"+dataset+"_bottomline_test_eec_1D.pdf");
+        c_unfold->Print(folder + "unfolding_plot"+dataset+"_bottomline_test_eec_1D.pdf");
         
 
     }
@@ -374,25 +358,15 @@ void apply_unfolding(TString &dataset, TString &label, TString &folder, bool mat
 }
 
 void apply_unfolding_2d(){
-    std::vector<TString> datasets{"data"};   //{"data"};//, "dijet"};
+    TString dataset = "data";   //{"data"};//, "qcd"};
     
-    TString folder = "/data_CMS/cms/zaidan/eec_trees/fran_bins/";
+    TString folder = "/data_CMS/cms/zaidan/analysis_lise/Run3/";
 
-    TString pT_selection = "80_140";
-
+    TString pT_selection = "80_200";
+ 
     bool btag = true;
-
-    bool matched = false;
-
     Int_t n = 1;
 
-    //Create labels
-    std::vector<TString> labels_vec{"b1"};//, "moreb", "other","mc"};
-
-    for(Int_t i = 0; i < datasets.size(); i++){
-        for(Int_t j = 0; j < labels_vec.size(); j++){
-	  apply_unfolding(datasets.at(i), labels_vec.at(j), folder, matched, btag, n, pT_selection);
-        }
-
-    }
+	apply_unfolding(dataset, folder, btag, n, pT_selection);
+     
 }
