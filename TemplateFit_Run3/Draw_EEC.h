@@ -9,6 +9,10 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
     // -- output directory
     TString sresultDir_eec = Form("%s/EEC_plots/%s", sDirname.Data(), varNames[ivar].Data());
     gSystem->mkdir(sresultDir_eec, kTRUE);
+
+    TString sresultDir_eec_www = Form("%s/EEC_plots/%s", sDirname_www.Data(), varNames[ivar].Data());
+        gSystem->mkdir(sresultDir_eec_www, kTRUE);
+
     TString sname_canvas = Form("%d_%s", ibin_pt, varNames[ivar].Data());
 
 
@@ -195,7 +199,7 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
                     cout << "Scaled 2B (MC) int = "<< heec_bb_MC_scaled->Integral(1, N_dr_bins, "width") << endl;
                     cout << "Scaled 1B +0B (MC) int = "<< heec_b_0b_MC_scaled->Integral(1, N_dr_bins, "width") << endl;
                 
-            // Draw relevant contributions: 2B only (etracted from Data and normlaized MC)
+            // Draw relevant contributions: 2B only (extracted from Data and normlaized MC)
                 TCanvas *c_EEC_2B = new TCanvas(Form("c_EEC_2B_%s", sname_canvas.Data()), " ",950, 1100);
                     c_EEC_2B->cd();
                     TPad* pad1_2B = new TPad("pad1_2B","",0,0.2,1,1);
@@ -233,7 +237,7 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
                     pad2_2B->SetTickx(1);
                     pad2_2B->SetTicky(1);
                     
-                    AddRatioPlot(heec_sigfrac, heec_bb_MC_scaled, "", kRed+1);
+                    AddRatioPlot(heec_sigfrac, heec_bb_MC_scaled, "","",kRed+1);
                             // change its y axis name
                             TH1* h1_2B = (TH1*) pad2_2B->GetPrimitive(Form("ratio_%s_%s", heec_sigfrac->GetName(), heec_bb_MC_scaled->GetName()));
                             h1_2B->GetYaxis()->SetTitle("Data/MC");
@@ -250,6 +254,8 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
                         pad2_2B->Update();
                     c_EEC_2B->SaveAs( sresultDir_eec + "/" + "EEC_2B_" + ibin_pt + ".pdf");
                     c_EEC_2B->SaveAs( sresultDir_eec + "/" + "EEC_2B_" + ibin_pt + ".png");
+                    if(ibin_pt != 0)  c_EEC_2B->SaveAs( sresultDir_eec_www + "/" + "RawEEC_2B_dataMCcompare_ptbin" + ibin_pt + ".png");
+
 
 
 
@@ -294,14 +300,14 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
                     // pad2->SetLogx();
                     pad2->SetTickx(1);
                     pad2->SetTicky(1);
-                    AddRatioPlot(heec_sigfrac, heec_bb_MC_scaled, "", kRed+1);
+                    AddRatioPlot(heec_sigfrac, heec_bb_MC_scaled, "Data/MC","" ,kRed+1);
                             // change its y axis name
                             TH1* h1 = (TH1*) pad2->GetPrimitive(Form("ratio_%s_%s", heec_sigfrac->GetName(), heec_bb_MC_scaled->GetName()));
                             h1->GetYaxis()->SetTitle("Data/MC");
                             h1->GetXaxis()->SetTitle("#DeltaR");
                             // h1->SetMinimum(0.1);
                             // h1->SetMaximum(1.9);
-                    AddRatioPlot(heec_bkgfrac, heec_b_0b_MC_scaled, "EP same", kGreen+2);
+                    AddRatioPlot(heec_bkgfrac, heec_b_0b_MC_scaled, "Data/MC" ,"EP same", kGreen+2);
                             TH1* h2 = (TH1*) pad2->GetPrimitive(Form("ratio_%s_%s", heec_bkgfrac->GetName(), heec_b_0b_MC_scaled->GetName()));
                             TLegend* leg_ratio = CreateLegend(0.2, 0.62, 0.45, 0.90,  // suggested: 0.6,0.7,0.9,0.9 // Right: 0.7, 0.62, 0.89, 0.90
                                 {h1, h2},
@@ -314,6 +320,8 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
                     c_all_norm->SaveAs( sresultDir_eec + "/" + "AllNorm_ EEC_" + ibin_pt + ".pdf");
                     c_all_norm->SaveAs( sresultDir_eec + "/" + "AllNorm_ EEC_" + ibin_pt + ".png");
 
+                    // Web version for non integarted pt interval 
+                    if(ibin_pt != 0)  c_all_norm->SaveAs( sresultDir_eec_www + "/" + "RawEEC_1B2B_dataMCcompare_ptbin" + ibin_pt + ".png");
 
  
       // -- Write plotted canvas to output file

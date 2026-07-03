@@ -214,7 +214,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
     for(Int_t ibin_pt = 0; ibin_pt <= bins_pt; ibin_pt++){
     // for(Int_t ibin_pt = 2 ; ibin_pt <= 2; ibin_pt++){
         for(Int_t ibin_dr = 0; ibin_dr <= N_bins_dr; ibin_dr++){
-        // for(Int_t ibin_dr = 0; ibin_dr <= 3; ibin_dr++){
+        // for(Int_t ibin_dr = 0; ibin_dr <= N_bins_dr; ibin_dr++){
             
             // define slice
             Int_t SliceFirstbin_dr = ibin_dr;
@@ -228,6 +228,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
             TH1D *h_data_mb = (TH1D *) h3D_data->ProjectionX(Form("h_data_mb_%d_%d", ibin_dr, ibin_pt), SliceFirstbin_dr, SliceLastbin_dr, SliceFirstbin_pt, SliceLastbin_pt);
                 h_data_mb->GetXaxis()->SetTitle("m_{2B} [GeV]");
                 h_data_mb->SetTitle(h3D_data->GetTitle()); // upadte projection title
+                h_data_mb->SetLineWidth(2);
             
             // Make slices for dijet
             TH1D *h_bb = (TH1D *) h3D_bb->ProjectionX(Form("h_bb_%d_%d", ibin_dr, ibin_pt), SliceFirstbin_dr, SliceLastbin_dr, ibin_pt, ibin_pt);
@@ -496,7 +497,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                             DrawCommonTextTopRight(canva_pdf_norm_beforefit, ibin_dr, ibin_pt, yBins, N_bins_dr);
                             canva_pdf_norm_beforefit->Write();
                             canva_pdf_norm_beforefit->Print(Form("%s/%s_PDF_norm_beforefit.png", sDir_canvas.Data(), sname_canvas.Data()));
-            
+    /*        
 
             // what about a stack of PDFs before fit 
                 // these are not normalized to 1, but normlaized such that the total PDFs are 1, using their qcd fractions  
@@ -560,14 +561,12 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                         // Create scaled PDFs to the true integrals in qcd 
                         // 1B (bjet and dijet)
                         TH1D* hnorm_sumbkg_1B_scaledint = (TH1D*) h_sumbkg->Clone("hnorm_sumbkg_1B_scaledint");
-                                 hnorm_sumbkg_1B_scaledint->Scale(1./hnorm_sumbkg_1B_scaledint->Integral(1, mb_bins, "width"));
+                                hnorm_sumbkg_1B_scaledint->Scale(1./hnorm_sumbkg_1B_scaledint->Integral(1, mb_bins, "width"));
                                 hnorm_sumbkg_1B_scaledint->Scale(int1);
                         hstack_pfds_seperated_scaledtoqcd_int.Add(h_sig_scaledint); 
                         hstack_pfds_seperated_scaledtoqcd_int.Add(hnorm_sumbkg_1B_scaledint);
                         hstack_pfds_seperated_scaledtoqcd_int.Add(h_nob);
                         hstack_pfds_seperated_scaledtoqcd_int.SetMaximum(1.2 * hstack_pfds_seperated_scaledtoqcd_int.GetMaximum());
-
-
                             auto canva_pdfs_seperated_scaledtoqcd_int = new TCanvas("canva_pdfs_seperated_scaledtoqcd_int","", 800, 800 );
                                 canva_pdfs_seperated_scaledtoqcd_int->cd();
                                 hstack_pfds_seperated_scaledtoqcd_int.Draw("Hist E");
@@ -580,7 +579,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                                 DrawCommonTextTopRight(canva_pdfs_seperated_scaledtoqcd_int, ibin_dr, ibin_pt, yBins, N_bins_dr);
                                 canva_pdfs_seperated_scaledtoqcd_int->Write();
                                 canva_pdfs_seperated_scaledtoqcd_int->Print(Form("%s/%s_pdfs_seperated_scaledtoqcd_int_beforefit.png", sDir_canvas.Data(), sname_canvas.Data()));
-                                 
+    */                             
             // Before fit: pdfs scaled to data 
              THStack hstack_pfds_scaledtoData (Form("hstack_pfds_scaledtoData_%d_%d", ibin_dr, ibin_pt),"PDFs scaled to data, before fit");
                     hstack_pfds_scaledtoData.SetTitle(Form("DeltaRBin_%d_PtBin_%d;m_{2B} [GeV];",  ibin_dr, ibin_pt));
@@ -596,26 +595,47 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                         hstack_pfds_scaledtoData.Add(h_2B_scaledtoData); // 2B 
                         hstack_pfds_scaledtoData.Add(hnorm_sumbkg_1B_scaledtoData);
                         hstack_pfds_scaledtoData.Add(h_nob_scaledtoData); // 0B
-                        hstack_pfds_scaledtoData.SetMaximum(1.2 * hstack_pfds_scaledtoData.GetMaximum());
-                            auto canva_pdfs_scaledtoData = new TCanvas("canva_pdfs_scaledtoData","", 800, 800 );
-                                canva_pdfs_scaledtoData->cd();
-                                hstack_pfds_scaledtoData.Draw("Hist E");
-                                h_data_mb->Draw("Hist PE same");
-                                DrawCommonTextTopRight(canva_pdfs_scaledtoData, ibin_dr, ibin_pt,yBins, N_bins_dr, false);
-                                TLegend* leg_before = CreateLegend(0.54, 0.6, 0.85, 0.8,
-                                    {h_data_mb, h_sig, h_sumbkg, norm_h_nob},
-                                    {"LPE", "LF", "LF", "LF"},
-                                    {"Data", "2B", "1B", "0B"} // use default titles 
-                                    );
-                                    leg_before->Draw("same");
-                                gPad->Modified();   
-                                gPad->Update();
-                                canva_pdfs_scaledtoData->Modified();
-                                canva_pdfs_scaledtoData->Update();
-                                fout->cd();
-                                canva_pdfs_scaledtoData->Write();
-                                canva_pdfs_scaledtoData->Print(Form("%s/%s_pdfs_scaledtoData_beforefit.png", sDir_canvas.Data(), sname_canvas.Data()));
-                                if( !(ibin_dr == 0 || ibin_pt ==0 )) canva_pdfs_scaledtoData->Print(Form("%s/prefit_%s.png", sDir_canvas_www.Data(), sname_canvas.Data()));  
+                        hstack_pfds_scaledtoData.SetMaximum(1.6 * h_data_mb->GetMaximum());
+
+            // Modify prefit to add Ratio : Data/total MC 
+               TCanvas* cRatio_prefit = new TCanvas(Form("Prefit_RatioPlot_%s", sname_canvas.Data()), "", 1100, 1100);
+                    TPad* pad11 = new TPad("pad11","",0,0.2,1,1);//  0,0.2,1,1
+                    TPad* pad22 = new TPad("pad21","",0,0,1,0.24);
+                    pad11->SetBottomMargin(0.07); // 0.06 
+                    pad11->SetLeftMargin(0.18); // for y axis title space 
+                    pad11->SetTopMargin(0.14); // new to allow cms label
+                    pad22->SetTopMargin(0.03);// 0.02     // bottom pad (very small)
+                    pad22->SetBottomMargin(0.40);  // keep space for x-axis labels
+                    pad22->SetLeftMargin(0.18);  
+                    pad11->Draw();
+                    pad22->Draw(); 
+                    pad11->cd();
+                    // Draw frame to control y axis name: frame needed to control y axis name 
+                    TH1F *frame_pre = pad11->DrawFrame(h_data_mb->GetXaxis()->GetXmin(), 0, h_data_mb->GetXaxis()->GetXmax(), h_data_mb->GetMaximum() * 1.6 );
+                        frame_pre->GetYaxis()->SetTitle("Counts/[GeV]");
+                         frame_pre->GetXaxis()->SetLabelSize(0); // Remove labels of this Pad 
+                        hstack_pfds_scaledtoData.Draw("hist E same"); 
+                        h_data_mb->Draw("PE same"); 
+                        // Add (dr, pt) bins legend 
+                        DrawCommonTextTopRight(pad11, ibin_dr, ibin_pt, yBins,N_bins_dr ,false); // without default bildlegend of other objects
+                        // use new Legend for enties (withut hframe)
+                        TLegend* leg_pre = CreateLegend(0.63, 0.6, 0.85, 0.75, // 0.54, 0.6, 0.85, 0.8, // .6, 0.50, 0.85, 0.8
+                            {h_data_mb, h_sig, h_sumbkg, norm_h_nob},
+                            {"LPE", "LF", "LF", "LF"},
+                            {"Data", "2B", "1B", "0B"} 
+                        );
+                        leg_pre->Draw("same");
+                        pad11->Modified(); // force refresh 
+                        pad11->Update();
+                    pad22->cd(); 
+                    // Draw ratio: data/total MC stack
+                    TH1D* hsatckMC_total = (TH1D*) hstack_pfds_scaledtoData.GetStack()->Last()->Clone("hsatckMC_total");
+                    AddRatioPlot(h_data_mb, hsatckMC_total, "Data/MC");
+                    pad22->SetTickx(1);// → draws ticks on both bottom and top
+                        fout->cd();
+                        cRatio_prefit->Write();
+                        cRatio_prefit->Print(Form("%s/Prefit_%s.png", sDir_canvas.Data(), sname_canvas.Data()));
+                        if( !(ibin_dr == 0 || ibin_pt ==0 ))  cRatio_prefit->Print(Form("%s/Prefit_%s.png", sDir_canvas_www.Data(), sname_canvas.Data()));
 
 
             ///// Fitting
@@ -864,29 +884,26 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                 TCanvas* c = new TCanvas(Form("RatioPlot_%s", sname_canvas_afterfit.Data()), "", 1100, 1100); // 900, 1100
                     TPad* pad1 = new TPad("pad1","",0,0.2,1,1);//  0,0.2,1,1
                     TPad* pad2 = new TPad("pad2","",0,0,1,0.24);
-                    // pad1->SetBottomMargin(0.13);
-                    pad1->SetBottomMargin(0.06);
+                    pad1->SetBottomMargin(0.07);
                     pad1->SetLeftMargin(0.18); // for y axis title space 
-                    
-                pad1->SetTopMargin(0.14); // new to allow cms label
-
+                    pad1->SetTopMargin(0.14); // new to allow cms label
                     pad2->SetTopMargin(0.03);// 0.02     // bottom pad (very small)
                     pad2->SetBottomMargin(0.40);  // keep space for x-axis labels
                     pad2->SetLeftMargin(0.18);  
-
                     pad1->Draw();
                     pad2->Draw(); 
                     pad1->cd();
                     // Draw frame to control y axis name: frame needed to control y axis name 
                     TH1F *frame = pad1->DrawFrame(hstack_afterfit.GetXaxis()->GetXmin(), 0, hstack_afterfit.GetXaxis()->GetXmax(), hstack_afterfit.GetMaximum()*1.3);
                         frame->GetYaxis()->SetTitle("Counts/[GeV]");
+                        frame->GetXaxis()->SetLabelSize(0); // Remove labels of this Pad 
                         hstack_afterfit.Draw("hist E same"); 
                         h_data_mb->Draw("PE same"); 
                         // h_total_fit->Draw("P E SAME");
                         // Add (dr, pt) bins legend 
                         DrawCommonTextTopRight(pad1, ibin_dr, ibin_pt, yBins,N_bins_dr ,false); // without default bildlegend of other objects
                         // use new Legend for enties (withut hframe)
-                        TLegend* leg = CreateLegend(0.63, 0.6, 0.85, 0.75, // 0.54, 0.6, 0.85, 0.8, // .6, 0.50, 0.85, 0.8
+                        TLegend* leg = CreateLegend(0.63, 0.6, 0.85, 0.75,
                             {h_data_mb, h_sig_fit, h_bkg_fit_1b, h_bkg_fit_nob},
                             {"LPE", "LF", "LF", "LF"},
                             {"Data", "", "", ""} // use default titles 
@@ -1842,7 +1859,7 @@ void template_fit(){
 
         // --  Loop over variations on templates: one root file per variation 
         // --  other png drawings are on seperate directories, for simplisity.
-        for (int ivar = 0; ivar < 1; ivar++) // 1 nominal only
+        for (int ivar = 0; ivar < 3; ivar++) //
         {
             TString newfout_name = varNames[ivar]+ "_" + fout_name;
             do_template_fit_combined(dataset_HG,dataset_LG,templates_dijet, templates_bjet,  pT_selection, folder, newfout_name, alsoLowEG, also_bjet, (Variation) ivar); // default: NOMINAL variation 
@@ -1855,10 +1872,10 @@ void template_fit(){
                     // if (! foutputPlots_dijet->IsOpen()){ foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "Read"); }
                     // if (!foutputPlots_dijet || foutputPlots_dijet->IsZombie()) {std::cout << "Error opening file!" << std::endl; return;}
                 
-                // draw_template_fit_result(newfout_name, foutputPlots_dijet, dataname, folder, pT_selection, ibin_pt, (Variation) ivar); 
+                draw_template_fit_result(newfout_name, foutputPlots_dijet, dataname, folder, pT_selection, ibin_pt, (Variation) ivar); 
                 
                 /// Draw EEC 
-                // draw_eec_simple(newfout_name, foutputPlots_dijet ,folder, also_bjet, ibin_pt, (Variation) ivar);
+                draw_eec_simple(newfout_name, foutputPlots_dijet ,folder, also_bjet, ibin_pt, (Variation) ivar);
 
             }
         
@@ -1867,7 +1884,7 @@ void template_fit(){
 
 
     
-    /*
+    
         //-- Get systematics 
         cout << "Calculate systematic uncertaintiy " << endl;
         TFile *fsys = new TFile( Form("%s/Result_syst_uncert_templatefit.root", sDirname.Data()),"recreate");
@@ -1883,7 +1900,7 @@ void template_fit(){
             fsys->Close();
             delete fsys;
     
-       */
+       
 
     foutputPlots_dijet->Print();
     foutputPlots_dijet->Close();
