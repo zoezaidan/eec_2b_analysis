@@ -428,7 +428,7 @@ void DrawCommonTextTopRight(TPad* pad,  int ibin_dr, int ibin_pt, const double* 
     // draw auto legend first
     TLegend* leg = nullptr;
     if(useDeaultLegend){
-        leg = pad->BuildLegend(0.59, 0.5, 0.87, 0.75); // 0.6, 0.5, 0.88, 0.7
+        leg = pad->BuildLegend(0.59, 0.5, 0.87, 0.75); //  
         // optional styling
         leg->SetBorderSize(0);
         leg->SetFillStyle(0);
@@ -445,8 +445,8 @@ void DrawCommonTextTopRight(TPad* pad,  int ibin_dr, int ibin_pt, const double* 
     latex.SetTextAlign(13); // left top alignment
     latex.SetTextFont(42); // font helvatic normal (42). bold(62)
 
-    double x = right - 0.35; //  0.3 shift left from right edge
-    double y = top - 0.03;
+    double x = right - 0.26; //  x = right - 0.35;
+    double y = top - 0.03;  //  y = top - 0.03; 
 
     // legend text setting: read bins to numbers 
     double pt_first = 0;
@@ -472,19 +472,19 @@ void DrawCommonTextTopRight(TPad* pad,  int ibin_dr, int ibin_pt, const double* 
 }
 
 // -----------------------
-void AddRatioPlot(TH1* h1, TH1* h2, const char* drawoption="EP", int linecolor = kBlack) {
+void AddRatioPlot(TH1* h1, TH1* h2, const char* ytitle = "Data/Fit",const char* drawoption="EP", int linecolor = kBlack) {
     // draw ratio of two hists
     TH1* ratio = (TH1*)h1->Clone(Form("ratio_%s_%s", h1->GetName(), h2->GetName() ));
     ratio->Reset();
     ratio->Divide(h1, h2);
 
     ratio->SetTitle("");
-    ratio->GetYaxis()->SetTitle("Data/Fit");
+    ratio->GetYaxis()->SetTitle(ytitle);
     ratio->GetYaxis()->CenterTitle(true);
 
     // cout << "ratio max and min "<< ratio->GetMaximum() << ", " << ratio->GetMinimum() <<endl;
     double max = 0; 
-    if (ratio->GetMaximum() > 10) max = 5; else max = ratio->GetMaximum() + 0.2; // avoid very very large values when fit is almost zero.
+    if (ratio->GetMaximum() > 10) max = 3; else max = ratio->GetMaximum() + 0.2; // avoid very very large values when fit is almost zero.
     ratio->SetMaximum( max ); // max
     ratio->SetMinimum( ratio->GetMinimum() - 0.2 ); // min
 
@@ -532,6 +532,9 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     // TString sresultDir = Form("%s/FitResult_Summary_S_B_fractions", sDirname.Data());
     TString sresultDir = Form("%s/FitResult_Summary_S_B_fractions/%s", sDirname.Data(), varNames[ivar].Data());
     gSystem->mkdir(sresultDir, kTRUE); 
+
+    TString sresultDir_www = Form("%s/FitResult_Summary_S_B_fractions/%s", sDirname_www.Data(), varNames[ivar].Data());
+    gSystem->mkdir(sresultDir_www, kTRUE); 
 
 
     //Get fractions for the jtpt bin ibin_pt
@@ -855,6 +858,8 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
             c_drval->SaveAs( sresultDir + "/" + trivialMC_label + "sign_frac_result_differentialDronly_" + dataset + "_" + ptbin_name + ".png");
             c_drval->SaveAs( sresultDir + "/" + trivialMC_label + "sign_frac_result_differentialDronly_" + dataset + "_" + ptbin_name + ".pdf");
 
+            // For differnetial pt intervals only
+            if(ibin_pt != 0) c_drval->SaveAs( sresultDir_www + "/" + trivialMC_label + "sign_frac_" + dataset + "_" + ptbin_name + ".png");
 
     // -- Write plotted canvas to output file 
      if (!foutputPlots) {
