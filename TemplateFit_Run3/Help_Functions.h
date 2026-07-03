@@ -455,7 +455,7 @@ void DrawCommonTextTopRight(TPad* pad,  int ibin_dr, int ibin_pt, const double* 
     else if (ibin_dr == N_bins_dr) { dr_first =  newyBins[ibin_dr -1];  dr_last = -1;} // last binto infintiy 
         else { dr_first =  newyBins[ibin_dr -1]; dr_last  = newyBins[ibin_dr];} // normal 
 
-    cout << "HOLA dr bin #"<< ibin_dr << "first and last are : " << dr_first << ", " << dr_last << endl;
+    //cout << "HOLA dr bin #"<< ibin_dr << "first and last are : " << dr_first << ", " << dr_last << endl;
 
 
     if (!ibin_pt){pt_first = jtpt_binsVector[0];  pt_last = jtpt_binsVector[jtpt_bins];} 

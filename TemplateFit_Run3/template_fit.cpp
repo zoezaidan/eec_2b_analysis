@@ -4,7 +4,7 @@
 #include "binning_histos_small.h"
 #include "Help_Functions.h"
 #include "Draw_EEC.h"
-// #include "../CMSStyle.C" // CMS style impored from Matthew
+//#include "../CMSStyle.C" // CMS style impored from Matthew
 
 
 void do_template_fit_combined(const TString &HighEGdata_name, const TString &LowEGdata_name, TString &templates, TString &templates_bjet, TString pT_selection, TString folder, TString &fout_name, bool& alsoLowEG, bool& also_bjet,  Variation ivar = NOMINAL){
@@ -1746,7 +1746,7 @@ void Draw_template_Run3(TString &templates, TString pT_selection, TString folder
 void template_fit(){
     // -- Output folder to save the result of the tests 
     gSystem->mkdir(sDirname, kTRUE);// Predefined in Help.h
-    TString folder = Form("/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/TemplateFit_Run3_WP0868_LinearFineBin/%s/", sDirname.Data()); // this is sDirname 
+    TString folder = Form("/home/llr/cms/zaidan/analysis_lise/eec_2b_analysis/TemplateFit_Run3/%s/", sDirname.Data()); // this is sDirname 
         cout << "Output folder path: "<< folder << endl;
 
     Int_t RunN = 3; // 3; 
@@ -1790,11 +1790,11 @@ void template_fit(){
     // --- Start work from here -----
     TString sfoutputPlots_dijet = Form("Run%d_Summary_histo_templatefits.root", RunN);
     
-    // TFile *foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "RECREATE");
-    //     if (!foutputPlots_dijet || foutputPlots_dijet->IsZombie()) {
-    //         std::cout << "Error opening file!" << std::endl;
-    //         return;
-    //     }
+     TFile *foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "RECREATE");
+         if (!foutputPlots_dijet || foutputPlots_dijet->IsZombie()) {
+             std::cout << "Error opening file!" << std::endl;
+                return;
+         }
     
        
         // -- Draw Prefit templates for Run3 MC (qcd sample)
@@ -1802,8 +1802,9 @@ void template_fit(){
 
         // --  Loop over variations on templates: one root file per variation 
         // --  other png drawings are on seperate directories, for simplisity.
-        for (int ivar = 3; ivar < 4; ivar++) // 1 nominal only
-        {
+        //for (int ivar = 0; ivar < 4; ivar++) // 1 nominal only
+        //{like
+        int ivar = 0;
             TString newfout_name = varNames[ivar]+ "_" + fout_name;
             do_template_fit_combined(dataset_HG,dataset_LG,templates_dijet, templates_bjet,  pT_selection, folder, newfout_name, alsoLowEG, also_bjet, (Variation) ivar); // default: NOMINAL variation 
         
@@ -1818,9 +1819,9 @@ void template_fit(){
                 draw_template_fit_result(newfout_name, foutputPlots_dijet, dataname, folder, pT_selection, ibin_pt, (Variation) ivar); 
                 
                 /// Draw EEC 
-                // draw_eec_simple(newfout_name, foutputPlots_dijet ,folder, also_bjet, ibin_pt, (Variation) ivar);
+                 draw_eec_simple(newfout_name, foutputPlots_dijet ,folder, also_bjet, ibin_pt, (Variation) ivar);
 
-            }
+           // }
         
 
         } 
