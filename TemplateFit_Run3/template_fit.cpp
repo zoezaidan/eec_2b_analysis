@@ -20,7 +20,11 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
 
     // -- Make subdirectory for printed canvases only. The root files are in main directory 
     TString sDir_canvas = Form("%s/%s", sDirname.Data(), varNames[ivar].Data());
-    gSystem->mkdir(sDir_canvas, kTRUE); // to be clean 
+        gSystem->mkdir(sDir_canvas, kTRUE); // to be clean 
+
+    // Make subdirectory for webversion only 
+    TString sDir_canvas_www = Form("%s/%s", sDirname_www.Data(), varNames[ivar].Data());
+        gSystem->mkdir(sDir_canvas_www, kTRUE);
 
     // -- For output histograms 
     TFile *fout = new TFile(Form("%s/%s", sDirname.Data(), fout_name.Data()), "recreate");
@@ -175,7 +179,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
         // Note that: since inetgaretd bins are pt 0 and dr 0, the hist of fractions should have #bins + 1 size 
         // x = dr, y = jetpt
         // Axis here is for the bin number instead of the values 
-          TH2D *h_sig_fraction = new TH2D("h_sig_fraction", ";dr; jet pt", N_bins_dr+ 1,  1, N_bins_dr+ 2,
+        TH2D *h_sig_fraction = new TH2D("h_sig_fraction", ";dr; jet pt", N_bins_dr+ 1,  1, N_bins_dr+ 2,
                                                                            h3D_data->GetNbinsZ() + 1 , 1, h3D_data->GetNbinsZ()+ 2 );                                                                                                                              
             h_sig_fraction->Reset();
             TH2D *h_bkg_fraction = (TH2D *) h_sig_fraction->Clone("h_bkg_fraction");
@@ -186,6 +190,19 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
             TH2D *h_bkg_frac_true = (TH2D *) h_sig_fraction->Clone("h_bkg_frac_true");
             TH2D *h_bkg_frac_true_error = (TH2D *) h_sig_fraction->Clone("h_bkg_frac_true_error");
 
+        // -- For unfolding: without integarted bins 
+        TH2D *h_sig_fraction_fit = new TH2D("h_sig_fraction_fit", ";dr; jet pt", N_bins_dr,  yBins, jtpt_bins, jtpt_binsVector);                                                                                                                              
+            h_sig_fraction_fit->Reset();
+            TH2D *h_bkg_fraction_fit = (TH2D *) h_sig_fraction_fit->Clone("h_bkg_fraction_fit");
+            TH2D *h_sig_fraction_fit_error = (TH2D *) h_sig_fraction_fit->Clone("h_sig_fraction_fit_error");
+            TH2D *h_bkg_fraction_fit_error = (TH2D *) h_bkg_fraction_fit->Clone("h_bkg_fraction_fit_error"); 
+            // and corresponding true fractions for drawing purpose 
+            TH2D *h_sig_frac_true_fitbins = (TH2D *) h_sig_fraction_fit ->Clone("h_sig_frac_true_fitbins");
+            TH2D *h_sig_frac_true_error_fitbins = (TH2D *) h_sig_fraction_fit->Clone("h_sig_frac_true_error_fitbins");
+            TH2D *h_bkg_frac_true_fitbins = (TH2D *) h_sig_fraction_fit->Clone("h_bkg_frac_true_fitbins");
+            TH2D *h_bkg_frac_true_error_fitbins = (TH2D *) h_sig_fraction_fit->Clone("h_bkg_frac_true_error_fitbins");
+
+
     //-----------------------
     gStyle->SetOptStat(0);
     // --- Vector to test the convergence
@@ -194,10 +211,10 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
 
     // Fitting - loop over dr and jtpt entries
     // Bin0: is integarted over the range 
-    // for(Int_t ibin_pt = 0; ibin_pt <= bins_pt; ibin_pt++){
-    for(Int_t ibin_pt = 1 ; ibin_pt <= 3; ibin_pt++){
+    for(Int_t ibin_pt = 0; ibin_pt <= bins_pt; ibin_pt++){
+    // for(Int_t ibin_pt = 2 ; ibin_pt <= 2; ibin_pt++){
         for(Int_t ibin_dr = 0; ibin_dr <= N_bins_dr; ibin_dr++){
-        // for(Int_t ibin_dr = 0; ibin_dr <= 0; ibin_dr++){
+        // for(Int_t ibin_dr = 0; ibin_dr <= 3; ibin_dr++){
             
             // define slice
             Int_t SliceFirstbin_dr = ibin_dr;
@@ -597,7 +614,9 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                                 canva_pdfs_scaledtoData->Update();
                                 fout->cd();
                                 canva_pdfs_scaledtoData->Write();
-                                canva_pdfs_scaledtoData->Print(Form("%s/%s_pdfs_scaledtoData_beforefit.png", sDir_canvas.Data(), sname_canvas.Data()));                                   
+                                canva_pdfs_scaledtoData->Print(Form("%s/%s_pdfs_scaledtoData_beforefit.png", sDir_canvas.Data(), sname_canvas.Data()));
+                                if( !(ibin_dr == 0 || ibin_pt ==0 )) canva_pdfs_scaledtoData->Print(Form("%s/prefit_%s.png", sDir_canvas_www.Data(), sname_canvas.Data()));  
+
 
             ///// Fitting
             // Create the observable
@@ -675,11 +694,21 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
             // Fit result 
             h_sig_fraction->SetBinContent(ibin_dr +1, ibin_pt +1, p0);
             h_sig_fraction->SetBinError(ibin_dr +1, ibin_pt +1, errP0);
-            h_sig_fraction_error->SetBinContent(ibin_dr, ibin_pt, errP0);
-
+            h_sig_fraction_error->SetBinContent(ibin_dr +1, ibin_pt+1, errP0);
             h_bkg_fraction->SetBinContent(ibin_dr +1, ibin_pt +1, 1- p0);
             h_bkg_fraction->SetBinError(ibin_dr +1, ibin_pt +1, errP0); // errorp1 = error (1-p0)
             h_bkg_fraction_error->SetBinContent(ibin_dr +1, ibin_pt +1, errP0);
+
+                // For non integaretd bins 
+            if(!(ibin_dr == 0 || ibin_pt == 0)){
+                h_sig_fraction_fit->SetBinContent(ibin_dr , ibin_pt , p0);
+                h_sig_fraction_fit->SetBinError(ibin_dr, ibin_pt , errP0);
+                h_sig_fraction_fit_error->SetBinContent(ibin_dr, ibin_pt, errP0);
+                h_bkg_fraction_fit->SetBinContent(ibin_dr, ibin_pt, 1- p0);
+                h_bkg_fraction_fit->SetBinError(ibin_dr , ibin_pt , errP0);
+                h_bkg_fraction_fit_error->SetBinContent(ibin_dr, ibin_pt, errP0);
+            }
+
 
 
             // -- Compute siganl and bkg fractions uncertainity 
@@ -688,11 +717,19 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
             double err_true_frac = ( (int0 + int1) * True_sig_err + int2 * True_bkg_err )/TMath::Power(int0 + int1+ int2, 2);// 0B + 1B and 2B 
             h_sig_frac_true->SetBinContent(ibin_dr +1, ibin_pt +1, sig_fraction_true);
             h_sig_frac_true->SetBinError(ibin_dr +1, ibin_pt +1, err_true_frac);
-            
             h_bkg_frac_true->SetBinContent(ibin_dr +1, ibin_pt +1, bkg_fraction_true);
             h_bkg_frac_true->SetBinError(ibin_dr +1, ibin_pt +1, err_true_frac);
             h_bkg_frac_true_error->SetBinContent(ibin_dr +1, ibin_pt +1, err_true_frac);
             
+            if(!(ibin_dr == 0 || ibin_pt == 0))
+            {
+                h_sig_frac_true_fitbins ->SetBinContent(ibin_dr , ibin_pt, sig_fraction_true);
+                h_sig_frac_true_fitbins ->SetBinError(ibin_dr, ibin_pt , err_true_frac);
+                h_bkg_frac_true_fitbins ->SetBinContent(ibin_dr , ibin_pt, bkg_fraction_true);
+                h_bkg_frac_true_fitbins ->SetBinError(ibin_dr, ibin_pt , err_true_frac);
+                h_bkg_frac_true_error_fitbins ->SetBinContent(ibin_dr , ibin_pt , err_true_frac);
+
+            }   
 
             // -- After fits: save mass distribution re and post-fit 
             TH1D *h_sig_fit = (TH1D*) h_sig->Clone(Form("h_sig_fit_%d_%d", ibin_dr, ibin_pt));
@@ -866,7 +903,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                         fout->cd();
                         c ->Write();
                         c ->Print(Form("%s/%s.png", sDir_canvas.Data(), c->GetName()));
-
+                        if( !(ibin_dr == 0 || ibin_pt ==0 ))  c ->Print(Form("%s/Postfit_%s.png", sDir_canvas_www.Data(), sname_canvas.Data()));
 
                 cout << "---------------------\n\n\n" << endl; 
             } // loop over deltaR bins 
@@ -885,7 +922,12 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
     for (auto h : {h_sig_fraction, h_sig_fraction_error,
                    h_bkg_fraction, h_bkg_fraction_error,
                    h_sig_frac_true, h_sig_frac_true_error,
-                   h_bkg_frac_true, h_bkg_frac_true_error 
+                   h_bkg_frac_true, h_bkg_frac_true_error,
+
+                   h_sig_fraction_fit, h_sig_fraction_fit_error,
+                   h_bkg_fraction_fit, h_bkg_fraction_fit_error,
+                   h_sig_frac_true_fitbins, h_sig_frac_true_error_fitbins,
+                   h_bkg_frac_true_fitbins, h_bkg_frac_true_error_fitbins
                    }) {
                     h->Write();
     }
@@ -1771,7 +1813,6 @@ void template_fit(){
     if (RunN == 3){
         alsoLowEG = false; 
         also_bjet = false;
-        // TString templates_dijet_HLT40 = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/condor_Run3/MergedJobResult/MergedAllFiles_Run3_WP90_template_for_fit_histos_3D_qcd_btag.root";
         dataset_HG = "/data_CMS/cms/zaidan/analysis_lise/Run3/Run3_btagWP868_template_for_fit_histos_3D_data_f.root";
         templates_dijet = "/data_CMS/cms/zaidan/analysis_lise/Run3/Run3_btagWP868_template_for_fit_histos_3D_qcd_f.root";
         fout_name = Form("Run%d_TemplateFits_histos_3d_%s.root", RunN, pT_selection.Data());
@@ -1788,13 +1829,12 @@ void template_fit(){
 
 
     // --- Start work from here -----
-    TString sfoutputPlots_dijet = Form("Run%d_Summary_histo_templatefits.root", RunN);
-    
-    // TFile *foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "RECREATE");
-    //     if (!foutputPlots_dijet || foutputPlots_dijet->IsZombie()) {
-    //         std::cout << "Error opening file!" << std::endl;
-    //         return;
-    //     }
+    TString sfoutputPlots_dijet = Form("Run%d_Summary_histo_templatefits.root", RunN);   
+    TFile *foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "RECREATE");
+        if (!foutputPlots_dijet || foutputPlots_dijet->IsZombie()) {
+            std::cout << "Error opening file!" << std::endl;
+            return;
+        }
     
        
         // -- Draw Prefit templates for Run3 MC (qcd sample)
@@ -1802,7 +1842,7 @@ void template_fit(){
 
         // --  Loop over variations on templates: one root file per variation 
         // --  other png drawings are on seperate directories, for simplisity.
-        for (int ivar = 3; ivar < 4; ivar++) // 1 nominal only
+        for (int ivar = 0; ivar < 1; ivar++) // 1 nominal only
         {
             TString newfout_name = varNames[ivar]+ "_" + fout_name;
             do_template_fit_combined(dataset_HG,dataset_LG,templates_dijet, templates_bjet,  pT_selection, folder, newfout_name, alsoLowEG, also_bjet, (Variation) ivar); // default: NOMINAL variation 
@@ -1811,11 +1851,11 @@ void template_fit(){
             for(Int_t ibin_pt = 0; ibin_pt <= bins_pt; ibin_pt++){
                 /// Draw S/B fractions 
                 // -- to test Draw fraction only: READ foutputPlots_dijet instead of RECREATE
-                    TFile *foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "Update"); 
-                    if (! foutputPlots_dijet->IsOpen()){ foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "Read"); }
-                    if (!foutputPlots_dijet || foutputPlots_dijet->IsZombie()) {std::cout << "Error opening file!" << std::endl; return;}
+                    // TFile *foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "Update"); 
+                    // if (! foutputPlots_dijet->IsOpen()){ foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "Read"); }
+                    // if (!foutputPlots_dijet || foutputPlots_dijet->IsZombie()) {std::cout << "Error opening file!" << std::endl; return;}
                 
-                draw_template_fit_result(newfout_name, foutputPlots_dijet, dataname, folder, pT_selection, ibin_pt, (Variation) ivar); 
+                // draw_template_fit_result(newfout_name, foutputPlots_dijet, dataname, folder, pT_selection, ibin_pt, (Variation) ivar); 
                 
                 /// Draw EEC 
                 // draw_eec_simple(newfout_name, foutputPlots_dijet ,folder, also_bjet, ibin_pt, (Variation) ivar);
@@ -1845,31 +1885,10 @@ void template_fit(){
     
        */
 
-    // foutputPlots_dijet->Print();
-    // foutputPlots_dijet->Close();
-    // delete foutputPlots_dijet;
+    foutputPlots_dijet->Print();
+    foutputPlots_dijet->Close();
+    delete foutputPlots_dijet;
  
-
-    // // Test draw EEC again 
-    //  for (int ivar = 0; ivar < 3; ivar++) // 1 nominal only
-    //     {
-    //         TString newfout_name = varNames[ivar]+ "_" + fout_name;
-        
-    //         for(Int_t ibin_pt = 0; ibin_pt <= 3; ibin_pt++){
-    //             /// Draw S/B fractions 
-    //             // -- to test Draw fraction only: READ foutputPlots_dijet instead of RECREATE
-    //                 TFile *foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "Update"); 
-    //                 if (! foutputPlots_dijet->IsOpen()){ foutputPlots_dijet = new TFile(Form("%s/%s", sDirname.Data(), sfoutputPlots_dijet.Data()), "Read"); }
-    //                 if (!foutputPlots_dijet || foutputPlots_dijet->IsZombie()) {std::cout << "Error opening file!" << std::endl; return;}
-                
-    //             draw_template_fit_result(newfout_name, foutputPlots_dijet, dataname, folder, pT_selection, ibin_pt, (Variation) ivar); 
-                
-    //             /// Draw EEC 
-    //             // draw_eec_simple(newfout_name, foutputPlots_dijet ,folder, also_bjet, ibin_pt, (Variation) ivar);
-
-    //         }
-    //     } 
-
 }
 
 

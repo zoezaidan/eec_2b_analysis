@@ -35,7 +35,9 @@
 
 
 // name for outpur directory (in path) 
-TString sDirname = "TemplateFits_Run3_minHLT60_LinearFineBin"; // "TemplateFits_Run3_minHLT60"; // Must use before Help_Functions.h
+TString sDirname = "TemplateFits_Run3_minHLT60_LinearBin"; 
+TString sDirname_www = "TemplateFits_Run3_minHLT60_LinearBin_www"; //  web version only  
+
 
 // -- For systematic uncertainti study 
 enum Variation {NOMINAL, VARIED0B_UP, VARIED0B_DOWN, FITRANGE_0_8,  FITRANGE_0_7, NVAR}; // add other variations before NVAR to keep the size 
