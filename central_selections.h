@@ -14,9 +14,9 @@ struct KinematicConfig {
 struct DatasetConfig {
   int RunN;        // 2 or 3
   int dataType;    // data / MC type (0: Data, 1: bjet MC, 2: qcd MC), and for Run2: -1 is for lowEG, and 0 for HighEG
-
+  bool isMC;      // true for MC, false for data
   TString filename; // input sample full path to root file 
-  TString output_folder = "test_unfoldingcodewithTemplates/";//  gSystem->ExpandPathName("$mydata/analysis_lise/"); // base path; Run2/ or Run3/ subfolder appended in buildDataset()
+  TString output_folder =  gSystem->ExpandPathName("$mydata/analysis_lise/"); // base path; Run2/ or Run3/ subfolder appended in buildDataset()
   TString output_hist; // for output file name (for templates)
   TString domain = ".root";
 
@@ -66,30 +66,31 @@ bool passEventSelection(const tTree& t,
                         const AnalysisConfig& cfg) { 
 
   int RunN = cfg.dataset.RunN;
+  bool isMC = cfg.dataset.isMC;
   int dataType = cfg.dataset.dataType;
 
   if (RunN == 2) {
 
-    if (dataType == 0) // HighEG data 
+    if (!isMC && dataType == 0) // HighEG data 
       return (t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1);
 
-    if (dataType == -1) // LowEG data 
+    if (!isMC && dataType == -1) // LowEG data 
       return !(t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1) &&
              (t.HLT_HIAK4PFJet40_v1 || t.HLT_HIAK4PFJet60_v1);
 
-    if (dataType == 1 || dataType == 2) // MC 
+    if (isMC)
       return t.HLT_HIAK4PFJet40_v1; // minHLT in Run2
   }
 
   if (RunN == 3) { // minHLT is used at 60 GeV. 40GeV is heavily prescaled --> not used.
 
-    if (dataType == 0) // All data 
+    if (!isMC)
       return (t.HLT_AK4PFJet60_v8 ||
               t.HLT_AK4PFJet80_v8 ||
               t.HLT_AK4PFJet100_v8||
               t.HLT_AK4PFJet120_v8); // new trigger --> update 19 June 
 
-    if (dataType == 1 || dataType == 2) // MC 
+    if (isMC)
       return t.HLT_AK4PFJet60_v8;
   }
 
@@ -101,14 +102,15 @@ bool passPVQuality_EventSelection(const tTree& t,
                                   const AnalysisConfig& cfg){
 
   int RunN = cfg.dataset.RunN;
+  bool isMC = cfg.dataset.isMC;
   int dataType = cfg.dataset.dataType;
 
   if (RunN == 3){
-      if(dataType == 0) return (t.pprimaryVertexFilter &&  // Run 3 data  only
+      if(!isMC && dataType == 0) return (t.pprimaryVertexFilter &&  // Run 3 data  only
                                           fabs(t.vz) < 24.);
   }
-  // For Run2 || Run3 : (MC)
-  if(dataType == 1 || dataType == 2) return (fabs(t.vz) < 24.);
+  // For Run2 || Run3 (MC)
+  if(isMC && dataType != 0) return (fabs(t.vz) < 24.);
    
   return true;
 
@@ -122,10 +124,9 @@ bool passGenJetKinematics(const tTree& t,
   
   // This function have check for refpt > 0
   // It return false if the event pthat cut is not satisfied (which is based on reco jtpt, yes, reco pt not gen pt!).
-  int dataType = cfg.dataset.dataType;
-
+  
   // ---------------- MC EVENT CLEANING ----------------
-  if (dataType == 1 || dataType == 2) { // MC 
+  if (cfg.dataset.isMC) {
     if (t.pthat < 0.40 * t.jtpt[ijet]) // reco jet is used for this cut
       return false;
   }
@@ -147,12 +148,12 @@ bool passRecoJetKinematics(const tTree& t,
                            const AnalysisConfig& cfg) {
 
   // ---------------- MC EVENT CLEANING ----------------
-  int dataType = cfg.dataset.dataType;
-
-  if (dataType == 1 || dataType == 2) { // MC 
+  if (cfg.dataset.isMC) {
     if (t.pthat < 0.40 * t.jtpt[ijet]) // reco jet is used for this cut
       return false;
   }
+
+  
 
   float pt  = reco_jet_pt(t, ijet);
   float eta = reco_jet_eta(t, ijet);
@@ -191,13 +192,14 @@ bool passBtag(const tTree& t,
 }
 
 // -- Function: set the Dataset and output templates names 
-DatasetConfig buildDataset(int RunN, int dataType, const PhysicsConfig& physics) {
+DatasetConfig buildDataset(int RunN, int dataType, bool isMC, const PhysicsConfig& physics) {
 
   // Set the rest of DatasetConfig information (Input file name + output hist for templates)
 
   DatasetConfig d;
   d.RunN = RunN;
   d.dataType = dataType;
+  d.isMC = isMC;
 
   // Save output in the Run2/ or Run3/ subfolder accordingly
   d.output_folder += (RunN == 2) ? "Run2/" : "Run3/";
@@ -277,8 +279,12 @@ AnalysisConfig buildConfig(
     float etaCut,
     int n,
     bool btag,
+    bool isMC,
     double btagWP
 ){
+  // Backward-compatible argument: MC/data is derived from dataType below.
+  (void)isMC;
+
   // -- USER: SET HERE YOUR DESIRED ANALYSIS CONFIG -------
 
   AnalysisConfig cfg;
@@ -291,13 +297,14 @@ AnalysisConfig buildConfig(
   cfg.physics.useBtag = btag;
   if (btagWP > 0) cfg.physics.btagWP = btagWP; // custom value 
   else{ // default value 
-    cfg.physics.btagWP = (RunN == 2) ? 0.898 : 0.868; // Run3 btag value updated 29/06/2026
+    cfg.physics.btagWP = (RunN == 2) ? 0.898 : 0.868;
   }
 
   cfg.n = n;
 
   // Dataset setting
-  cfg.dataset = buildDataset(RunN, dataType, cfg.physics); 
+  const bool isMCFromDataType = dataType > 0;
+  cfg.dataset = buildDataset(RunN, dataType, isMCFromDataType, cfg.physics); 
 
   return cfg;
 }
@@ -372,12 +379,12 @@ std::vector<TString> getActiveBranches(const AnalysisConfig& cfg)
 
 
         // Only data Run3 
-        if (cfg.dataset.dataType == 0) branches.insert(branches.end(), {"pprimaryVertexFilter"}); // // data only ? from (skimanalysis/HltTree)
+        if (!cfg.dataset.isMC) branches.insert(branches.end(), {"pprimaryVertexFilter"}); // // data only ? from (skimanalysis/HltTree)
         
 
     } // Run3 
 
-    if (cfg.dataset.dataType == 1 || cfg.dataset.dataType == 2 ) { // Only MC: Run2 || Run3 
+    if (cfg.dataset.isMC) { // Only MC: Run2 || Run3 
 
         branches.insert(branches.end(), {
             "weight",
