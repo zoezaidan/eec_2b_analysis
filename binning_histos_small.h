@@ -6,21 +6,20 @@
 // Define binnings
 
 //dr
-const Int_t dr_binsVectorSize = 11;
+const Int_t dr_binsVectorSize = 10;
 Int_t bins_dr = dr_binsVectorSize - 1;
 Int_t dr_bins = bins_dr;
 Double_t dr_binsVector[dr_binsVectorSize] = {
-  0,
-  0.005,    
-  0.050,
-  0.100,
-  0.150,
-  0.200,
-  0.250,
-  0.300,
-  0.350,
-  0.400,
-  0.450
+  0,    
+  0.05,
+  0.10,
+  0.15,
+  0.20,
+  0.25,
+  0.30,
+  0.35,
+  0.40,
+  0.45
 };
 
 

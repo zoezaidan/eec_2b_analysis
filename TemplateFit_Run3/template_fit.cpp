@@ -4,7 +4,7 @@
 #include "binning_histos_small.h"
 #include "Help_Functions.h"
 #include "Draw_EEC.h"
-// #include "../CMSStyle.C" // CMS style impored from Matthew
+//#include "../CMSStyle.C" // CMS style impored from Matthew
 
 
 void do_template_fit_combined(const TString &HighEGdata_name, const TString &LowEGdata_name, TString &templates, TString &templates_bjet, TString pT_selection, TString folder, TString &fout_name, bool& alsoLowEG, bool& also_bjet,  Variation ivar = NOMINAL){
@@ -1805,7 +1805,7 @@ void Draw_template_Run3(TString &templates, TString pT_selection, TString folder
 void template_fit(){
     // -- Output folder to save the result of the tests 
     gSystem->mkdir(sDirname, kTRUE);// Predefined in Help.h
-    TString folder = Form("/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/TemplateFit_Run3_WP0868_LinearFineBin/%s/", sDirname.Data()); // this is sDirname 
+    TString folder = Form("/home/llr/cms/zaidan/analysis_lise/eec_2b_analysis/TemplateFit_Run3/%s/", sDirname.Data()); // this is sDirname 
         cout << "Output folder path: "<< folder << endl;
 
     Int_t RunN = 3; // 3; 
@@ -1877,7 +1877,7 @@ void template_fit(){
                 /// Draw EEC 
                 draw_eec_simple(newfout_name, foutputPlots_dijet ,folder, also_bjet, ibin_pt, (Variation) ivar);
 
-            }
+           // }
         
 
         } 
