@@ -144,6 +144,8 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
 
         h3D_b    = MergeLastMassBinTo7GeV(h3D_b);
         h3D_bb   = MergeLastMassBinTo7GeV(h3D_bb);
+        h3D_nob  = MergeLastMassBinTo7GeV(h3D_nob);
+
         if(also_bjet)
             {
                 h3D_b_bjet  = MergeLastMassBinTo7GeV(h3D_b_bjet);
@@ -163,6 +165,8 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
 
         h3D_b    = MergeLastMassBinTo8GeV(h3D_b);
         h3D_bb   = MergeLastMassBinTo8GeV(h3D_bb);
+        h3D_nob  = MergeLastMassBinTo8GeV(h3D_nob);
+
         if(also_bjet)
             {
                 h3D_b_bjet  = MergeLastMassBinTo8GeV(h3D_b_bjet);
@@ -337,6 +341,8 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                 h_sumsig->SetFillColor(kOrange-6); h_sumsig->SetLineColor(kOrange-6);
                     // and for the bkg 1B + 0B 
                     h_sumbkg_0b_1b->SetFillColor(kGreen); h_sumbkg_0b_1b->SetLineColor(kGreen);  
+                    // 0B only
+                    h_nob->SetFillColor(kRed); h3D_nob->SetLineColor(kRed); 
 
                 // write to rootfile the used slices 
                 fout->cd();
@@ -619,7 +625,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                         // Add (dr, pt) bins legend 
                         DrawCommonTextTopRight(pad11, ibin_dr, ibin_pt, yBins,N_bins_dr ,false); // without default bildlegend of other objects
                         // use new Legend for enties (withut hframe)
-                        TLegend* leg_pre = CreateLegend(0.63, 0.6, 0.85, 0.75, // 0.54, 0.6, 0.85, 0.8, // .6, 0.50, 0.85, 0.8
+                        TLegend* leg_pre = CreateLegend(0.70, 0.6, 0.85, 0.75, // 0.63, 0.6, 0.85, 0.75, 
                             {h_data_mb, h_sig, h_sumbkg, norm_h_nob},
                             {"LPE", "LF", "LF", "LF"},
                             {"Data", "2B", "1B", "0B"} 
@@ -903,7 +909,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                         // Add (dr, pt) bins legend 
                         DrawCommonTextTopRight(pad1, ibin_dr, ibin_pt, yBins,N_bins_dr ,false); // without default bildlegend of other objects
                         // use new Legend for enties (withut hframe)
-                        TLegend* leg = CreateLegend(0.63, 0.6, 0.85, 0.75,
+                        TLegend* leg = CreateLegend(0.70, 0.6, 0.85, 0.75, // 0.63, 0.6, 0.85, 0.75, 
                             {h_data_mb, h_sig_fit, h_bkg_fit_1b, h_bkg_fit_nob},
                             {"LPE", "LF", "LF", "LF"},
                             {"Data", "", "", ""} // use default titles 
@@ -1859,7 +1865,7 @@ void template_fit(){
 
         // --  Loop over variations on templates: one root file per variation 
         // --  other png drawings are on seperate directories, for simplisity.
-        for (int ivar = 0; ivar < 3; ivar++) //
+        for (int ivar = 0; ivar < 4; ivar++) //
         {
             TString newfout_name = varNames[ivar]+ "_" + fout_name;
             do_template_fit_combined(dataset_HG,dataset_LG,templates_dijet, templates_bjet,  pT_selection, folder, newfout_name, alsoLowEG, also_bjet, (Variation) ivar); // default: NOMINAL variation 
@@ -1885,7 +1891,7 @@ void template_fit(){
 
     
     
-        //-- Get systematics 
+        //-- Get 0B systematics 
         cout << "Calculate systematic uncertaintiy " << endl;
         TFile *fsys = new TFile( Form("%s/Result_syst_uncert_templatefit.root", sDirname.Data()),"recreate");
                     /// to test seperatly
@@ -1901,6 +1907,7 @@ void template_fit(){
             delete fsys;
     
        
+
 
     foutputPlots_dijet->Print();
     foutputPlots_dijet->Close();
