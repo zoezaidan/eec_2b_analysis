@@ -2,9 +2,9 @@
 
 set -u
 
-WORK=/home/llr/cms/mnguyen/eec_2b_analysis
+WORK=./
 INPUT_DIR=/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/Pythia8_recalJP_chunks_20260617
-OUT_BASE=/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/agg_ntuple_chunks_20260701
+OUT_BASE=$mydata/bJetAggRun3/PPRef2024/QCD/agg_ntuple_chunks_20260701
 LOG_DIR=${OUT_BASE}/logs
 
 mkdir -p "${LOG_DIR}"

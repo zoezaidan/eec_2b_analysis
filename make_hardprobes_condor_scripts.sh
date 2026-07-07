@@ -2,9 +2,9 @@
 
 set -u
 
-WORK=/home/llr/cms/mnguyen/eec_2b_analysis
+WORK=./
 SCRIPT_DIR=${WORK}/condor_hardprobes_data_scripts
-OUT_BASE=/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/agg_template_chunks_20260702
+OUT_BASE=$mydata/bJetAggRun3/PPRef2024/HardProbes/agg_template_chunks_20260702
 
 mkdir -p "${SCRIPT_DIR}"
 rm -f "${SCRIPT_DIR}"/job_*.sh "${SCRIPT_DIR}"/jobs_*.sh
