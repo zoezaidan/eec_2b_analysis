@@ -15,7 +15,11 @@ void plotNice_bdt_roc(){
 
   auto hFrame = new TH1F ("hFrame","hFrame",1,0.4,1);
   hFrame->GetXaxis()->SetRangeUser(0.4,1.);
-  hFrame->GetYaxis()->SetRangeUser(0.002,1.);
+  hFrame->GetYaxis()->SetRangeUser(0.0015,1.);
+  hFrame->GetXaxis()->SetTitle("b-tag efficiency");
+  hFrame->GetYaxis()->SetTitle("mistag rate");
+  hFrame->GetXaxis()->CenterTitle(1);
+  hFrame->GetYaxis()->CenterTitle(1);
 
   TCanvas *c=new TCanvas("c","c",600,600);
   c->SetGridx();
@@ -27,12 +31,12 @@ void plotNice_bdt_roc(){
   g2b->SetLineColor(kred);
   gAll->SetLineColor(kgreen);
 
-  g1b->SetLineWidth(3);
-  g2b->SetLineWidth(3);
-  gAll->SetLineWidth(3);
+  g1b->SetLineWidth(6);
+  g2b->SetLineWidth(6);
+  gAll->SetLineWidth(6);
   
-  hFrame->GetXaxis()->SetTitle(g1b->GetXaxis()->GetTitle());
-  hFrame->GetYaxis()->SetTitle(g1b->GetYaxis()->GetTitle());
+  //hFrame->GetXaxis()->SetTitle(g1b->GetXaxis()->GetTitle());
+  //hFrame->GetYaxis()->SetTitle(g1b->GetYaxis()->GetTitle());
   
   hFrame->Draw();
   g1b->Draw("l");
@@ -54,7 +58,7 @@ void plotNice_bdt_roc(){
   btagLbl->SetNDC();
   btagLbl->SetTextFont(42);
   btagLbl->SetTextSize(0.04);
-  btagLbl->DrawLatex(0.2, 0.78, "b-tag WP > 0.872 (UParT)");
+  btagLbl->DrawLatex(0.2, 0.78, "b-tag WP > 0.868 (UParT)");
 
 
   TLatex *latex2 = new TLatex();
