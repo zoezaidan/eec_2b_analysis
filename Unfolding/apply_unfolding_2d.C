@@ -11,7 +11,7 @@ namespace ROCColor {
 void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TString pT_selection)
 {   
     //Select unfolding options
-    bool unfoldBayes =  false;
+    bool unfoldBayes =  true;
     bool multiply_sigfrac = true;
     
     const Color_t blue = ROCColor::blue();
@@ -31,7 +31,6 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     
     //Select central pT bin
     int ibin_pt = 2;
-
     //Print options
     std::cout << "Options:"
               << "\n\tunfoldBayes:" << unfoldBayes
@@ -52,7 +51,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
 
     // ----------- Grab data ----------- 
     TFile *fin_data = new TFile(filename_data);
-    TH3D *h_data_reco_3D = (TH3D*)fin_data->Get("h3D_data")->Clone("h_data_reco_3D");
+    TH3D *h_data_reco_3D = (TH3D*)fin_data->Get("h3D_data")->Clone("h_data_reco_3D"); //att
     TH2D *h_data_reco = (TH2D*)h_data_reco_3D->Project3D("zy");
 
     
@@ -60,13 +59,20 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     // Multiply histograms by signal fraction
     TH2D *h_data_after_fit = (TH2D *) h_data_reco->Clone("h_data_after_fit");
 
-    std::cout << "\t---->Multiplying by signal fraction" << std::endl;
-    // Grab signal fraction from template fit
-    TString fname_fit = filename_template_fit;
-    std::cout << "Getting signal fraction from " << fname_fit << std::endl;
-    TFile *fin_fit = new TFile(fname_fit);
-    TH2D *h_sig_fraction = (TH2D *) fin_fit->Get("h_sig_fraction_fit");    
-    h_data_after_fit->Multiply(h_sig_fraction);
+    if (multiply_sigfrac) {
+        std::cout << "\t---->Multiplying by signal fraction" << std::endl;
+        // Grab signal fraction from template fit
+        TString fname_fit = filename_template_fit;
+        std::cout << "Getting signal fraction from " << fname_fit << std::endl;
+        TFile *fin_fit = new TFile(fname_fit);
+        TH2D *h_sig_fraction = (TH2D *) fin_fit->Get("h_sig_fraction_fit");    
+        h_data_after_fit->Multiply(h_sig_fraction);
+    
+    }
+    else {
+        std::cout << "\t---->Not multiplying by signal fraction" << std::endl;
+    }
+
     
 
      //Dimension of the response matrix
@@ -93,7 +99,6 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     TH2D *h_mc_true_no_eff;
 
     
-
     // get purity and efficiency
     h_full_purity = (TH2D *) fin_unfolding->Get("h_full_purity_tf"); // reconstruction purity correction
     h_full_efficiency = (TH2D *) fin_unfolding->Get("h_full_efficiency_tf"); 
@@ -103,7 +108,6 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     response = (RooUnfoldResponse *) fin_unfolding->Get("response_tf_full"); // response 
     h_mc_true_no_eff = (TH2D *) fin_unfolding->Get("h_full_efficiency_numerator_tf");
    
-    std::cout << "todo chill =D " << std::endl;
 
     // ---- Print condition number
     TDecompSVD *svd= new TDecompSVD(response->Mresponse());  // response is a RooUnfold response object, svd is the singular value decomposition (SVD) matrix. the response->Mresponse() returns the normalized migration matrix
@@ -113,19 +117,21 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
               << std::endl;
 
     // ---- Grab the truth level MC ---- 
-    //TString fname_response_truth = "/data_CMS/cms/zaidan/eec_trees/fran_bins/hist_3d_gen_aggr_n1_MC_bjet_80_140.root";
-   // std::cout << "Getting truth from : " << fname_response_truth << std::endl;
-    //TFile *fin_response_truth = new TFile(fname_response_truth);
-    //TH3D *h_mc_true_3D = (TH3D*)fin_response_truth->Get("h3D_b1"); //ATTENTION 
-    //TH2D *h_mc_true = (TH2D *)h_mc_true_3D->Project3D("zy")->Clone("h_mc_true");
-    //TH2D *h_mc_true = (TH2D *) fin_response_truth->Get("h_full_efficiency_denominator_eecpt"); // true MC to compare w/ data after BOTH efficiency corrections
-    
+    TString fname_response_truth =  "/data_CMS/cms/zaidan/analysis_lise/Run3/RMatrix_Run3_btagWP868_template_for_fit_histos_3D_qcd_f.root";
+    std::cout << "Getting truth from : " << fname_response_truth << std::endl;
+    TFile *fin_response_truth = new TFile(fname_response_truth);
+    TH2D *h_mc_true = (TH2D*)fin_response_truth->Get("hgenjet_2b_passbtag"); //ATTENTION 
 
     //------- Apply purity correction
     std::cout << "\t---->Multiplying data by purity" << std::endl;
     TH2D *h_data_purity_corrected = (TH2D *) h_data_after_fit->Clone("h_data_purity_corrected");
     h_data_purity_corrected->Multiply(h_full_purity);
 
+    //double underflowY = h_data_purity_corrected->Integral(0, h_data_purity_corrected->GetNbinsX()+1, 0, 0);
+    //double overflowY  = h_data_purity_corrected->Integral(0, h_data_purity_corrected->GetNbinsX()+1, 
+                          //h_data_purity_corrected->GetNbinsY()+1, h_data_purity_corrected->GetNbinsY()+1);
+    //std::cout << "underflowY=" << underflowY << " overflowY=" << overflowY << std::endl;
+    
     // ---- Unfold
     std::cout << "\t---->Unfolding" << std::endl;
     RooUnfold::ErrorTreatment errorTreatment = RooUnfold::kCovariance;
@@ -133,7 +139,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     TMatrixD covariance_matrix_before_unfolding(dim,dim);
     TMatrixD covariance_matrix_after_unfolding(dim,dim);
     if (unfoldBayes) {
-        Int_t niter =  100;
+        Int_t niter = 4;
         RooUnfoldBayes unfold(response, h_data_purity_corrected, niter);
         h_data_unfolded = (TH2D *) unfold.Hreco(errorTreatment);
         covariance_matrix_before_unfolding = unfold.GetMeasuredCov();
@@ -164,7 +170,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
 
     std::cout << "Performing graphical bottomline test" << std::endl;
     TH2D *h_mc_reco_2D = (TH2D *) h_mc_reco->ProjectionX("h_mc_reco_2D", ibin_pt, ibin_pt);
-    //TH2D *h_mc_true_2D = (TH2D *) h_mc_true->ProjectionX("h_mc_true_2D", ibin_pt, ibin_pt);
+    TH2D *h_mc_true_2D = (TH2D *) h_mc_true->ProjectionX("h_mc_true_2D", ibin_pt, ibin_pt);
     TH2D *h_data_purity_corrected_2D = (TH2D *) h_data_purity_corrected->ProjectionX("h_data_purity_corrected_2D", ibin_pt, ibin_pt);
     TH2D *h_data_fully_corrected_2D = (TH2D *) h_data_fully_corrected->ProjectionX("h_data_fully_corrected_2D", ibin_pt, ibin_pt);
     TH2D *h_data_refolded_2D = (TH2D *) h_data_refolded->ProjectionX("h_data_refolded_2D", ibin_pt, ibin_pt);
@@ -176,7 +182,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         double ymax = 0.;
         for (auto h : {
                     h_mc_reco_2D, 
-                    //h_mc_true_2D,
+                    h_mc_true_2D,
                     h_data_purity_corrected_2D,
                     h_data_fully_corrected_2D,
                     h_data_refolded_2D,
@@ -205,21 +211,20 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         h_data_purity_corrected_2D->SetMarkerSize(1);
         h_data_purity_corrected_2D->GetYaxis()->SetRangeUser(0., ymax*1.1);
         h_data_purity_corrected_2D->GetYaxis()->SetTitle("EEC(\\Delta\\mbox{r})");
-        leg->AddEntry(h_data_purity_corrected_2D, "Detector level data (tagged single B jets)", "pe1");
-        leg->AddEntry(h_data_purity_corrected_2D, "before unfolding", "pe1");
-        
+        leg->AddEntry(h_data_purity_corrected_2D, "Detector level data (tagged BB jets)", "pe1");
+    
 
-        h_data_after_fit_2D->SetMarkerColor(orange);
-        h_data_after_fit_2D->SetLineColor(orange);
-        h_data_after_fit_2D->SetMarkerStyle(kFullTriangleUp);
-        h_data_after_fit_2D->SetMarkerSize(1);
-        leg->AddEntry(h_data_after_fit_2D, "Before purity correction", "pe1");
+        //h_data_after_fit_2D->SetMarkerColor(orange);
+        //h_data_after_fit_2D->SetLineColor(orange);
+        //h_data_after_fit_2D->SetMarkerStyle(kFullTriangleUp);
+        //h_data_after_fit_2D->SetMarkerSize(1);
+        //leg->AddEntry(h_data_after_fit_2D, "Before purity correction", "pe1");
 
-        h_data_unfolded_2D->SetMarkerColor(green);
-        h_data_unfolded_2D->SetLineColor(green);
-        h_data_unfolded_2D->SetMarkerStyle(kFullTriangleUp);
-        h_data_unfolded_2D->SetMarkerSize(1);
-        leg->AddEntry(h_data_unfolded_2D, "After unfolding (no efficiency correction)", "pe1");
+        //h_data_unfolded_2D->SetMarkerColor(green);
+        //h_data_unfolded_2D->SetLineColor(green);
+        //h_data_unfolded_2D->SetMarkerStyle(kFullTriangleUp);
+        //h_data_unfolded_2D->SetMarkerSize(1);
+        //leg->AddEntry(h_data_unfolded_2D, "After unfolding (no efficiency correction)", "pe1");
 
         h_mc_reco_2D->SetStats(0);
         h_mc_reco_2D->SetMarkerColor(red);
@@ -236,11 +241,11 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         h_data_fully_corrected_2D->SetMarkerSize(1);
         leg->AddEntry(h_data_fully_corrected_2D, "Unfolded data (tagged BB jets)", "pe1");
 
-        //h_mc_true_2D->SetMarkerColor(red);
-        //h_mc_true_2D->SetLineColor(red);
-       // h_mc_true_2D->SetMarkerStyle(kOpenTriangleUp);
-        //h_mc_true_2D->SetMarkerSize(1);
-        //leg->AddEntry(h_mc_true_2D, "Particle level MC (tagged BB jets)", "pe1");
+        h_mc_true_2D->SetMarkerColor(orange);
+        h_mc_true_2D->SetLineColor(orange);
+        h_mc_true_2D->SetMarkerStyle(kOpenTriangleUp);
+        h_mc_true_2D->SetMarkerSize(1);
+        leg->AddEntry(h_mc_true_2D, "Particle level MC (tagged BB jets)", "pe1");
 
         h_data_refolded_2D->SetMarkerColor(blue);
         h_data_refolded_2D->SetLineColor(blue);
@@ -248,7 +253,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         h_data_refolded_2D->SetMarkerSize(1);
         
         
-        TCanvas *c_unfold = new TCanvas("c_unfold", "", 800, 600);
+        TCanvas *c_unfold = new TCanvas("c_unfold", "", 800, 800);
         TPad *pad1 = new TPad("pad1", "", 0., 0., 1., 0.3);
         TPad *pad2 = new TPad("pad2", "", 0., 0.3, 1., 1.);
         pad1->SetTopMargin(0.01);
@@ -261,10 +266,11 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
 
         h_data_purity_corrected_2D->Draw("pe1");
         h_data_purity_corrected_2D->SetMaximum(9);
-        h_data_unfolded_2D->Draw("pe1 same");
+        //h_data_unfolded_2D->Draw("pe1 same");
         h_mc_reco_2D->Draw("pe1 same");
         h_data_fully_corrected_2D->Draw("pe1 same");
-        //h_mc_true_2D->Draw("pe1 same");
+        //h_data_after_fit_2D->Draw("pe1 same");
+        h_mc_true_2D->Draw("pe1 same");
 
         leg->Draw();
         TLatex *test_info_text = new TLatex;
@@ -309,7 +315,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         leg_ratio->AddEntry(h_data_mc_reco_ratio, "reco data / reco mc", "pe1");
 
         TH2D *h_data_mc_true_ratio = (TH2D *) h_data_fully_corrected_2D->Clone("h_data_mc_true_ratio");
-        //h_data_mc_true_ratio->Divide(h_mc_true_2D);
+        h_data_mc_true_ratio->Divide(h_mc_true_2D);
         h_data_mc_true_ratio->SetMarkerStyle(kOpenCross);
         h_data_mc_true_ratio->SetMarkerColor(blue);
         h_data_mc_true_ratio->SetLineColor(blue);
@@ -338,10 +344,8 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
 
     h_data_fully_corrected->SetName("h_data_unfolded");
     h_data_fully_corrected->Write();
-
     h_data_after_fit->SetName("h_data_singleb");
     h_data_after_fit->Write();
-
     h_mc_reco->SetName("h_mc_reco_singleb");
     h_mc_reco->Write();
 
@@ -352,26 +356,18 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     h_data_fully_corrected_2D->Write();
     h_data_refolded_2D->Write();
     
-   
-
-
     fout->Close();
     delete fout;
 
     // gApplication -> Terminate(0);
 }
 
-void apply_unfolding_2d(){
-    TString dataset = "data";   //{"data"};//, "qcd"};
-    
+void apply_unfolding_2d(){    
+    TString dataset = "data";  
     TString folder = "/data_CMS/cms/zaidan/analysis_lise/Run3/";
-
-    
     TString pT_selection = "80_200";
- 
     bool btag = true;
     Int_t n = 1;
-
 	apply_unfolding(dataset, folder, btag, n, pT_selection);
      
 }
