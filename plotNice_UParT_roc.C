@@ -9,16 +9,20 @@ void plotNice_UParT_roc(){
 
   auto *fin = new TFile("btag_roc_qcd.root");
 
-  auto *g1b = (TGraph*) fin->Get("roc_1b");
-  auto *g2b = (TGraph*) fin->Get("roc_2b");
-  auto *g2bsv = (TGraph*) fin->Get("roc_2b2sv");
-  auto *gAll = (TGraph*) fin->Get("roc_all");
+  auto *g1b = (TGraph*) fin->Get("roc_1b_r3");
+  auto *g2b = (TGraph*) fin->Get("roc_2b_r3");
+  auto *g2bsv = (TGraph*) fin->Get("roc_2b2sv_r3");
+  auto *gAll = (TGraph*) fin->Get("roc_all_r3");
   
 
   auto hFrame = new TH1F ("hFrame","hFrame",1,0.0,1);
   hFrame->GetXaxis()->SetRangeUser(0.,1.);
   hFrame->GetYaxis()->SetRangeUser(0.00005,1.);
-
+  hFrame->GetXaxis()->SetTitle("b-tag efficiency");
+  hFrame->GetYaxis()->SetTitle("mistag rate");
+  hFrame->GetXaxis()->CenterTitle(1);
+  hFrame->GetYaxis()->CenterTitle(1);
+  
   TCanvas *c=new TCanvas("c","c",600,600);
   c->SetGridx();
   c->SetGridy();
@@ -30,13 +34,11 @@ void plotNice_UParT_roc(){
   g2bsv->SetLineColor(kRed-9);
   gAll->SetLineColor(kgreen);
 
-  g1b->SetLineWidth(3);
-  g2b->SetLineWidth(3);
-  g2bsv->SetLineWidth(3);
-  gAll->SetLineWidth(3);
+  g1b->SetLineWidth(6);
+  g2b->SetLineWidth(6);
+  g2bsv->SetLineWidth(6);
+  gAll->SetLineWidth(6);
   
-  hFrame->GetXaxis()->SetTitle(g1b->GetXaxis()->GetTitle());
-  hFrame->GetYaxis()->SetTitle(g1b->GetYaxis()->GetTitle());
   
   hFrame->Draw();
   g1b->Draw("l");
@@ -61,14 +63,24 @@ void plotNice_UParT_roc(){
   latex.SetTextSize(0.035);
   latex.DrawLatex(0.05,
 		  yline*1.05,
-		  "target mistag rate");
+		  "UParT-only mistag rate");
 
 
   TLatex latex2;
   latex2.SetTextSize(0.04);
   latex2.DrawLatex(0.025, 0.5,"100 < p_{T,jet} < 120 GeV, |#eta_{jet}| < 2");
-
-
+  // hard-code sig. eff. and eff. mistag rate
+  
+  TMarker *wp = new TMarker(0.560412,0.000250118, 20);                                                                                                                                                            
+  wp->SetMarkerSize(1.2);                                                                                                                                                                                         
+  wp->SetMarkerColor(kRed-9);
+  wp->Draw("same"); 
+  /*
+  TMarker *wp2 = new TMarker(0.560412,0.000250118, 24);                                                                                                                                                           
+  wp2->SetMarkerSize(1.2);                                                                                                                                                                                       
+  wp2->SetMarkerColor(kRed);
+  wp2->Draw("same"); 
+  */
 
   
   TLegend* leg = new TLegend(0.2, 0.55, 0.45, 0.8);
