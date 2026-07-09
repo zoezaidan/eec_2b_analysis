@@ -13,6 +13,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     //Select unfolding options
     bool unfoldBayes =  true;
     bool multiply_sigfrac = true;
+    bool split_test = true;
     
     const Color_t blue = ROCColor::blue();
     const Color_t red = ROCColor::red();
@@ -23,10 +24,10 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     TString filename_template_fit = "/home/llr/cms/zaidan/analysis_lise/eec_2b_analysis/TemplateFit_Run3/TemplateFits_Run3_minHLT60_LinearBin/nominal_Run3_TemplateFits_histos_3d_80_200.root"; 
     std::cout << "Using template file: " << filename_template_fit << std::endl;
     
-    TString filename_response = "/data_CMS/cms/zaidan/analysis_lise/Run3/RMatrix_Run3_btagWP868_template_for_fit_histos_3D_qcd_f.root"; //folder + "RMatrix_Run3_btagWP868_template_for_fit_histos_3D_qcd_f.root";
+    TString filename_response = "/data_CMS/cms/zaidan/analysis_lise/Run3/RMatrix_Run3_btagWP868_template_for_fit_histos_3D_qcd_split_test_f.root";  //RMatrix_Run3_btagWP868_template_for_fit_histos_3D_qcd_f.root"; //folder + "RMatrix_Run3_btagWP868_template_for_fit_histos_3D_qcd_f.root";
     std::cout << "Using response file: " << filename_response << std::endl;
     
-    TString filename_data =  "/data_CMS/cms/zaidan/analysis_lise/Run3/Run3_btagWP868_template_for_fit_histos_3D_data_f.root";
+    TString filename_data =  "/data_CMS/cms/zaidan/analysis_lise/Run3/Run3_btagWP868_template_for_fit_histos_3D_qcd_split_test.root"; //Run3_btagWP868_template_for_fit_histos_3D_data_f.root";
     std::cout << "Getting data from " << filename_data << std::endl;
     
     //Select central pT bin
@@ -42,7 +43,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
    
     if(unfoldBayes) label += "_bayesian";
     TString fout_name;
-    fout_name = folder + "histos_" + label + "_after_unfolding_2D.root";
+    fout_name = folder + "histos_" + label + "_after_unfolding_2D_split_test.root";
 
     // ---------------- Plotting setup ------------
     gSystem->Load("libRooUnfold.so");
@@ -51,14 +52,16 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
 
     // ----------- Grab data ----------- 
     TFile *fin_data = new TFile(filename_data);
-    TH3D *h_data_reco_3D = (TH3D*)fin_data->Get("h3D_data")->Clone("h_data_reco_3D"); //att
+    TString histname = "h3D_data";
+    if (split_test) histname = "h3D_pseudodata";
+    TH3D *h_data_reco_3D = (TH3D*)fin_data->Get(histname)->Clone("h_data_reco_3D"); //att
     TH2D *h_data_reco = (TH2D*)h_data_reco_3D->Project3D("zy");
-
+    TH2D *h_data_after_fit = (TH2D*) h_data_reco->Clone("h_data_after_fit");
+        
     
 
     // Multiply histograms by signal fraction
-    TH2D *h_data_after_fit = (TH2D *) h_data_reco->Clone("h_data_after_fit");
-
+    
     if (multiply_sigfrac) {
         std::cout << "\t---->Multiplying by signal fraction" << std::endl;
         // Grab signal fraction from template fit
@@ -98,16 +101,28 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     RooUnfoldResponse *response;
     TH2D *h_mc_true_no_eff;
 
-    
-    // get purity and efficiency
-    h_full_purity = (TH2D *) fin_unfolding->Get("h_full_purity_tf"); // reconstruction purity correction
-    h_full_efficiency = (TH2D *) fin_unfolding->Get("h_full_efficiency_tf"); 
-    
-    // get MC for comparison and response matrix
-    h_mc_reco = (TH2D *) fin_unfolding->Get("h_full_purity_numerator_tf"); // reco MC to compare w/ data after purity correction
-    response = (RooUnfoldResponse *) fin_unfolding->Get("response_tf_full"); // response 
-    h_mc_true_no_eff = (TH2D *) fin_unfolding->Get("h_full_efficiency_numerator_tf");
-   
+     if (split_test){
+        std::cout << "\t----> Doing split test" << std::endl;
+        // get purity and efficiency
+        h_full_purity = (TH2D *) fin_unfolding->Get("h_full_pseudo_purity_tf"); // reconstruction purity correction
+        h_full_efficiency = (TH2D *) fin_unfolding->Get("h_full_pseudo_efficiency_tf"); 
+        
+        // get MC for comparison and response matrix
+        h_mc_reco = (TH2D *) fin_unfolding->Get("h_full_pseudo_numerator_tf"); // reco MC to compare w/ data after purity correction
+        response = (RooUnfoldResponse *) fin_unfolding->Get("response_tf_pseudo_full"); // response 
+        h_mc_true_no_eff = (TH2D *) fin_unfolding->Get("h_full_pseudo_efficiency_numerator_tf");
+     }
+
+    else {
+        // get purity and efficiency
+        h_full_purity = (TH2D *) fin_unfolding->Get("h_full_purity_tf"); // reconstruction purity correction
+        h_full_efficiency = (TH2D *) fin_unfolding->Get("h_full_efficiency_tf"); 
+        
+        // get MC for comparison and response matrix
+        h_mc_reco = (TH2D *) fin_unfolding->Get("h_full_purity_numerator_tf"); // reco MC to compare w/ data after purity correction
+        response = (RooUnfoldResponse *) fin_unfolding->Get("response_tf_full"); // response 
+        h_mc_true_no_eff = (TH2D *) fin_unfolding->Get("h_full_efficiency_numerator_tf");
+    }
 
     // ---- Print condition number
     TDecompSVD *svd= new TDecompSVD(response->Mresponse());  // response is a RooUnfold response object, svd is the singular value decomposition (SVD) matrix. the response->Mresponse() returns the normalized migration matrix

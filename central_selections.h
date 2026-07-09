@@ -250,9 +250,9 @@ DatasetConfig buildDataset(int RunN, int dataType, bool isMC, const PhysicsConfi
       sample = "bjet";
     }
     if (dataType == 2) {
-      // Int_t fileindex = 0; // temporare set
-      // d.filename = Form("/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/Pythia8_recalJP_chunks_20260617/merged_block_000%d_Pythia8_recalJP_20260617.root", fileindex); // [0-9]
-      
+      //Int_t fileindex = 0; // temporare set
+      //d.filename = Form("/data_CMS/cms/mnguyen//bJetAggRun3/PPRef2024/QCD/Pythia8_negTag_chunks/merged_block_000%d_Pythia8_negTag.root", fileindex); // [0-9]
+       
       // -- all in one TChain: 
       d.filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/HiForestMiniAOD_v2_TChains.root";
       sample = "qcd";

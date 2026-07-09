@@ -60,7 +60,7 @@ R__LOAD_LIBRARY(/home/llr/cms/shatat/RooUnfold/build/libRooUnfold.so)
 // -- Second : More Roboust 
 // -- Or you can use the uusla header, while using: gInterpreter->AddIncludePath("/home/llr/cms/shatat/RooUnfold/src"); added inside creat_file(){ before you use the unfolding;}
 //#pragma cling add_include_path("/home/llr/cms/shatat/RooUnfold/src")
-//R__LOAD_LIBRARY(/home/llr/cms/shatat/RooUnfold/build/libRooUnfold.so) // and its corresponding library! 
+///R__LOAD_LIBRARY(/home/llr/cms/shatat/RooUnfold/build/libRooUnfold.so) // and its corresponding library! 
 
 #if __has_include("RooUnfold.h") && __has_include("RooUnfoldResponse.h")
 #include "RooUnfold.h"
@@ -1356,8 +1356,11 @@ void create_response_templatefit(
             double w_gen  = weight_tree * eec_gen;
 
             if (reco_pass) {
-                if (num < 0.5) h_half0_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
-                else           h_half1_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
+              if (num < 0.5) h_half0_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
+              else           h_half1_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
+
+
+
             }
             
             if (gen_pass) {
@@ -1482,12 +1485,19 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
   TH3D *h3D_b  = new TH3D("h3D_b",  ";m_{2B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
   TH3D *h3D_bb = new TH3D("h3D_bb", ";m_{2B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
 
+  TH3D *h3D_pseudo_0b = new TH3D("h3D_pseudo_0b", ";m_{2B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h3D_pseudo_b  = new TH3D("h3D_pseudo_b",  ";m_{2B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h3D_pseudo_bb = new TH3D("h3D_pseudo_bb", ";m_{2B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+
+
   // Data: single distribution to be fit
   TH3D *h3D_data = new TH3D("h3D_data", "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  TH3D *h3D_pseudodata = new TH3D("h3D_pseudodata", "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
   h3D_0b->Sumw2();   h3D_0b->SetCanExtend(TH1::kNoAxis);
   h3D_b->Sumw2();    h3D_b->SetCanExtend(TH1::kNoAxis);
   h3D_bb->Sumw2();   h3D_bb->SetCanExtend(TH1::kNoAxis);
   h3D_data->Sumw2(); h3D_data->SetCanExtend(TH1::kNoAxis);
+  h3D_pseudodata->Sumw2(); h3D_pseudodata->SetCanExtend(TH1::kNoAxis); //pseudo data for testing the unfolding procedure
 
   // Jet counts (no EEC weight): 3D (mB, dr, jtpt) — same axes as the EEC histograms
   TH3D *h_count_0b   = new TH3D("h_count_0b",   "jet counts 0b;m_{2B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
@@ -1534,9 +1544,23 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     TH2D *h_half1_eff_num    = new TH2D("h_half1_efficiency_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
     TH2D *h_half1_eff_den    = new TH2D("h_half1_efficiency_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
 
+    TH2D *h_half0_pseudo_purity_num = new TH2D("h_half0_pseudo_purity_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_pseudo_purity_den = new TH2D("h_half0_pseudo_purity_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_pseudo_eff_num    = new TH2D("h_half0_pseudo_efficiency_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half0_pseudo_eff_den    = new TH2D("h_half0_pseudo_efficiency_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_pseudo_purity_num = new TH2D("h_half1_pseudo_purity_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_pseudo_purity_den = new TH2D("h_half1_pseudo_purity_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_pseudo_eff_num    = new TH2D("h_half1_pseudo_efficiency_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    TH2D *h_half1_pseudo_eff_den    = new TH2D("h_half1_pseudo_efficiency_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+
     RooUnfoldResponse *response_half0 = new RooUnfoldResponse(h_half0_purity_den, h_half0_eff_den, "response_tf_half0", "tf response half0");
     RooUnfoldResponse *response_half1 = new RooUnfoldResponse(h_half1_purity_den, h_half1_eff_den, "response_tf_half1", "tf response half1");
     RooUnfoldResponse *response_full  = new RooUnfoldResponse(h_half0_purity_den, h_half0_eff_den, "response_tf_full",  "tf response full");
+
+    RooUnfoldResponse *response_pseudo_half0 = new RooUnfoldResponse(h_half0_pseudo_purity_den, h_half0_pseudo_eff_den, "response_tf_pseudo_half0", "tf response pseudo half0");
+    RooUnfoldResponse *response_pseudo_half1 = new RooUnfoldResponse(h_half1_pseudo_purity_den, h_half1_pseudo_eff_den, "response_tf_pseudo_half1", "tf response pseudo half1");
+    RooUnfoldResponse *response_pseudo_full  = new RooUnfoldResponse(h_half0_pseudo_purity_den, h_half0_pseudo_eff_den, "response_tf_pseudo_full",  "tf response pseudo full");
+
 
 	// -- For b-tagging eff. correction after unfolding (at particle level)
 	TH2D* hgenjet_2b = new TH2D("hgenjet_2b", "b-tagging eff. DENO;m_{2B} [GeV];DeltaR;p_{T} [GeV]", n_dr, dr_binsVector, n_pt, jtpt_binsVector); // before btagging
@@ -1762,22 +1786,31 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 
                 if (cfg.dataset.RunN == 3 && !cfg.dataset.isMC && t.HLT_AK4PFJet60_v8 && !(t.HLT_AK4PFJet80_v8 || t.HLT_AK4PFJet100_v8 || t.HLT_AK4PFJet120_v8) ) 
                 {eec *= prescale;} 
-                
 
-                if (cfg.dataset.isMC && dr > 0.005) {
-                  // use truth to classify: fill separate 0b, b and bb templates
-                  if      (t.jtNbHad[ijet] == 0) { h3D_0b->Fill(mB, dr, jtpt, eec * weight_tree); h_count_0b->Fill(mB, dr, jtpt, weight_tree); }
-                  else if (t.jtNbHad[ijet] == 1) { h3D_b ->Fill(mB, dr, jtpt, eec * weight_tree); h_count_b ->Fill(mB, dr, jtpt, weight_tree); }
-                  else if (t.jtNbHad[ijet] == 2) { h3D_bb->Fill(mB, dr, jtpt, eec * weight_tree); h_count_bb->Fill(mB, dr, jtpt, weight_tree); }
-                } else {
-                  h3D_data->Fill(mB, dr, jtpt, eec * weight_tree);
-                  h_count_data->Fill(mB, dr, jtpt, weight_tree);
+                if (cfg.dataset.isMC){
+                  if (t.jtNbHad[ijet] == 0) {h3D_0b->Fill(mB, dr, jtpt, eec * weight_tree); h_count_0b->Fill(mB, dr, jtpt, weight_tree);}
+                  else if (t.jtNbHad[ijet] == 1) {h3D_b ->Fill(mB, dr, jtpt, eec * weight_tree); h_count_b ->Fill(mB, dr, jtpt, weight_tree);}
+                  else if (t.jtNbHad[ijet] == 2) {h3D_bb->Fill(mB, dr, jtpt, eec * weight_tree); h_count_bb->Fill(mB, dr, jtpt, weight_tree);} 
+                  
+                  if (ient % 2 == 0) {h3D_pseudodata->Fill(mB, dr, jtpt, eec * weight_tree);}
+                  else {
+                    if (t.jtNbHad[ijet] == 0)
+                      h3D_pseudo_0b->Fill(mB, dr, jtpt, eec * weight_tree);
+                    else if (t.jtNbHad[ijet] == 1)
+                      h3D_pseudo_b->Fill(mB, dr, jtpt, eec * weight_tree);
+                    else if (t.jtNbHad[ijet] == 2)
+                      h3D_pseudo_bb->Fill(mB, dr, jtpt, eec * weight_tree);
+                  }  
+                }
+
+                else {h3D_data->Fill(mB, dr, jtpt, eec * weight_tree);
+                      h_count_data->Fill(mB, dr, jtpt, weight_tree);}
+   
                 }// Fill Templates 
               } // end if 2 SV 
-          } // Templates if
 
 
-          /////////---- To Prepare Response matrix (of true >=2B) ---- ONLY for MC (both RECO, GEN) ----
+    /////////---- To Prepare Response matrix (of true >=2B) ---- ONLY for MC (both RECO, GEN) ----
 	          if((isCreateRmatrix || doAggNtuple) && cfg.dataset.isMC && t.jtNbHad[ijet] >= 2)  // -- select jets of 2b (truth)
           { 
 
@@ -1993,33 +2026,59 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
             double num    = distr(generator);
 
             if (reco_pass) {
-                if (num < 0.5) h_half0_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
-                else           h_half1_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
-            }
+              if (num < 0.5) h_half0_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
+              else h_half1_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
+              if (ient % 2 == 0){
+                if (num < 0.5) h_half0_pseudo_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
+                else h_half1_pseudo_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
+              }
+             }
+          
             if (gen_pass) {
-                // Intentional: the efficiency is binned at gen level but weighted with
-                // the reco-side EEC weight, matching the response matrix convention.
-                if (num < 0.5) h_half0_eff_den->Fill(dr_gen_fill, jpt_gen, w_reco);
-                else           h_half1_eff_den->Fill(dr_gen_fill, jpt_gen, w_reco);
+              // Intentional: the efficiency is binned at gen level but weighted with
+              // the reco-side EEC weight, matching the response matrix convention.
+              if (num < 0.5) h_half0_eff_den->Fill(dr_gen_fill, jpt_gen, w_reco);
+              else           h_half1_eff_den->Fill(dr_gen_fill, jpt_gen, w_reco);
+              if (ient % 2 == 0){
+                if (num < 0.5) h_half0_pseudo_eff_den->Fill(dr_gen_fill, jpt_reco, w_reco);
+                else h_half1_pseudo_eff_den->Fill(dr_gen_fill, jpt_reco, w_reco);
+              }
             }
             if (reco_pass && gen_pass) {
+              if (num < 0.5) {
+                h_half0_purity_num->Fill(dr_reco_fill, jpt_reco, w_reco);
+                h_half0_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_reco);
+                response_half0->Fill(dr_reco_fill, jpt_reco,
+                                        dr_gen_fill,  jpt_gen,  w_reco);
+              } 
+              else {
+                  h_half1_purity_num->Fill(dr_reco_fill, jpt_reco, w_reco);
+                  h_half1_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_reco);
+                  response_half1->Fill(dr_reco_fill, jpt_reco,
+                                      dr_gen_fill,  jpt_gen,  w_reco);
+              }
+              
+             response_full->Fill(dr_reco_fill, jpt_reco,
+                                    dr_gen_fill,  jpt_gen,  w_reco);
+
+              if (ient % 2 ==  1){
                 if (num < 0.5) {
-                    h_half0_purity_num->Fill(dr_reco_fill, jpt_reco, w_reco);
-                    h_half0_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_reco);
-                    response_half0->Fill(dr_reco_fill, jpt_reco,
-                                         dr_gen_fill,  jpt_gen,  w_reco);
-                } else {
-                    h_half1_purity_num->Fill(dr_reco_fill, jpt_reco, w_reco);
-                    h_half1_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_reco);
-                    response_half1->Fill(dr_reco_fill, jpt_reco,
+                h_half0_pseudo_purity_num->Fill(dr_reco_fill, jpt_reco, w_reco);
+                h_half0_pseudo_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_reco);
+                response_pseudo_half0->Fill(dr_reco_fill, jpt_reco,
+                                        dr_gen_fill,  jpt_gen,  w_reco);
+                } 
+                else {
+                    h_half1_pseudo_purity_num->Fill(dr_reco_fill, jpt_reco, w_reco);
+                    h_half1_pseudo_eff_num   ->Fill(dr_gen_fill,  jpt_gen,  w_reco);
+                    response_pseudo_half1->Fill(dr_reco_fill, jpt_reco,
                                         dr_gen_fill,  jpt_gen,  w_reco);
                 }
-                response_full->Fill(dr_reco_fill, jpt_reco,
-                                    dr_gen_fill,  jpt_gen,  w_reco);
+                  response_pseudo_full->Fill(dr_reco_fill, jpt_reco,
+                                      dr_gen_fill,  jpt_gen,  w_reco);    
+              }
+                        
           }//end fill  (reco_pass && gen_pass)
-
-
-
 
 
         } // END if MC()
@@ -2091,7 +2150,12 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     TH2D *h_half0_eff    = divide(h_half0_eff_num,    h_half0_eff_den,    "h_half0_efficiency_tf");
     TH2D *h_half1_eff    = divide(h_half1_eff_num,    h_half1_eff_den,    "h_half1_efficiency_tf");
 
-      // For full 
+    TH2D *h_half0_pseudo_purity = divide(h_half0_pseudo_purity_num, h_half0_pseudo_purity_den, "h_half0_purity_tf");
+    TH2D *h_half1_pseudo_purity = divide(h_half1_pseudo_purity_num, h_half1_pseudo_purity_den, "h_half1_purity_tf");
+    TH2D *h_half0_pseudo_eff    = divide(h_half0_pseudo_eff_num,    h_half0_pseudo_eff_den,    "h_half0_pseudo_efficiency_tf");
+    TH2D *h_half1_pseudo_eff    = divide(h_half1_pseudo_eff_num,    h_half1_pseudo_eff_den,    "h_half1_pseudo_efficiency_tf");
+
+    // For full 
     TH2D *h_full_purity_num = (TH2D*) h_half0_purity_num->Clone("h_full_purity_numerator_tf");
     h_full_purity_num->Add(h_half1_purity_num);
     TH2D *h_full_purity_den = (TH2D*) h_half0_purity_den->Clone("h_full_purity_denominator_tf");
@@ -2102,6 +2166,19 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     TH2D *h_full_eff_den = (TH2D*) h_half0_eff_den->Clone("h_full_efficiency_denominator_tf");
     h_full_eff_den->Add(h_half1_eff_den);
     TH2D *h_full_eff = divide(h_full_eff_num, h_full_eff_den, "h_full_efficiency_tf");
+
+
+    // For full 
+    TH2D *h_full_pseudo_purity_num = (TH2D*) h_half0_pseudo_purity_num->Clone("h_full_pseudo_purity_numerator_tf");
+    h_full_pseudo_purity_num->Add(h_half1_pseudo_purity_num);
+    TH2D *h_full_pseudo_purity_den = (TH2D*) h_half0_pseudo_purity_den->Clone("h_full_pseudo_purity_denominator_tf");
+    h_full_pseudo_purity_den->Add(h_half1_pseudo_purity_den);
+    TH2D *h_full_pseudo_purity = divide(h_full_pseudo_purity_num, h_full_pseudo_purity_den, "h_full_pseudo_purity_tf");
+    TH2D *h_full_pseudo_eff_num = (TH2D*) h_half0_pseudo_eff_num->Clone("h_full_pseudo_efficiency_numerator_tf");
+    h_full_pseudo_eff_num->Add(h_half1_pseudo_eff_num);
+    TH2D *h_full_pseudo_eff_den = (TH2D*) h_half0_pseudo_eff_den->Clone("h_full_pseudo_efficiency_denominator_tf");
+    h_full_pseudo_eff_den->Add(h_half1_pseudo_eff_den);
+    TH2D *h_full_pseudo_eff = divide(h_full_pseudo_eff_num, h_full_pseudo_eff_den, "h_full_pseudo_efficiency_tf");
 
     std::cout << "Creating: " << ResponseMatrix_fout_name << std::endl;
 
@@ -2120,6 +2197,16 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     h_full_purity_num->Write(); h_full_purity_den->Write(); h_full_purity->Write();
     h_full_eff_num->Write();    h_full_eff_den->Write();    h_full_eff->Write();
     response_full->Write();
+
+    h_half0_pseudo_purity_num->Write(); h_half0_pseudo_purity_den->Write(); h_half0_pseudo_purity->Write();
+    h_half0_pseudo_eff_num->Write();    h_half0_pseudo_eff_den->Write();    h_half0_pseudo_eff->Write();
+    response_pseudo_half0->Write();
+    h_half1_pseudo_purity_num->Write(); h_half1_pseudo_purity_den->Write(); h_half1_pseudo_purity->Write();
+    h_half1_pseudo_eff_num->Write();    h_half1_pseudo_eff_den->Write();    h_half1_pseudo_eff->Write();
+    response_pseudo_half1->Write();
+    h_full_pseudo_purity_num->Write(); h_full_pseudo_purity_den->Write(); h_full_pseudo_purity->Write();
+    h_full_pseudo_eff_num->Write();    h_full_pseudo_eff_den->Write();    h_full_pseudo_eff->Write();
+    response_pseudo_full->Write();
     
 		hgenjet_2b ->Write();
 		hgenjet_2b_passbtag ->Write();
@@ -2142,9 +2229,11 @@ if(isMakeTemplates)
     h3D_0b->Write();
     h3D_b->Write();
     h3D_bb->Write();
+    h3D_pseudodata->Write();
     h_count_0b->Write();
     h_count_b->Write();
     h_count_bb->Write();
+
   } 
   else { // Data 
     h3D_data->Write();
@@ -2276,7 +2365,9 @@ void filter_b_bb_as_data_and_mc(const AnalysisConfig& cfg) {
 
 //Step 1: filter bb from b. Only MC
 //Step 2: filter bb from b, but split the sample in 2 and treat one as data and one as MC (to be used as template fit input)
-void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t pT_low = 80, Float_t pT_high = 200,Float_t etaCut = 2,Int_t n = 1, bool btag = true, bool isMC = true, Double_t btagWP = 0.868, bool makeTemplates = true, bool createRmatrix = false, bool makeAggNtuple = true, Long64_t ev_first = 0, Long64_t ev_last = -1, const char* inputFileOverride = "", const char* outputFolderOverride = ""){
+void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t pT_low = 80, Float_t pT_high = 200, Float_t etaCut = 2, Int_t n = 1, 
+                                   bool btag = true, bool isMC = true, Double_t btagWP = 0.868, bool makeTemplates = true, bool createRmatrix = true, 
+                                   bool makeAggNtuple = false, Long64_t ev_first = 0, Long64_t ev_last = -1, const char* inputFileOverride = "", const char* outputFolderOverride = ""){
  // load at prompt: gSystem->Load("libGenVector");
 
  // -- test use of central configuration
