@@ -5,28 +5,38 @@
 # RooUnfold setup. Keep this self-contained so batch shells match interactive ROOT.
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 WORK=${SCRIPT_DIR}
-ROOUNFOLD_DIR=${WORK}/RooUnfold_build_test
-ROOUNFOLD_INC=${ROOUNFOLD_DIR}/src/src
-ROOUNFOLD_BUILD=${ROOUNFOLD_DIR}/build
 
-unset ROOT_INCLUDE_PATH
-unset CPLUS_INCLUDE_PATH
-unset CPATH
-# Avoid mixing an already-loaded CMSSW runtime with the LCG view.
-unset LD_LIBRARY_PATH
-unset PYTHONPATH
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  source "${WORK}/setup_roounfold_env_local.sh"
+  ROOUNFOLD_BUILD=${ROOUNFOLD_LIB}
+else
+  ROOUNFOLD_DIR=${WORK}/RooUnfold_build_test
+  ROOUNFOLD_INC=${ROOUNFOLD_DIR}/src/src
+  ROOUNFOLD_BUILD=${ROOUNFOLD_DIR}/build
 
-# LCG setup scripts are not nounset-safe.
-set +u
-source /cvmfs/sft.cern.ch/lcg/views/LCG_106a/x86_64-el9-gcc14-opt/setup.sh
-set -u
+  unset ROOT_INCLUDE_PATH
+  unset CPLUS_INCLUDE_PATH
+  unset CPATH
+  # Avoid mixing an already-loaded CMSSW runtime with the LCG view.
+  unset LD_LIBRARY_PATH
+  unset PYTHONPATH
 
-export ROOT_INCLUDE_PATH=${ROOUNFOLD_INC}:${ROOUNFOLD_BUILD}
-export LD_LIBRARY_PATH=${ROOUNFOLD_BUILD}:${LD_LIBRARY_PATH:-}
+  # LCG setup scripts are not nounset-safe.
+  set +u
+  source /cvmfs/sft.cern.ch/lcg/views/LCG_106a/x86_64-el9-gcc14-opt/setup.sh
+  set -u
 
+  export ROOT_INCLUDE_PATH=${ROOUNFOLD_INC}:${ROOUNFOLD_BUILD}
+  export LD_LIBRARY_PATH=${ROOUNFOLD_BUILD}:${LD_LIBRARY_PATH:-}
+fi
 
-INPUT_DIR=/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/Pythia8_negTag_chunks/
-OUT_BASE=$mydata/bJetAggRun3/PPRef2024/QCD/agg_ntuple_chunks/
+MYDATA=${mydata:-/Users/mnguyen/Downloads}
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  MYDATA=${mydata:-/data_CMS/cms/mnguyen}
+fi
+
+INPUT_DIR=${INPUT_DIR:-${MYDATA}/bJetAggRun3/PPRef2024/QCD/Pythia8_negTag_chunks}
+OUT_BASE=${OUT_BASE:-${MYDATA}/bJetAggRun3/PPRef2024/QCD/agg_ntuple_chunks}
 LOG_DIR=${OUT_BASE}/logs
 
 mkdir -p "${LOG_DIR}"
