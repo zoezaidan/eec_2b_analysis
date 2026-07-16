@@ -68,7 +68,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     bool apply_purity = true;
     // scan_niter = true  -> run niter = 1..100, save the multi-page PDF + one PNG per iteration.
     // scan_niter = false -> single unfolding with niter = 4, save the usual single bottomline plot.
-    bool scan_niter = false;
+    bool scan_niter = true;
 
 
     const Color_t blue = ROCColor::blue();

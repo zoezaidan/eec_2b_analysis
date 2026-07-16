@@ -1012,9 +1012,9 @@ void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t e
   std::cout << "Processing events [" << ev_first << ", " << ev_last << ") of " << n_events << std::endl;
 
   for (Long64_t ient = ev_first; ient < ev_last; ient++) {
-    //if (ient % 50000 == 0)
-    //std::cout << "\rProcessing: " << 100.0 * ient / n_events << " %" << std::flush;
-    std::cout << "\rProcessing: " << ient  <<std::endl;
+    if (ient % 50000 == 0)
+      std::cout << "\rProcessing: " << 100.0 * ient / n_events << " %" << std::flush;
+      //std::cout << "\rProcessing: " << ient  <<std::endl;
       
       t.GetEntry(ient);
       // -- test tree branches are read: 
@@ -1066,7 +1066,7 @@ void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t e
         // use truth to classify: fill separate 0b, b and bb templates
         if      (t.jtNbHad[ijet] == 0) { h3D_0b->Fill(mB, dr, jtpt, eec * weight_tree); h_count_0b->Fill(mB, dr, jtpt, weight_tree); }
         else if (t.jtNbHad[ijet] == 1) { h3D_b ->Fill(mB, dr, jtpt, eec * weight_tree); h_count_b ->Fill(mB, dr, jtpt, weight_tree); }
-        else if (t.jtNbHad[ijet] == 2) { h3D_bb->Fill(mB, dr, jtpt, eec * weight_tree); h_count_bb->Fill(mB, dr, jtpt, weight_tree); }
+        else if (t.jtNbHad[ijet] >= 2) { h3D_bb->Fill(mB, dr, jtpt, eec * weight_tree); h_count_bb->Fill(mB, dr, jtpt, weight_tree); }
       } else {
         h3D_data->Fill(mB, dr, jtpt, eec * weight_tree);
         h_count_data->Fill(mB, dr, jtpt, weight_tree);
@@ -1192,8 +1192,7 @@ void create_response_templatefit(
     std::cout << "Processing events [" << ev_first << ", " << ev_last << ") of " << n_events << std::endl;
 
     for (Long64_t ient = ev_first; ient < ev_last; ient++) {
-        if (ient % 50000 == 0)
-            std::cout << "\rProcessing: " << 100.0 * ient / n_events << " %" << std::flush;
+        if (ient % 50000 == 0) std::cout << "\rProcessing: " << 100.0 * ient / n_events << " %" << std::flush;
         t.GetEntry(ient);
 
         double weight_tree = cfg.dataset.isMC ? t.weight : 1.0;
@@ -1353,13 +1352,11 @@ void create_response_templatefit(
             // -------------------------------------------
             double num    = distr(generator);
             double w_reco = weight_tree * eec_reco;
-            double w_gen  = weight_tree * eec_gen;
+            //double w_gen  = weight_tree * eec_gen;
 
             if (reco_pass) {
               if (num < 0.5) h_half0_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
               else           h_half1_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
-
-
 
             }
             
@@ -1369,6 +1366,7 @@ void create_response_templatefit(
                 if (num < 0.5) h_half0_eff_den->Fill(dr_gen_fill, jpt_gen, w_reco);
                 else           h_half1_eff_den->Fill(dr_gen_fill, jpt_gen, w_reco);
             }
+            
             if (reco_pass && gen_pass) {
                 if (num < 0.5) {
                     h_half0_purity_num->Fill(dr_reco_fill, jpt_reco, w_reco);
@@ -1493,11 +1491,18 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
   // Data: single distribution to be fit
   TH3D *h3D_data = new TH3D("h3D_data", "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
   TH3D *h3D_pseudodata = new TH3D("h3D_pseudodata", "#DeltaR;EEC", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
+  // True bb component of the pseudodata. Lets the unfolding closure bypass the template
+  // fit entirely: it is what the signal fraction is trying to estimate.
+  TH3D *h3D_pseudodata_bb = new TH3D("h3D_pseudodata_bb", ";m_{2B} [GeV];#DeltaR;p_{T} [GeV]", bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
   h3D_0b->Sumw2();   h3D_0b->SetCanExtend(TH1::kNoAxis);
   h3D_b->Sumw2();    h3D_b->SetCanExtend(TH1::kNoAxis);
   h3D_bb->Sumw2();   h3D_bb->SetCanExtend(TH1::kNoAxis);
   h3D_data->Sumw2(); h3D_data->SetCanExtend(TH1::kNoAxis);
   h3D_pseudodata->Sumw2(); h3D_pseudodata->SetCanExtend(TH1::kNoAxis); //pseudo data for testing the unfolding procedure
+  h3D_pseudodata_bb->Sumw2(); h3D_pseudodata_bb->SetCanExtend(TH1::kNoAxis);
+  h3D_pseudo_0b->Sumw2(); h3D_pseudo_0b->SetCanExtend(TH1::kNoAxis);
+  h3D_pseudo_b->Sumw2();  h3D_pseudo_b->SetCanExtend(TH1::kNoAxis);
+  h3D_pseudo_bb->Sumw2(); h3D_pseudo_bb->SetCanExtend(TH1::kNoAxis);
 
   // Jet counts (no EEC weight): 3D (mB, dr, jtpt) — same axes as the EEC histograms
   TH3D *h_count_0b   = new TH3D("h_count_0b",   "jet counts 0b;m_{2B} [GeV];#DeltaR;p_{T} [GeV]",   bins_mb, mb_binsVector, bins_dr, dr_binsVector, jtpt_bins, jtpt_binsVector);
@@ -1552,6 +1557,13 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     TH2D *h_half1_pseudo_purity_den = new TH2D("h_half1_pseudo_purity_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
     TH2D *h_half1_pseudo_eff_num    = new TH2D("h_half1_pseudo_efficiency_numerator_tf",   "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
     TH2D *h_half1_pseudo_eff_den    = new TH2D("h_half1_pseudo_efficiency_denominator_tf", "x=dr_SV, y=jtpt", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+
+    // Closure target for the split test: the pseudodata half's gen-level distribution,
+    // filled with the same gate (gen_pass) and the same weight (w_reco) that the
+    // purity/response/efficiency chain outputs. Not interchangeable with
+    // hgenjet_2b_passbtag, which uses w_gen and has no gen_pass requirement.
+    TH2D *h_pseudodata_truth = new TH2D("h_pseudodata_truth_tf", "x=dr_gen, y=jtpt_gen", n_dr, dr_binsVector, n_pt, jtpt_binsVector);
+    h_pseudodata_truth->Sumw2();
 
     RooUnfoldResponse *response_half0 = new RooUnfoldResponse(h_half0_purity_den, h_half0_eff_den, "response_tf_half0", "tf response half0");
     RooUnfoldResponse *response_half1 = new RooUnfoldResponse(h_half1_purity_den, h_half1_eff_den, "response_tf_half1", "tf response half1");
@@ -1612,10 +1624,10 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     long n_zero_weight_tree = 0;
     long n_zero_eec_gen = 0;
     long n_zero_eec_reco = 0;
-    long n_zero_w_gen = 0;
+    //long n_zero_w_gen = 0;
     long n_zero_w_reco = 0;
     double sum_weight_tree_checked = 0.0;
-    double sum_w_gen_checked = 0.0;
+    //double sum_w_gen_checked = 0.0;
     double sum_w_reco_checked = 0.0;
 
   /////////////////////////////////////////////////////////
@@ -1780,7 +1792,12 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
                 if(dr >= dr_max) dr = dr_max_fill;
                 if(mB >= mb_max) mB = mb_max_fill;
 
-                // Prescale factor for data 
+                // Match the response-matrix reco definition (reco_pass, see below):
+                // drop the dr<=0.005 spike so the measured templates and the unfolding
+                // response cover the same reco domain. Applied to data and all MC flavors.
+                if (dr > 0.005) {
+
+                // Prescale factor for data
                 if (cfg.dataset.RunN == 2 && !cfg.dataset.isMC && t.HLT_HIAK4PFJet40_v1 && !(t.HLT_HIAK4PFJet60_v1 || t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1)) 
                 {eec *= prescale;} 
 
@@ -1790,23 +1807,29 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
                 if (cfg.dataset.isMC){
                   if (t.jtNbHad[ijet] == 0) {h3D_0b->Fill(mB, dr, jtpt, eec * weight_tree); h_count_0b->Fill(mB, dr, jtpt, weight_tree);}
                   else if (t.jtNbHad[ijet] == 1) {h3D_b ->Fill(mB, dr, jtpt, eec * weight_tree); h_count_b ->Fill(mB, dr, jtpt, weight_tree);}
-                  else if (t.jtNbHad[ijet] == 2) {h3D_bb->Fill(mB, dr, jtpt, eec * weight_tree); h_count_bb->Fill(mB, dr, jtpt, weight_tree);} 
+                  else if (t.jtNbHad[ijet] >= 2) {h3D_bb->Fill(mB, dr, jtpt, eec * weight_tree); h_count_bb->Fill(mB, dr, jtpt, weight_tree);} 
                   
-                  if (ient % 2 == 0) {h3D_pseudodata->Fill(mB, dr, jtpt, eec * weight_tree);}
+                  if (ient % 2 == 0) {
+                    h3D_pseudodata->Fill(mB, dr, jtpt, eec * weight_tree);
+                    // >=2 matches the response matrix gate below, not the ==2 of the templates
+                    if (t.jtNbHad[ijet] >= 2)
+                      h3D_pseudodata_bb->Fill(mB, dr, jtpt, eec * weight_tree);
+                  }
                   else {
                     if (t.jtNbHad[ijet] == 0)
                       h3D_pseudo_0b->Fill(mB, dr, jtpt, eec * weight_tree);
                     else if (t.jtNbHad[ijet] == 1)
                       h3D_pseudo_b->Fill(mB, dr, jtpt, eec * weight_tree);
-                    else if (t.jtNbHad[ijet] == 2)
+                    else if (t.jtNbHad[ijet] >= 2)
                       h3D_pseudo_bb->Fill(mB, dr, jtpt, eec * weight_tree);
-                  }  
+                  }
                 }
 
                 else {h3D_data->Fill(mB, dr, jtpt, eec * weight_tree);
                       h_count_data->Fill(mB, dr, jtpt, weight_tree);}
-   
-                }// Fill Templates 
+
+                } // end if (dr > 0.005)
+                }// Fill Templates
               } // end if 2 SV 
 
 
@@ -1852,11 +1875,20 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 	                std::vector<Int_t> gen_bh_sta;
 	                PartialBsAggregation(gen_bh, gen_bh_sta, t, ijet);
 	                aggRow.nGenAgg = gen_bh.size();
-	                if (gen_bh.size() < 2) {
-	                  if (aggBHadronTree) aggBHadronTree->Fill();
-	                  continue;
-	                }
-	                n_gen_bh_ok++;
+	                // MEASUREMENT DEFINITION: "bb with a well-defined 2-gen-B observable;
+	                // rest are fakes". A reco jet with < 2 aggregatable gen B-hadrons has a
+	                // reco observable but NO gen observable -> it is a fake and must land in
+	                // the purity DENOMINATOR (reco-only), exactly like it lands in the
+	                // pseudodata/data. So do NOT drop it. gen_ok only guards the gen-pair
+	                // math (indexes gen_bh[1] -> would crash for size<2) and the gen-level
+	                // fills (numerator / efficiency / response), which need a valid gen pair.
+	                const bool gen_ok = (gen_bh.size() >= 2);
+	                if (gen_ok) n_gen_bh_ok++;
+
+	                // gen-pair observables: assigned only when gen_ok
+	                double eec_gen = -1., mB_gen = -1., dr_gen = -1.;
+	                double mB_gen_fill = -1., dr_gen_fill = -1.;
+	                if (gen_ok) {
 
                 // From aggregated gen B: Pick gen pair with largest EEC weight (pt_i * pt_j)^n
                 int best_i = 0, best_j = 1;
@@ -1867,9 +1899,9 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
                         if (pp > best_pt_prod) { best_pt_prod = pp; best_i = gi; best_j = gj; }
                 }
 					// gen pair info
-	                double eec_gen = std::pow(gen_bh[best_i].Pt() * gen_bh[best_j].Pt(), cfg.n);
-	                double mB_gen  = gen_bh[best_i].M() + gen_bh[best_j].M();
-	                double dr_gen  = t.calc_dr(gen_bh[best_i].Eta(), gen_bh[best_i].Phi(),
+	                eec_gen = std::pow(gen_bh[best_i].Pt() * gen_bh[best_j].Pt(), cfg.n);
+	                mB_gen  = gen_bh[best_i].M() + gen_bh[best_j].M();
+	                dr_gen  = t.calc_dr(gen_bh[best_i].Eta(), gen_bh[best_i].Phi(),
 	                                           gen_bh[best_j].Eta(), gen_bh[best_j].Phi());
 	                aggRow.genStatus1 = gen_bh_sta[best_i];
 	                aggRow.genStatus2 = gen_bh_sta[best_j];
@@ -1885,59 +1917,68 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 	                aggRow.genMB = mB_gen;
 	                aggRow.genEec = eec_gen;
 					// overflow treatement at gen level	
-				    double mB_gen_fill = mB_gen, dr_gen_fill = dr_gen;
+				    mB_gen_fill = mB_gen; dr_gen_fill = dr_gen;
                 if (mB_gen_fill >= mb_max) mB_gen_fill = mb_max_fill;
                 if (dr_gen_fill >= dr_max)  dr_gen_fill = dr_max_fill;
-
-				// -- Gen EEC weight
-				double w_gen  = weight_tree * eec_gen;
-		
-			   // Fill total number of True 2b Jets (Deno of b-tagging eff. correction) before b-tagger: simialr axis to what we unfold to. - used after unfolding
-			  	hgenjet_2b ->Fill(dr_gen, jpt_gen, w_gen);
-			   
-			   // -- Prepare combined b-tagger: 
-               // ---- Reco SVs ----
-                vector<ROOT::Math::PtEtaPhiMVector> reco_sv_rm =
-	                  makeSvtxs_withBDT(t, ijet, ient, agg_fail_rm, nb_sv_rm, sv_fail_rm, merge_fail_rm, nullptr, nullptr);
-				  
-	                bool reco_sv_ok = (reco_sv_rm.size() == 2);
-	                aggRow.nRecoAgg = reco_sv_rm.size();
-	                if (reco_sv_ok) {
-	                  const double mB_reco_diag = reco_sv_rm[0].M() + reco_sv_rm[1].M();
-	                  const double dr_reco_diag = t.calc_dr(reco_sv_rm[0].Eta(), reco_sv_rm[0].Phi(),
-	                                                        reco_sv_rm[1].Eta(), reco_sv_rm[1].Phi());
-	                  const double eec_reco_diag =
-	                      std::pow(reco_sv_rm[0].Pt() * reco_sv_rm[1].Pt(), cfg.n);
-	                  aggRow.recoPt1 = reco_sv_rm[0].Pt();
-	                  aggRow.recoEta1 = reco_sv_rm[0].Eta();
-	                  aggRow.recoPhi1 = reco_sv_rm[0].Phi();
-	                  aggRow.recoM1 = reco_sv_rm[0].M();
-	                  aggRow.recoPt2 = reco_sv_rm[1].Pt();
-	                  aggRow.recoEta2 = reco_sv_rm[1].Eta();
-	                  aggRow.recoPhi2 = reco_sv_rm[1].Phi();
-	                  aggRow.recoM2 = reco_sv_rm[1].M();
-	                  aggRow.recoDr = dr_reco_diag;
-	                  aggRow.recoMB = mB_reco_diag;
-	                  aggRow.recoEec = eec_reco_diag;
-	                }
-	                if (aggBHadronTree) aggBHadronTree->Fill();
-	                if (!isCreateRmatrix) continue;
-				   
-				   // -- Use combined b-tagger: Upart tagger + 2SV of aggreagted Bs., for Rmatrix unfolding, purity, reconstruction eff. 
-					if (!reco_sv_ok  || !passBtag(t, ijet, cfg)) continue; // select btagged jets only
+                } // end if (gen_ok): gen-pair observables ready
 			  
-			   // Fill total number of True 2b Jets that survive after btagging condition (Num of b tagging eff. correction - used after unfolding)
-				hgenjet_2b_passbtag ->Fill(dr_gen, jpt_gen, w_gen);
+			  // -- Prepare combined b-tagger: 
+        // ---- Reco SVs ----
+        vector<ROOT::Math::PtEtaPhiMVector> reco_sv_rm = makeSvtxs_withBDT(t, ijet, ient, agg_fail_rm, nb_sv_rm, sv_fail_rm, merge_fail_rm, nullptr, nullptr);
+				  
+	      bool reco_sv_ok = (reco_sv_rm.size() == 2);
+	      aggRow.nRecoAgg = reco_sv_rm.size();
+	      if (reco_sv_ok) {
+	        const double mB_reco_diag = reco_sv_rm[0].M() + reco_sv_rm[1].M();
+	        const double dr_reco_diag = t.calc_dr(reco_sv_rm[0].Eta(), reco_sv_rm[0].Phi(),
+	                                                        reco_sv_rm[1].Eta(), reco_sv_rm[1].Phi());
+	        const double eec_reco_diag =
+	            std::pow(reco_sv_rm[0].Pt() * reco_sv_rm[1].Pt(), cfg.n);
+	        aggRow.recoPt1 = reco_sv_rm[0].Pt();
+	        aggRow.recoEta1 = reco_sv_rm[0].Eta();
+	        aggRow.recoPhi1 = reco_sv_rm[0].Phi();
+	        aggRow.recoM1 = reco_sv_rm[0].M();
+	        aggRow.recoPt2 = reco_sv_rm[1].Pt();
+	        aggRow.recoEta2 = reco_sv_rm[1].Eta();
+	        aggRow.recoPhi2 = reco_sv_rm[1].Phi();
+	        aggRow.recoM2 = reco_sv_rm[1].M();
+	        aggRow.recoDr = dr_reco_diag;
+	        aggRow.recoMB = mB_reco_diag;
+	        aggRow.recoEec = eec_reco_diag;
+	      }
+	    if (aggBHadronTree) aggBHadronTree->Fill();
+	    if (!isCreateRmatrix) continue;
 
-			   // -- Prepare to Fill Rmatrix -- 
-			   // -- Reco pair info 
-			   double mB_reco = -1, dr_reco = -1, eec_reco = -1;
-                  mB_reco  = reco_sv_rm[0].M() + reco_sv_rm[1].M();
-                  dr_reco  = t.calc_dr(reco_sv_rm[0].Eta(), reco_sv_rm[0].Phi(),
-                                       reco_sv_rm[1].Eta(), reco_sv_rm[1].Phi());
-                  eec_reco = std::pow(reco_sv_rm[0].Pt() * reco_sv_rm[1].Pt(), cfg.n);
-			   double w_reco = weight_tree * eec_reco;
-	           // Overflow protection at reco level
+	    // Guard the reco pair access: makeSvtxs_withBDT returns an empty vector
+	    // when the jet has < 2 secondary vertices. Without this, reco_sv_rm[0]
+	    // below indexes an empty vector (undefined behaviour -> segfault). The
+	    // reco_sv_ok cut used to happen only after these accesses.
+	    if (!reco_sv_ok) continue;
+
+      // -- Prepare to Fill Rmatrix --
+		  // -- Reco pair info
+		  double mB_reco = -1, dr_reco = -1, eec_reco = -1;
+      mB_reco  = reco_sv_rm[0].M() + reco_sv_rm[1].M();
+      dr_reco  = t.calc_dr(reco_sv_rm[0].Eta(), reco_sv_rm[0].Phi(), reco_sv_rm[1].Eta(), reco_sv_rm[1].Phi());
+      eec_reco = std::pow(reco_sv_rm[0].Pt() * reco_sv_rm[1].Pt(), cfg.n);
+		  double w_reco = weight_tree * eec_reco;
+
+      // Fill total number of True 2b Jets (Deno of b-tagging eff. correction) before b-tagger: simialr axis to what we unfold to. - used after unfolding
+			if (gen_ok) hgenjet_2b ->Fill(dr_gen, jpt_gen, w_reco);
+			   
+			// -- Use combined b-tagger: Upart tagger + 2SV of aggreagted Bs., for Rmatrix unfolding, purity, reconstruction eff. 
+			if (!passBtag(t, ijet, cfg)) continue; // select btagged jets only (reco_sv_ok already required above)
+			  
+
+
+
+			// Fill total number of True 2b Jets that survive after btagging condition (Num of b tagging eff. correction - used after unfolding)
+			if (gen_ok) hgenjet_2b_passbtag ->Fill(dr_gen, jpt_gen, w_reco);
+
+		 
+
+
+	      // Overflow protection at reco level
 	              double mB_reco_fill = mB_reco, dr_reco_fill = dr_reco;
                   if (mB_reco_fill >= mb_max) mB_reco_fill = mb_max_fill;
                   if (dr_reco_fill >= dr_max) dr_reco_fill = dr_max_fill;
@@ -1945,17 +1986,19 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
             // Define reco_pass: full detector-level selection
             bool reco_pass = passRecoJetKinematics(t, ijet, cfg) && dr_reco_fill > 0.005; 
                 
-            // Define gen_pass: particle-level jet kinematics + gen observable range
-            bool gen_pass  = passGenJetKinematics(t, ijet, cfg);
+            // Define gen_pass: particle-level jet kinematics + gen observable range.
+            // Requires gen_ok: a jet with < 2 aggregatable gen B-hadrons has no gen
+            // observable, so it can never be gen-matched (stays out of num/eff/response).
+            bool gen_pass  = gen_ok && passGenJetKinematics(t, ijet, cfg);
 
             ++n_weight_checked;
             sum_weight_tree_checked += weight_tree;
-            sum_w_gen_checked += w_gen;
+            //sum_w_gen_checked += w_gen;
             sum_w_reco_checked += w_reco;
             if (weight_tree == 0.0) ++n_zero_weight_tree;
             if (eec_gen == 0.0) ++n_zero_eec_gen;
             if (eec_reco == 0.0) ++n_zero_eec_reco;
-            if (w_gen == 0.0) ++n_zero_w_gen;
+            //if (w_gen == 0.0) ++n_zero_w_gen;
             if (w_reco == 0.0) ++n_zero_w_reco;
             if (n_weight_debug_printed < 10) {
                 std::cout << "[WEIGHT DBG " << n_weight_debug_printed << "]"
@@ -1967,7 +2010,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
                     << " weight_tree=" << weight_tree
                     << " eec_gen=" << eec_gen
                     << " eec_reco=" << eec_reco
-                    << " w_gen=" << w_gen
+                    //<< " w_gen=" << w_gen
                     << " w_reco=" << w_reco
                     << " reco_pass=" << reco_pass
                     << " gen_pass=" << gen_pass
@@ -2028,21 +2071,25 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
             if (reco_pass) {
               if (num < 0.5) h_half0_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
               else h_half1_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
-              if (ient % 2 == 0){
+              // Odd half: same half as the pseudo numerators and response, so purity is a
+              // self-consistent ratio. The even half is reserved for the pseudodata.
+              if (ient % 2 == 1){
                 if (num < 0.5) h_half0_pseudo_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
                 else h_half1_pseudo_purity_den->Fill(dr_reco_fill, jpt_reco, w_reco);
               }
              }
-          
+
             if (gen_pass) {
               // Intentional: the efficiency is binned at gen level but weighted with
               // the reco-side EEC weight, matching the response matrix convention.
               if (num < 0.5) h_half0_eff_den->Fill(dr_gen_fill, jpt_gen, w_reco);
               else           h_half1_eff_den->Fill(dr_gen_fill, jpt_gen, w_reco);
-              if (ient % 2 == 0){
-                if (num < 0.5) h_half0_pseudo_eff_den->Fill(dr_gen_fill, jpt_reco, w_reco);
-                else h_half1_pseudo_eff_den->Fill(dr_gen_fill, jpt_reco, w_reco);
+              if (ient % 2 == 1){
+                if (num < 0.5) h_half0_pseudo_eff_den->Fill(dr_gen_fill, jpt_gen, w_reco);
+                else h_half1_pseudo_eff_den->Fill(dr_gen_fill, jpt_gen, w_reco);
               }
+              // Even half = the pseudodata half. This is what the corrected chain must reproduce.
+              else h_pseudodata_truth->Fill(dr_gen_fill, jpt_gen, w_reco);
             }
             if (reco_pass && gen_pass) {
               if (num < 0.5) {
@@ -2078,12 +2125,12 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
                                       dr_gen_fill,  jpt_gen,  w_reco);    
               }
                         
-          }//end fill  (reco_pass && gen_pass)
+            }//end fill  (reco_pass && gen_pass)
 
 
-        } // END if MC()
+          } // END if MC()
 
-    }// JET LOOP
+      }// JET LOOP
 
 	  } // EVENT LOOP
 	  std::cout << std::endl;
@@ -2131,10 +2178,10 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     std::cout << "  zero weight_tree: " << n_zero_weight_tree << std::endl;
     std::cout << "  zero eec_gen:     " << n_zero_eec_gen << std::endl;
     std::cout << "  zero eec_reco:    " << n_zero_eec_reco << std::endl;
-    std::cout << "  zero w_gen:       " << n_zero_w_gen << std::endl;
+    //std::cout << "  zero w_gen:       " << n_zero_w_gen << std::endl;
     std::cout << "  zero w_reco:      " << n_zero_w_reco << std::endl;
     std::cout << "  sum weight_tree:  " << sum_weight_tree_checked << std::endl;
-    std::cout << "  sum w_gen:        " << sum_w_gen_checked << std::endl;
+    //std::cout << "  sum w_gen:        " << sum_w_gen_checked << std::endl;
     std::cout << "  sum w_reco:       " << sum_w_reco_checked << std::endl;
     //----------------------------
 
@@ -2150,8 +2197,8 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     TH2D *h_half0_eff    = divide(h_half0_eff_num,    h_half0_eff_den,    "h_half0_efficiency_tf");
     TH2D *h_half1_eff    = divide(h_half1_eff_num,    h_half1_eff_den,    "h_half1_efficiency_tf");
 
-    TH2D *h_half0_pseudo_purity = divide(h_half0_pseudo_purity_num, h_half0_pseudo_purity_den, "h_half0_purity_tf");
-    TH2D *h_half1_pseudo_purity = divide(h_half1_pseudo_purity_num, h_half1_pseudo_purity_den, "h_half1_purity_tf");
+    TH2D *h_half0_pseudo_purity = divide(h_half0_pseudo_purity_num, h_half0_pseudo_purity_den, "h_half0_pseudo_purity_tf");
+    TH2D *h_half1_pseudo_purity = divide(h_half1_pseudo_purity_num, h_half1_pseudo_purity_den, "h_half1_pseudo_purity_tf");
     TH2D *h_half0_pseudo_eff    = divide(h_half0_pseudo_eff_num,    h_half0_pseudo_eff_den,    "h_half0_pseudo_efficiency_tf");
     TH2D *h_half1_pseudo_eff    = divide(h_half1_pseudo_eff_num,    h_half1_pseudo_eff_den,    "h_half1_pseudo_efficiency_tf");
 
@@ -2207,7 +2254,8 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     h_full_pseudo_purity_num->Write(); h_full_pseudo_purity_den->Write(); h_full_pseudo_purity->Write();
     h_full_pseudo_eff_num->Write();    h_full_pseudo_eff_den->Write();    h_full_pseudo_eff->Write();
     response_pseudo_full->Write();
-    
+    h_pseudodata_truth->Write();
+
 		hgenjet_2b ->Write();
 		hgenjet_2b_passbtag ->Write();
 		hbtagEff_correction_plevel ->Write();
@@ -2230,11 +2278,16 @@ if(isMakeTemplates)
     h3D_b->Write();
     h3D_bb->Write();
     h3D_pseudodata->Write();
+    h3D_pseudodata_bb->Write();
+    // Odd-half templates, for fitting the even-half pseudodata in the split test
+    h3D_pseudo_0b->Write();
+    h3D_pseudo_b->Write();
+    h3D_pseudo_bb->Write();
     h_count_0b->Write();
     h_count_b->Write();
     h_count_bb->Write();
 
-  } 
+  }
   else { // Data 
     h3D_data->Write();
     h_count_data->Write();
