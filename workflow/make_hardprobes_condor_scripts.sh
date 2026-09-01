@@ -14,6 +14,10 @@ CONDOR_LOG_DIR=/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/condor/logfiles
 #INPUT_TAG=negTagFix
 INPUT_TAG=UParTV2
 
+# SAMPLE_TAG replaces the old dataType argument: the macro puts it in the output histogram
+# names (..._template_for_fit_histos_3D_<SAMPLE_TAG>_f). These jobs run HardProbes data.
+SAMPLE_TAG=data
+
 # Suffix on every output .root; leave empty for untagged names.
 OUT_TAG=upartv2
 OUT_SUFFIX="${OUT_TAG:+_${OUT_TAG}}"
@@ -74,7 +78,7 @@ if [ ! -f "\${ACLIC_BUILD_DIR}/create_files_for_template_fit_cpp.so" ]; then
   exit 3
 fi
 
-root -l -b -q -e "gSystem->AddIncludePath(\"-I\${ROOUNFOLD_INC} -I\${ROOUNFOLD_BUILD}\"); if (gSystem->Load(\"\${ROOUNFOLD_BUILD}/libRooUnfold.so\") < 0) gSystem->Exit(3); if (gSystem->Load(\"\${ACLIC_BUILD_DIR}/create_files_for_template_fit_cpp.so\") < 0) gSystem->Exit(3); create_files_for_template_fit(3,0,80,2,1,true,false,${BTAG_WP},true,false,true,0,-1,\"\${INPUT}\",\"\${STAGEDIR}\")"
+root -l -b -q -e "gSystem->AddIncludePath(\"-I\${ROOUNFOLD_INC} -I\${ROOUNFOLD_BUILD}\"); if (gSystem->Load(\"\${ROOUNFOLD_BUILD}/libRooUnfold.so\") < 0) gSystem->Exit(3); if (gSystem->Load(\"\${ACLIC_BUILD_DIR}/create_files_for_template_fit_cpp.so\") < 0) gSystem->Exit(3); create_files_for_template_fit(3,80,2,1,true,false,${BTAG_WP},true,false,true,0,-1,\"\${INPUT}\",\"\${STAGEDIR}\",\"${SAMPLE_TAG}\")"
 
 for f in "\${STAGEDIR}"/*.root; do
   [ -e "\${f}" ] || continue

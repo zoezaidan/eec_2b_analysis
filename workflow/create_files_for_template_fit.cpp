@@ -762,10 +762,10 @@ void fill_jk_resampling_response_3D(std::vector<RooUnfoldResponse *> responses, 
 // Data: fills h3D_data with the same reco logic — no truth classification.
 void make_templates(const AnalysisConfig& cfg, Long64_t ev_first = 0, Long64_t ev_last = -1, Int_t job_idx = -1) {
 
-  bool isMC = cfg.dataset.dataType == 1 ||   cfg.dataset.dataType == 2; 
+  bool isMC = cfg.dataset.isMC;
 
   tTree t;
-  t.Init(cfg.dataset.filename, cfg.dataset.dataType, cfg.dataset.RunN);
+  t.Init(cfg.dataset.filename, cfg.dataset.isMC, cfg.dataset.RunN);
   t.SetBranchStatus("*", 0);
   auto active_branches = getActiveBranches(cfg);
   t.SetBranchStatus(active_branches, 1);
@@ -908,9 +908,9 @@ void create_response_templatefit(
     Long64_t ev_last  = -1)
 {
 
-  bool isMC = cfg.dataset.dataType == 1 ||   cfg.dataset.dataType == 2; 
+  bool isMC = cfg.dataset.isMC;
 
-  // -- Only for MC------------ 
+  // -- Only for MC------------
   if(!isMC) { // For response matrix
     std::cerr<< "ERROR: Input sample is not MC!, check sample or MC tag."<<endl;
     return;
@@ -936,7 +936,7 @@ void create_response_templatefit(
 
 
     tTree t;
-    t.Init(cfg.dataset.filename, cfg.dataset.dataType, cfg.dataset.RunN);
+    t.Init(cfg.dataset.filename, cfg.dataset.isMC, cfg.dataset.RunN);
       t.SetBranchStatus("*", 0);
       auto active_branches = getActiveBranches(cfg);
       t.SetBranchStatus(active_branches, 1);
@@ -1435,7 +1435,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 
   // ---- Event loop ----
   tTree t;
-  t.Init(cfg.dataset.filename, cfg.dataset.dataType, cfg.dataset.RunN);
+  t.Init(cfg.dataset.filename, cfg.dataset.isMC, cfg.dataset.RunN);
   t.SetBranchStatus("*", 0);
   auto active_branches = getActiveBranches(cfg);
   t.SetBranchStatus(active_branches, 1);
@@ -1819,7 +1819,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
                     << " entry=" << ient
                     << " jet=" << ijet
                     << " cfg.isMC=" << cfg.dataset.isMC
-                    << " dataType=" << cfg.dataset.dataType
+                    << " sample=" << cfg.dataset.sample
                     << " raw t.weight=" << t.weight
                     << " weight_tree=" << weight_tree
                     << " eec_gen=" << eec_gen
@@ -2255,20 +2255,23 @@ void filter_b_bb_as_data_and_mc(const AnalysisConfig& cfg) {
 
 // NOTE: pT_high (4th) and foldPtOverflow (last) were removed; the upper pT edge lives in
 // jtpt_binsVector in binning_histos_small.h. Old callers must drop the 4th argument.
-void create_files_for_template_fit(Int_t RunN = 3, Int_t dataType = 2, Float_t pT_low = 80, Float_t etaCut = 2, Int_t n = 1,
+// NOTE: dataType (2nd) was removed too — isMC says data vs MC, and sampleTag (last, set by
+// the run scripts) says which sample the output files are named for.
+void create_files_for_template_fit(Int_t RunN = 3, Float_t pT_low = 80, Float_t etaCut = 2, Int_t n = 1,
                                    bool btag = true, bool isMC = true, Double_t btagWP = 0.712, bool makeTemplates = true, bool createRmatrix = true,
-                                   bool makeAggNtuple = true, Long64_t ev_first = 0, Long64_t ev_last = -1, const char* inputFileOverride = "", const char* outputFolderOverride = ""){
+                                   bool makeAggNtuple = true, Long64_t ev_first = 0, Long64_t ev_last = -1, const char* inputFileOverride = "", const char* outputFolderOverride = "",
+                                   const char* sampleTag = ""){
  // load at prompt: gSystem->Load("libGenVector");
  // -- test use of central configuration
   AnalysisConfig cfg =  buildConfig(
     RunN,
-    dataType,
     pT_low,
     etaCut,
     n,
 	  btag,
 	  isMC,
-	  btagWP);
+	  btagWP,
+	  sampleTag);
 
 	  if (inputFileOverride && std::string(inputFileOverride).size() > 0) {
 	    cfg.dataset.filename = inputFileOverride;
