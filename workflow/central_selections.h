@@ -19,9 +19,13 @@ struct KinematicConfig {
 // -- Dataset
 struct DatasetConfig {
   int RunN;        // 2 or 3
-  int dataType;    // 0: Data, 1: bjet MC, 2: qcd MC; Run2 also uses -1 lowEG, 0 highEG
+  /* ---- disabled (kept for reference): dataType ----
+  // int dataType; // 0: Data, 1: bjet MC, 2: qcd MC; Run2 also uses -1 lowEG, 0 highEG
+  // Redundant with isMC: the run scripts pass the input file and the sample tag explicitly.
+  ---- */
   bool isMC;      // true for MC, false for data
-  TString filename; // input sample full path to root file 
+  TString sample;  // sample tag ("data", "bjet", "qcd", ...) used in the output histogram names
+  TString filename; // input sample full path to root file
   TString output_folder =  gSystem->ExpandPathName("$mydata/analysis_lise/"); // Run2/ or Run3/ appended in buildDataset()
   TString output_hist; // for output file name (for templates)
   TString domain = ".root";
@@ -73,16 +77,18 @@ bool passEventSelection(const tTree& t,
 
   int RunN = cfg.dataset.RunN;
   bool isMC = cfg.dataset.isMC;
-  int dataType = cfg.dataset.dataType;
 
   if (RunN == 2) {
 
-    if (!isMC && dataType == 0) // HighEG data 
+    if (!isMC) // HighEG data
       return (t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1);
 
-    if (!isMC && dataType == -1) // LowEG data 
+    /* ---- disabled (kept for reference): LowEG data path (was dataType == -1) ----
+    // Needs a way to tell LowEG from HighEG data again if the Run2 LowEG sample comes back.
+    if (!isMC)
       return !(t.HLT_HIAK4PFJet80_v1 || t.HLT_HIAK4PFJet100_v1) &&
              (t.HLT_HIAK4PFJet40_v1 || t.HLT_HIAK4PFJet60_v1);
+    ---- */
 
     if (isMC)
       return t.HLT_HIAK4PFJet40_v1; // minHLT in Run2
@@ -109,14 +115,13 @@ bool passPVQuality_EventSelection(const tTree& t,
 
   int RunN = cfg.dataset.RunN;
   bool isMC = cfg.dataset.isMC;
-  int dataType = cfg.dataset.dataType;
 
   if (RunN == 3){
-      if(!isMC && dataType == 0) return (t.pprimaryVertexFilter &&  // Run 3 data  only
-                                          fabs(t.vz) < 24.);
+      if(!isMC) return (t.pprimaryVertexFilter &&  // Run 3 data  only
+                        fabs(t.vz) < 24.);
   }
   // For Run2 || Run3 (MC)
-  if(isMC && dataType != 0) return (fabs(t.vz) < 24.);
+  if(isMC) return (fabs(t.vz) < 24.);
    
   return true;
 
@@ -203,12 +208,15 @@ bool passBtag(const tTree& t,
 }
 
 // -- Function: set the Dataset and output templates names 
-DatasetConfig buildDataset(int RunN, int dataType, bool isMC, const PhysicsConfig& physics) {
+// sampleTag ("data", "bjet", "qcd", ...) comes from the run script; it names the output
+// histograms and picks the default MC input file. The run scripts override the input file
+// anyway, so the defaults below only matter for interactive runs.
+DatasetConfig buildDataset(int RunN, bool isMC, const PhysicsConfig& physics, TString sampleTag = "") {
 
   DatasetConfig d;
   d.RunN = RunN;
-  d.dataType = dataType;
   d.isMC = isMC;
+  d.sample = sampleTag.Length() ? sampleTag : TString(isMC ? "mc" : "data");
 
   d.output_folder += (RunN == 2) ? "Run2/" : "Run3/";
 
@@ -222,52 +230,36 @@ DatasetConfig buildDataset(int RunN, int dataType, bool isMC, const PhysicsConfi
 
   // WP as 4 zero-padded digits after the decimal point: 0.712 -> btagWP0712, 0.868 -> btagWP0868.
   TString add_BtagWP = physics.useBtag ? Form("_btagWP%04d", static_cast<int>(std::round(1000 * physics.btagWP))):"_nobtag";
-  TString sample = "";
 
   if (RunN == 2) {
 
-    if (dataType == -1) {
-      d.filename =  "/data_CMS/cms/kalipoliti/bJet2017G/LowEGJet/aggrTMVA_fixedMassBug/all_merged_HiForestMiniAOD.root";
-      sample = "LowEG";
-    }
-
-    if (dataType == 0) {
+    if (!isMC) // HighEG data
       d.filename =  "/data_CMS/cms/kalipoliti/bJet2017G/HighEGJet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
-      sample = "HighEG";
-    }
-
-    if (dataType == 1) {
-      d.filename = "/data_CMS/cms/kalipoliti/qcdMC/bjet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
-      sample = "bjet";
-    }
-    if (dataType == 2) {
+    else if (d.sample == "qcd")
       d.filename = "/data_CMS/cms/kalipoliti/qcdMC/dijet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
-      sample = "qcd";
-    }
+    else
+      d.filename = "/data_CMS/cms/kalipoliti/qcdMC/bjet/aggrTMVA_fixedMassBug/merged_HiForestMiniAOD.root";
+
+    /* ---- disabled (kept for reference): Run2 LowEG data (was dataType == -1) ----
+    d.filename =  "/data_CMS/cms/kalipoliti/bJet2017G/LowEGJet/aggrTMVA_fixedMassBug/all_merged_HiForestMiniAOD.root";
+    ---- */
   }
 
   if (RunN == 3) {
 
-    if (dataType == 0) {
+    if (!isMC) {
       // d.filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/HiForestMiniAOD_v2_TChains.root";
       d.filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/HardProbesAll_recalJP_TChains.root";
-      sample = "data";
     }
-
-    if (dataType == 1) {
-      d.filename = ""; // Not available yet
-      sample = "bjet";
-    }
-    if (dataType == 2) {
+    else {
       //Int_t fileindex = 0; // temporare set
       //d.filename = Form("/data_CMS/cms/mnguyen//bJetAggRun3/PPRef2024/QCD/Pythia8_negTag_chunks/merged_block_000%d_Pythia8_negTag.root", fileindex); // [0-9]
-       
-      // -- all in one TChain: 
+
+      // -- all in one TChain: (bjet MC has no single-file default; the run script passes the chunks)
       d.filename = "/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/HiForestMiniAOD_v2_TChains.root";
-      sample = "qcd";
     }
 
-    d.output_hist = Form("Run%d%s_template_for_fit_histos_3D_%s_f",RunN, add_BtagWP.Data(), sample.Data());
+    d.output_hist = Form("Run%d%s_template_for_fit_histos_3D_%s_f",RunN, add_BtagWP.Data(), d.sample.Data());
   }
 
 
@@ -276,19 +268,16 @@ DatasetConfig buildDataset(int RunN, int dataType, bool isMC, const PhysicsConfi
 // ---- Factory function: set all analysis configurations here ----
 AnalysisConfig buildConfig(
     int RunN,
-    int dataType,
     float ptLow,
     /* ---- disabled (kept for reference): float ptHigh, ---- */
     float etaCut,
     int n,
     bool btag,
     bool isMC,
-    double btagWP
+    double btagWP,
+    TString sampleTag = ""
     /* ---- disabled (kept for reference): , bool foldPtOverflow = true ---- */
 ){
-  // Kept for compatibility: MC/data is derived from dataType.
-  (void)isMC;
-
   AnalysisConfig cfg;
   // Kinematics
   cfg.kin.ptLow = ptLow;
@@ -308,8 +297,7 @@ AnalysisConfig buildConfig(
   cfg.n = n;
 
   // Dataset setting
-  const bool isMCFromDataType = dataType > 0;
-  cfg.dataset = buildDataset(RunN, dataType, isMCFromDataType, cfg.physics); 
+  cfg.dataset = buildDataset(RunN, isMC, cfg.physics, sampleTag);
 
   return cfg;
 }

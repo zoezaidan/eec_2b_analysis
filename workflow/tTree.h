@@ -389,7 +389,7 @@ public :
   ~tTree();
   Int_t GetEntry(Long64_t entry);
   Long64_t GetEntries();
-  void Init(TString rootf, Int_t dataType, Int_t RunN = 2); // it was RunN = 2! 
+  void Init(TString rootf, bool isMC, Int_t RunN = 2); // it was RunN = 2!
   void SetBranchStatus(TString branchName, Int_t status);
   void SetBranchStatus(std::vector<TString> branchNames, Int_t status);
   // void plot_rgzgkt(TString foutname, Float_t bTagWP);
@@ -447,7 +447,7 @@ Long64_t tTree::GetEntries()
    return tree->GetEntries();
 }
 
-void tTree::Init(TString rootf, Int_t dataType, Int_t RunN)
+void tTree::Init(TString rootf, bool isMC, Int_t RunN)
 {
    
   std::cout << "Opening ROOT file: [" << rootf << "]" << std::endl;
@@ -461,7 +461,7 @@ void tTree::Init(TString rootf, Int_t dataType, Int_t RunN)
       }
 
 
-   if( RunN == 2 && (dataType == 0 || dataType == -1)) tree = (TTree*) fin->Get("akCs4PFJetAnalyzer/t"); // does not exist in Run3 data 
+   if( RunN == 2 && !isMC) tree = (TTree*) fin->Get("akCs4PFJetAnalyzer/t"); // does not exist in Run3 data
    else tree = (TTree*) fin->Get("ak4PFJetAnalyzer/t"); // run3 data and MC, run2 MC 
 
       // Safety
@@ -476,7 +476,7 @@ void tTree::Init(TString rootf, Int_t dataType, Int_t RunN)
 
    // tree->AddFriend((TTree*)fin->Get("hiEvtAnalyzer/HiTree")); // works for TChain too 
    // tree->AddFriend((TTree*)fin->Get("hltanalysis/HltTree"));  // works for TChain too
-   // if(RunN == 3 && dataType == 0){tree->AddFriend((TTree*)fin->Get("skimanalysis/HltTree"));} // Run3 data only ?(for the branch pprimaryVertexFilter) 
+   // if(RunN == 3 && !isMC){tree->AddFriend((TTree*)fin->Get("skimanalysis/HltTree"));} // Run3 data only ?(for the branch pprimaryVertexFilter)
 
    TTree* t1 = (TTree*)fin->Get("hiEvtAnalyzer/HiTree");
    TTree* t2 = (TTree*)fin->Get("hltanalysis/HltTree");
@@ -484,7 +484,7 @@ void tTree::Init(TString rootf, Int_t dataType, Int_t RunN)
    // the parent GetEntry() skip it silently, so every branch read through the friend
    // keeps whatever the member already held (run/lumi/evt came back as 0 that way).
    // The friends stay owned by fin, which lives as long as this tTree.
-   if(RunN == 3 && dataType == 0)
+   if(RunN == 3 && !isMC)
    {
       TTree* t3 = (TTree*)fin->Get("skimanalysis/HltTree");
       if (t3){tree->AddFriend(t3);}
@@ -507,11 +507,11 @@ void tTree::Init(TString rootf, Int_t dataType, Int_t RunN)
    tree->SetBranchAddress("jtpt", jtpt, &b_jtpt);
 
    tree->SetBranchAddress("vz", &vz, &b_vz);
-   if (RunN == 3 && dataType == 0 ){
+   if (RunN == 3 && !isMC ){
        tree->SetBranchAddress("pprimaryVertexFilter", &pprimaryVertexFilter, &b_pprimaryVertexFilter);
    }
-   
-   // if(dataType == 1 || dataType == 2)tree->SetBranchAddress("jtpt_gen", jtpt_gen, &b_jtpt_gen); // does not exist
+
+   // if(isMC)tree->SetBranchAddress("jtpt_gen", jtpt_gen, &b_jtpt_gen); // does not exist
 
 
    if (RunN == 2) {
@@ -542,7 +542,7 @@ void tTree::Init(TString rootf, Int_t dataType, Int_t RunN)
       tree->SetBranchAddress("HLT_HIAK4PFJet40_v1", &HLT_HIAK4PFJet40_v1, &b_HLT_HIAK4PFJet40_v1);
       tree->SetBranchAddress("HLT_HIAK4PFJet30_v1", &HLT_HIAK4PFJet30_v1, &b_HLT_HIAK4PFJet30_v1);
       
-      if (dataType == 1 || dataType == 2){ // MC only
+      if (isMC){ // MC only
          tree->SetBranchAddress("jtHadFlav", jtHadFlav, &b_jtHadFlav);
          tree->SetBranchAddress("jtParFlav", jtParFlav, &b_jtParFlav);
          tree->SetBranchAddress("rsjt1Pt", rsjt1Pt, &b_rsjt1Pt);
@@ -648,7 +648,7 @@ void tTree::Init(TString rootf, Int_t dataType, Int_t RunN)
    }
    
 
-   if(dataType == 1 || dataType == 2){ // Common for Run 2 and Run 3: MC 
+   if(isMC){ // Common for Run 2 and Run 3: MC
      tree->SetBranchAddress("pthat", &pthat, &b_pthat);
      tree->SetBranchAddress("refpt", refpt, &b_refpt);
      tree->SetBranchAddress("refeta", refeta, &b_refeta);
