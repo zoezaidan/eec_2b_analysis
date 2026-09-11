@@ -388,11 +388,21 @@ get its own `sfupart*`-style plumbing rather than sharing one generic `SF_` knob
 | `jpcalib_hf` | `h_SFb_dr_jpcalib_hf` | `_sfupartjphf` | one alternative calibration → one-sided, symmetrised |
 | `qqrate_up` | `h_SFb_dr_qqrate_up` | `_sfupartqqup` | grouped pair with ↓, envelope once, stays asymmetric |
 | `qqrate_down` | `h_SFb_dr_qqrate_down` | `_sfupartqqdn` | ditto |
+| `statup` | `h_SFb_dr_central` **+ its bin error** | `_sfupartstatup` | grouped pair with ↓ — the calibration's statistical precision |
+| `statdn` | `h_SFb_dr_central` **− its bin error** | `_sfupartstatdn` | ditto |
+| `off` | — | `_sfupartoff` | no SF at all; display-only comparison, never in the band |
+
+The `statup`/`statdn` shift is **coherent** across ΔR — every bin moves together. That is
+deliberate: the analysis's last two ΔR bins share one calibration bin, so their errors really
+are 100% correlated, and a coherent shift gets that right while staying conservative
+elsewhere.
 
 ```bash
 root -l -b -q 'apply_unfolding_2d.C("both","pythia",2,true,false,"pythia",false,"nominal","jpcalib_hf")'
 root -l -b -q 'apply_unfolding_2d.C("both","pythia",2,true,false,"pythia",false,"nominal","qqrate_up")'
 root -l -b -q 'apply_unfolding_2d.C("both","pythia",2,true,false,"pythia",false,"nominal","qqrate_down")'
+root -l -b -q 'apply_unfolding_2d.C("both","pythia",2,true,false,"pythia",false,"nominal","statup")'
+root -l -b -q 'apply_unfolding_2d.C("both","pythia",2,true,false,"pythia",false,"nominal","statdn")'
 ```
 
 `SFUPART_VARIATION = "off"` applies **no** SF at all. It is not a systematic — it exists so
@@ -408,16 +418,43 @@ one entry out and both disappear.
 value falls through to `""`, which resolves to the **nominal** result rather than failing —
 so a typo shows up as a suspiciously exact zero difference, not an error.
 
-The SF's **statistical** error (the bin errors on the central histogram) is folded into the
-reco data's errors at the same point, so it flows through the unfolding into the result's
-statistical error. It is uncorrelated between ΔR bins — each is a separate calibration
-measurement — which is what a bin-by-bin combination assumes. `h_SFb_dr_syst_up`/`_syst_down`
-are the quadrature of the two calibration systematics and are **not** used: booking the two
-sources separately gives the same total while keeping each visible as its own column.
+The SF's **statistical** error is **not** folded into the data's error. Applying the SF is a
+pure rescale — content and the data's statistical error multiplied by the same 1/SF, so the
+relative error is unchanged and the error bar stays a *data* error bar — and the SF's own
+precision is booked as the `statup`/`statdn` systematic instead. Doing both would count it
+twice.
+
+`h_SFb_dr_syst_up`/`_syst_down` are the quadrature of the two calibration systematics and are
+**not** used: booking `jpcalib_hf` and `qqrate_up`/`down` separately gives the same total
+while keeping each visible as its own column and curve.
 
 ⚠️ Because the SF now lives inside the unfolding, **every** unfolding run changes when it
 changes — the nominal and all six systematic variations have to be re-run together, not just
 the SF ones.
+
+### MC-derived corrections: bin-by-bin rescaling
+
+Purity (before unfolding) and the three post-unfolding corrections — reconstruction
+efficiency, 2SV+b-tag efficiency, EEC weight — are applied by `applyCorrection()` as a plain
+**bin-by-bin rescale**: content and error multiplied by the *same* factor, so the data's
+**relative** error is unchanged.
+
+Deliberately **not** `TH2::Multiply`/`Divide`. Those propagate the correction's own error
+into the result, which folds the MC's limited statistics into the *data's* statistical error.
+The convention here is to treat every MC-derived correction as exact. The helper also runs
+over underflow/overflow, checks the binning explicitly instead of failing silently, and
+reports any bin where a zero correction emptied non-empty data.
+
+⚠️ **The MC statistical uncertainty is therefore not counted anywhere.** It is out of the
+stat error and no systematic is booked for it — a deliberate choice (2026-09-11), not an
+oversight. It is *not* negligible: removing it cut the statistical error by 13–22%, which
+backs out to an MC contribution roughly as large as the data's own. Revisit if the error
+budget is ever questioned.
+
+⚠️ Corrections applied at **fill time** — the EEC weight and sample weights inside
+`create_files_for_template_fit.cpp` — cannot get this treatment. They are baked into the
+histogram contents with their fluctuations already folded in, so there is no separable factor
+left to rescale, and their MC statistics stay mixed into the data's error.
 
 ### The band is asymmetric
 

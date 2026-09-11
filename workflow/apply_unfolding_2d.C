@@ -408,6 +408,51 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         return r;
     };
 
+    // Apply an MC-derived correction to the data as a pure bin-by-bin RESCALING: the
+    // content and the error in each bin are multiplied by the SAME factor, so the data's
+    // RELATIVE error is unchanged.
+    //
+    // This is deliberately NOT TH2::Multiply/Divide. Those propagate the correction's own
+    // statistical error into the result, which mixes the MC's limited statistics into the
+    // DATA's statistical error. The convention here is to treat every MC-derived correction
+    // as EXACT and to carry its statistical precision separately, as its own systematic --
+    // otherwise the same uncertainty is neither cleanly attributable nor separable.
+    //
+    // Runs over underflow and overflow too, so out-of-range bins stay consistent with the
+    // in-range ones rather than being silently left uncorrected.
+    //
+    // A zero correction cannot be rescaled: the bin is emptied and counted, and the count is
+    // reported. TH2::Divide would also produce 0 there, but silently.
+    auto applyCorrection = [](TH2D *h, const TH2D *corr, bool divide, const char *what) {
+        if (!h || !corr) return;
+        if (corr->GetNbinsX() != h->GetNbinsX() || corr->GetNbinsY() != h->GetNbinsY()) {
+            std::cerr << "ERROR: " << what << " has " << corr->GetNbinsX() << "x"
+                      << corr->GetNbinsY() << " bins but the data has " << h->GetNbinsX()
+                      << "x" << h->GetNbinsY() << " -- NOT applied" << std::endl;
+            return;
+        }
+        int n_zero = 0;
+        for (int ix = 0; ix <= h->GetNbinsX() + 1; ++ix) {
+            for (int iy = 0; iy <= h->GetNbinsY() + 1; ++iy) {
+                const double c = corr->GetBinContent(ix, iy);
+                if (c == 0.) {
+                    if (h->GetBinContent(ix, iy) != 0.) ++n_zero;
+                    h->SetBinContent(ix, iy, 0.);
+                    h->SetBinError(ix, iy, 0.);
+                    continue;
+                }
+                const double f = divide ? (1. / c) : c;
+                h->SetBinContent(ix, iy, h->GetBinContent(ix, iy) * f);
+                h->SetBinError  (ix, iy, h->GetBinError(ix, iy)   * f);   // same factor
+            }
+        }
+        std::cout << "\t---->" << (divide ? "Dividing by " : "Multiplying by ") << what
+                  << " (bin-by-bin rescale; MC treated as exact)";
+        if (n_zero) std::cout << " -- WARNING: " << n_zero
+                              << " non-empty bin(s) had a zero correction and were emptied";
+        std::cout << std::endl;
+    };
+
     // ----------- Grab data -----------
     std::vector<TFile *> fin_data = openAllOrWarn(filenames_data);
     if (fin_data.empty()) return;
@@ -469,51 +514,91 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         if (!h_sf) return;
 
         const int nx = h_data_after_fit->GetNbinsX();   // x is dr, y is pt
-        if (h_sf->GetNbinsX() != nx) {
-            std::cerr << "ERROR: UParT SF has " << h_sf->GetNbinsX() << " dr bins but the "
-                      << "reco data has " << nx << std::endl;
-            return;
-        }
+        const int ny = h_data_after_fit->GetNbinsY();
 
-        // Bin by bin: read the content, multiply by the INVERSE of the SF in that dr bin,
-        // write it back. The table prints the reco content before and after for the pT bin
-        // the analysis uses, so the correction can be checked by eye against the SF column.
-        printf("\n  UParT SF applied bin by bin (reco level, pT bin %d)\n", ibin_pt);
-        printf("  %3s %13s %9s %9s %14s %14s %8s\n",
-               "bin", "dr range", "SF", "1/SF", "before", "after", "ratio");
-        printf("  ---------------------------------------------------------------------------\n");
+        // The SF has FEWER dr bins than the analysis: its last bin spans 0.35-0.45, which
+        // covers the analysis's last TWO bins. So the analysis bin is matched to the SF bin
+        // by BIN CENTRE rather than by index -- bins 8 and 9 both land in SF bin 8 on their
+        // own, with no special case to get wrong if the binning changes again.
+        auto sfBinFor = [&](int ix) -> int {
+            // Underflow/overflow have no meaningful centre: clamp them to the nearest real
+            // SF bin, so every bin of the data gets corrected by something sensible.
+            if (ix < 1)  return 1;
+            if (ix > nx) return h_sf->GetNbinsX();
+            const double c = h_data_after_fit->GetXaxis()->GetBinCenter(ix);
+            int b = h_sf->GetXaxis()->FindBin(c);
+            if (b < 1)                     b = 1;
+            if (b > h_sf->GetNbinsX())     b = h_sf->GetNbinsX();
+            return b;
+        };
 
-        for (int ix = 1; ix <= nx; ++ix) {
-            const double sf  = h_sf->GetBinContent(ix);
-            const double esf = h_sf->GetBinError(ix);
+        // Bin by bin: read the content, multiply by the INVERSE of the SF for that dr bin,
+        // write it back.
+        //
+        // INVERSE, i.e. divided in, because SF = eff_b_data / eff_b_mc (verified against
+        // h_eff_b_data_* / h_eff_b_mc_* in the same file) and the chain corrects the data
+        // with the efficiency measured in MC -- Divide(h_full_efficiency) and
+        // Divide(h_svbtag_eff) above. The true efficiency is eps_data = SF * eps_MC, so
+        // data/eps_MC still has to be divided by SF. Physically: SF < 1 means data tags
+        // LESS efficiently than MC, so the yield has to be scaled UP, which is 1/SF > 1.
+        // Multiplying would move it the wrong way. Flip this one flag if that reading is
+        // ever wrong -- everything else follows from it.
+        const bool kDivideBySF = true;
+        //
+        // No jet pT dependence is assumed: the same dr-dependent SF is applied to every pT
+        // bin. The loop below runs over all of y for that reason.
+        //
+        // The loops run 0..n+1, so the UNDERFLOW and OVERFLOW bins are corrected too. Both
+        // are empty in the current data (dr underflow = 0 against 7.9e8 in range), so this
+        // is a no-op today -- but it keeps the out-of-range bins consistent with the rest
+        // if they are ever filled, rather than leaving them silently uncorrected.
+        // statup/statdn shift the central SF by +/- its own statistical error, coherently in
+        // every dr bin. That error is the calibration's statistical precision; it is booked
+        // as its OWN systematic rather than being folded into the data's statistical error,
+        // so that the data error bar stays a data error bar.
+        const double stat_shift = (sfupartVariation == "statup") ?  1.
+                                : (sfupartVariation == "statdn") ? -1. : 0.;
+
+        printf("\n  UParT SF applied bin by bin (reco level, pT bin %d, %s%s)\n",
+               ibin_pt, kDivideBySF ? "data / SF" : "data * SF",
+               stat_shift > 0 ? ", SF shifted UP by its stat error"
+             : stat_shift < 0 ? ", SF shifted DOWN by its stat error" : "");
+        printf("  %3s %13s %5s %9s %9s %14s %14s %8s\n",
+               "bin", "dr range", "sfbin", "SF", "factor", "before", "after", "ratio");
+        printf("  -------------------------------------------------------------------------------------\n");
+
+        for (int ix = 0; ix <= nx + 1; ++ix) {
+            const int  isf = sfBinFor(ix);
+            const double sf = h_sf->GetBinContent(isf)
+                            + stat_shift * h_sf->GetBinError(isf);
             if (sf == 0.) {
-                std::cerr << "ERROR: UParT SF is zero in dr bin " << ix << std::endl;
+                std::cerr << "ERROR: UParT SF is zero in its bin " << isf << std::endl;
                 return;
             }
-            const double inv_sf = 1. / sf;       // the number every bin is multiplied by
-            const double rel_sf = esf / sf;
+            const double factor = kDivideBySF ? (1. / sf) : sf;
 
-            const double before = h_data_after_fit->GetBinContent(ix, ibin_pt);
+            const double before = (ix >= 1 && ix <= nx)
+                                ? h_data_after_fit->GetBinContent(ix, ibin_pt) : 0.;
 
-            for (int iy = 1; iy <= h_data_after_fit->GetNbinsY(); ++iy) {
-                const double c = h_data_after_fit->GetBinContent(ix, iy);
-                const double e = h_data_after_fit->GetBinError(ix, iy);
-                const double c_new = c * inv_sf;
-                // The SF's own statistical error rides along into the data's error, so it
-                // ends up in the unfolded result's statistical error. It is uncorrelated
-                // between dr bins (each is a separate calibration measurement), which is
-                // what a bin-by-bin combination assumes.
-                const double e_new = (c != 0.)
-                    ? std::fabs(c_new) * std::sqrt((e / c) * (e / c) + rel_sf * rel_sf)
-                    : e * inv_sf;
-                h_data_after_fit->SetBinContent(ix, iy, c_new);
-                h_data_after_fit->SetBinError(ix, iy, e_new);
+            for (int iy = 0; iy <= ny + 1; ++iy) {
+                // A pure rescale: the content and the DATA's statistical error are both
+                // multiplied by the same factor, so the data's relative error is unchanged
+                // and the error bar still means what it says. The SF's own error is NOT
+                // added in quadrature here -- it is the statup/statdn systematic instead.
+                // Same treatment the MC corrections get further down.
+                h_data_after_fit->SetBinContent(ix, iy,
+                                                h_data_after_fit->GetBinContent(ix, iy) * factor);
+                h_data_after_fit->SetBinError  (ix, iy,
+                                                h_data_after_fit->GetBinError(ix, iy)   * factor);
             }
 
+            if (ix < 1 || ix > nx) continue;   // nothing useful to print for under/overflow
             const double after = h_data_after_fit->GetBinContent(ix, ibin_pt);
-            printf("  %3d [%5.2f,%5.2f] %9.5f %9.5f %14.6g %14.6g %8.4f\n", ix,
-                   h_sf->GetXaxis()->GetBinLowEdge(ix), h_sf->GetXaxis()->GetBinUpEdge(ix),
-                   sf, inv_sf, before, after, (before != 0. ? after / before : 0.));
+            printf("  %3d [%5.2f,%5.2f] %5d %9.5f %9.5f %14.6g %14.6g %8.4f%s\n", ix,
+                   h_data_after_fit->GetXaxis()->GetBinLowEdge(ix),
+                   h_data_after_fit->GetXaxis()->GetBinUpEdge(ix),
+                   isf, sf, factor, before, after, (before != 0. ? after / before : 0.),
+                   (ix > 1 && isf == sfBinFor(ix - 1)) ? "   <- shares the SF bin above" : "");
         }
         printf("\n");
         fin_sf->Close();
@@ -611,8 +696,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     //------- Apply purity correction
     TH2D *h_data_purity_corrected = (TH2D *) h_data_after_fit->Clone("h_data_purity_corrected");
     if (apply_purity) {
-        std::cout << "\t---->Multiplying data by purity" << std::endl;
-        h_data_purity_corrected->Multiply(h_full_purity);
+        applyCorrection(h_data_purity_corrected, h_full_purity, /*divide=*/false, "purity");
     } else {
         std::cout << "\t---->NOT multiplying data by purity" << std::endl;
     }
@@ -692,9 +776,9 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     v_chi2ndf_pt.push_back(gof_pt.chi2ndf());
 
     // ---- Apply efficiency correction
-    std::cout << "\t---->Dividing by recostruction efficiency" << std::endl;
     TH2D *h_data_efficiency_corrected = (TH2D *) h_data_unfolded->Clone("h_data_efficiency_corrected");
-    h_data_efficiency_corrected->Divide(h_full_efficiency);
+    applyCorrection(h_data_efficiency_corrected, h_full_efficiency, /*divide=*/true,
+                    "reconstruction efficiency");
 
     // ---- Final corrections
     TH2D *h_data_fully_corrected = (TH2D *) h_data_efficiency_corrected->Clone("h_data_fully_corrected");
@@ -707,16 +791,16 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     if (test_mode == 2) {
         TH2D *h_svbtag_eff = ratioFromCounts("hgenjet_2b_reco_btag", "hgenjet_2b_all", "b");
         if (h_svbtag_eff) {
-            std::cout << "\t---->Dividing by combined SV-reco + b-tag efficiency" << std::endl;
             // systematic hook: scale h_svbtag_eff by the CMS b-tag SF map here, then vary SF +/-.
-            h_data_fully_corrected->Divide(h_svbtag_eff);
+            applyCorrection(h_data_fully_corrected, h_svbtag_eff, /*divide=*/true,
+                            "combined SV-reco + b-tag efficiency");
         }
         // EEC-weight correction: convert the reco-EEC-weighted result to gen-EEC-weighted.
         // r_eec = sum(eec_gen)/sum(eec_reco) over reconstructed 2b jets -> MULTIPLY.
         TH2D *h_eec_weight_eff = ratioFromCounts("hgenjet_2b_reco_btag", "hgenjet_2b_passbtag", "");
         if (h_eec_weight_eff) {
-            std::cout << "\t---->Multiplying by EEC-weight (reco->gen) correction" << std::endl;
-            h_data_fully_corrected->Multiply(h_eec_weight_eff);
+            applyCorrection(h_data_fully_corrected, h_eec_weight_eff, /*divide=*/false,
+                            "EEC-weight (reco->gen) correction");
         }
     }
 
