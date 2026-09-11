@@ -69,7 +69,8 @@ inline bool isKnownTfVariation(const TString &v)
 inline bool isKnownSfupartVariation(const TString &v)
 {
     return v == "nominal" || v == "off"
-        || v == "jpcalib_hf" || v == "qqrate_up" || v == "qqrate_down";
+        || v == "jpcalib_hf" || v == "qqrate_up" || v == "qqrate_down"
+        || v == "statup"     || v == "statdn";
 }
 
 // ---- Path tags ----------------------------------------------------------------------
@@ -111,21 +112,29 @@ inline TString sfupartVarTag(const TString &sfupartVariation)
 {
     if (!isKnownSfupartVariation(sfupartVariation)) {
         warnUnknown("SFUPART_VARIATION", sfupartVariation,
-                    "nominal | off | jpcalib_hf | qqrate_up | qqrate_down");
+                    "nominal | off | jpcalib_hf | qqrate_up | qqrate_down | statup | statdn");
         return kUnknownTag();
     }
     if (sfupartVariation == "off")         return "_sfupartoff";
     if (sfupartVariation == "jpcalib_hf")  return "_sfupartjphf";
     if (sfupartVariation == "qqrate_up")   return "_sfupartqqup";
     if (sfupartVariation == "qqrate_down") return "_sfupartqqdn";
+    if (sfupartVariation == "statup")      return "_sfupartstatup";
+    if (sfupartVariation == "statdn")      return "_sfupartstatdn";
     return "";
 }
 
 // ---- The UParT scale factor itself ---------------------------------------------------
 inline TString sfupartFile()
 {
+    // "finalbins": source bins 8-9 merged into one output bin, so this file has 8 dr bins
+    // against the analysis's 9. Its last bin spans 0.35-0.45 and therefore applies to BOTH
+    // of the analysis's last two bins -- the application maps by bin centre so that happens
+    // on its own. The merge also tamed the last bins: 1.149 +/- 0.020 and 1.086 +/- 0.029
+    // became a single 1.010 +/- 0.017.
+    // The 9-bin predecessor (..._eec_systematics.root, no "finalbins") is superseded.
     return "/home/llr/cms/zaidan/analysis_lise/eec_2b_analysis/workflow/"
-           "lifetime_jp_sfb_agg_dr_wp712_eec_systematics.root";
+           "lifetime_jp_sfb_agg_dr_wp712_eec_finalbins_systematics.root";
 }
 
 // NOTE: these are the KEY names in that file. The histograms' own internal names differ
@@ -136,11 +145,18 @@ inline TString sfupartHist(const TString &sfupartVariation)
 {
     if (!isKnownSfupartVariation(sfupartVariation)) {
         warnUnknown("SFUPART_VARIATION", sfupartVariation,
-                    "nominal | off | jpcalib_hf | qqrate_up | qqrate_down");
+                    "nominal | off | jpcalib_hf | qqrate_up | qqrate_down | statup | statdn");
         return "";
     }
     if (sfupartVariation == "off")         return "(none)";
-    if (sfupartVariation == "nominal")     return "h_SFb_dr_central";
+    // statup/statdn shift the CENTRAL SF by +/- its own bin error, so they read the same
+    // histogram; the shift is applied where the SF is used, not here. Coherent across all
+    // dr bins, because the analysis's last two bins share ONE calibration bin and their
+    // errors are therefore 100% correlated -- a coherent shift gets that right, and is the
+    // conservative choice elsewhere.
+    if (sfupartVariation == "nominal"
+     || sfupartVariation == "statup"
+     || sfupartVariation == "statdn")      return "h_SFb_dr_central";
     if (sfupartVariation == "jpcalib_hf")  return "h_SFb_dr_jpcalib_hf";
     if (sfupartVariation == "qqrate_up")   return "h_SFb_dr_qqrate_up";
     if (sfupartVariation == "qqrate_down") return "h_SFb_dr_qqrate_down";

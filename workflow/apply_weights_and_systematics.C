@@ -126,25 +126,37 @@ bool applyWeights(TH1D *h, const Weights &w)
             fw->Close();
             return false;
         }
-        // TH1::Multiply/Divide propagate the SF errors into the result's bin errors, i.e.
-        // into its STATISTICAL error. Zero them to treat the SF as exact. (The UParT SF no
-        // longer comes through here -- it is applied at reco level in apply_unfolding_2d.C,
-        // which propagates its statistical error the same way.)
-        TH1D *hsf_use = (TH1D *) hsf->Clone("sf_use");
-        hsf_use->SetDirectory(nullptr);
-        if (!w.sf_errors)
-            for (int i = 1; i <= hsf_use->GetNbinsX(); ++i) hsf_use->SetBinError(i, 0.);
-        for (int i = 1; i <= hsf_use->GetNbinsX(); ++i) {
-            if (hsf_use->GetBinContent(i) != 0.) continue;
-            std::cerr << "ERROR: scale factor is zero in bin " << i << " of " << w.sf_hist
-                      << " -- refusing to " << (w.sf_divide ? "divide" : "multiply") << std::endl;
-            delete hsf_use;
-            fw->Close();
-            return false;
+        // Applied MANUALLY, bin by bin, with GetBinContent/SetBinContent -- deliberately
+        // NOT TH1::Divide/Multiply. Those require the two histograms to share a binning and
+        // return silently when they do not, which is exactly how a scale factor binned
+        // differently from the result would fail: quietly, leaving the result unchanged.
+        // A loop cannot fail that way. (The UParT SF is applied the same way, at reco level
+        // in apply_unfolding_2d.C, where the SF has 8 dr bins against the analysis's 9 --
+        // a binning Divide() would refuse outright.)
+        //
+        // The SF's statistical error is folded into the result's bin errors, i.e. into its
+        // STATISTICAL error; sf_errors = false treats the SF as exact.
+        for (int i = 1; i <= h->GetNbinsX(); ++i) {
+            const double sf = hsf->GetBinContent(i);
+            if (sf == 0.) {
+                std::cerr << "ERROR: scale factor is zero in bin " << i << " of " << w.sf_hist
+                          << " -- refusing to " << (w.sf_divide ? "divide" : "multiply")
+                          << std::endl;
+                fw->Close();
+                return false;
+            }
+            const double factor = w.sf_divide ? (1. / sf) : sf;
+            const double rel_sf = w.sf_errors ? (hsf->GetBinError(i) / sf) : 0.;
+
+            const double c = h->GetBinContent(i);
+            const double e = h->GetBinError(i);
+            const double c_new = c * factor;
+            const double e_new = (c != 0.)
+                ? std::fabs(c_new) * std::sqrt((e / c) * (e / c) + rel_sf * rel_sf)
+                : e * factor;
+            h->SetBinContent(i, c_new);
+            h->SetBinError(i, e_new);
         }
-        if (w.sf_divide) h->Divide(hsf_use);
-        else             h->Multiply(hsf_use);
-        delete hsf_use;
         fw->Close();
     }
 
@@ -272,6 +284,17 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
           "var0B_2", "nominal", "mistag_0B", "Light jet mistagging" },
         { "mistag_0B_down", SAMPLE, GENERATOR, TF_GENERATOR, "Light-jet mistag (0B #times 0)", false,
           "var0B_0", "nominal", "mistag_0B", "Light jet mistagging" },
+        // UParT SF statistical precision. The SF's own error used to be folded into the
+        // data's statistical error; it is now a systematic in its own right, so the data
+        // error bar stays a data error bar and this uncertainty is separately attributable.
+        // The two sides shift the SF coherently by +/- its bin error, so they are a genuine
+        // pair: grouped, envelope counted once, and free to come out asymmetric.
+        // Produce with SFUPART_VARIATION = "statup" / "statdn".
+        { "sfupart_stat_up", SAMPLE, GENERATOR, TF_GENERATOR, "UParT SF (stat +1#sigma)", false,
+          "nominal", "statup", "sfupart_stat", "UParT SF: stat. precision" },
+        { "sfupart_stat_dn", SAMPLE, GENERATOR, TF_GENERATOR, "UParT SF (stat #minus1#sigma)", false,
+          "nominal", "statdn", "sfupart_stat", "UParT SF: stat. precision" },
+
         // DISPLAY ONLY (inBand = false): the same unfolding with no UParT SF applied, so
         // the plot shows the result before and after the correction. It is a correction,
         // not a systematic, so it must not enter the band -- hence the trailing false.
@@ -281,15 +304,13 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
         { "sfupart_off", SAMPLE, GENERATOR, TF_GENERATOR, "Before UParT SF", false,
           "nominal", "off", "", "", false },
 
-/* ---- disabled (kept for reference): UParT SF calibration systematics ----
-        // Step-by-step: the SF CORRECTION is applied (at reco level, inside the unfolding),
-        // but its two calibration systematics are held out of the band for now. Uncomment to
-        // put them back -- the three unfolding runs they need already exist
-        // (_sfjphf, _sfqqup, _sfqqdn) and nothing else has to change.
-        //
-        //   JP HF swap : one alternative calibration -> one-sided, ungrouped, symmetrised.
+        // The UParT SF's two CALIBRATION systematics, alongside its statistical precision
+        // above. Each is a separate unfolding with a different SF divided into the reco
+        // data, so the response matrix carries the varied SF through the migration.
+        //   JP HF swap : one alternative calibration -> one-sided, ungrouped, symmetrised,
+        //                because one alternative gives the size of the shift, not its sign.
         //   qq rate    : a genuine +/-25% pair straddling the central -> grouped, so the
-        //                total takes its envelope once and it stays asymmetric.
+        //                total takes its envelope once and it can come out asymmetric.
         // Produce each with
         //   apply_unfolding_2d.C(SAMPLE, GENERATOR, 2, true, false, TF_GENERATOR, false,
         //                        "nominal", "<jpcalib_hf|qqrate_up|qqrate_down>")
@@ -299,7 +320,6 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
           "nominal", "qqrate_up",   "sfupart_qqrate", "UParT SF: qq rate #pm25%" },
         { "sfupart_qq_down",SAMPLE, GENERATOR, TF_GENERATOR, "UParT SF (qq rate #minus25%)", false,
           "nominal", "qqrate_down", "sfupart_qqrate", "UParT SF: qq rate #pm25%" },
----- end disabled: UParT SF systematics ---- */
         // { "sample", (SAMPLE == "both") ? "qcd" : "both", GENERATOR, TF_GENERATOR, "qcd only", false }, // MC composition
     };
 
@@ -679,7 +699,10 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
                                                (Color_t) TColor::GetColor("#937860"),   // brown
                                                (Color_t) TColor::GetColor("#CC79A7"),   // pink
                                                (Color_t) TColor::GetColor("#7F7F2E"),   // olive
-                                               (Color_t) TColor::GetColor("#56638A") }; // slate
+                                               (Color_t) TColor::GetColor("#56638A"),   // slate
+                                               (Color_t) TColor::GetColor("#B04A3A"),   // brick
+                                               (Color_t) TColor::GetColor("#2F6F6F"),   // deep teal
+                                               (Color_t) TColor::GetColor("#6A5ACD") }; // slate blue
         if (h_vars.size() > col_var.size())
             std::cerr << "NOTE: " << h_vars.size() << " variations but only " << col_var.size()
                       << " colours -- some curves repeat a colour and are told apart only by "
@@ -746,14 +769,17 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
 
         // Two columns across the top: eight rows in one column reach down into the peak
         // whichever side they are parked on, and halving the row count clears it.
-        const int n_rows = (2 + (int) h_vars.size() + 1) / 2;  // nominal + band + variations
-        TLegend *leg = new TLegend(0.30, 0.87 - 0.0425 * n_rows, 0.95, 0.87);
-        leg->SetNColumns(2);
+        // Three columns: at two, fourteen entries reach down into the peak whatever the
+        // headroom. Rows = ceil(entries / columns).
+        const int n_cols = 3;
+        const int n_rows = (2 + (int) h_vars.size() + n_cols - 1) / n_cols;
+        TLegend *leg = new TLegend(0.10, 0.87 - 0.040 * n_rows, 0.95, 0.87);
+        leg->SetNColumns(n_cols);
         leg->SetFillStyle(0);
         leg->SetBorderSize(0);
         leg->SetMargin(0.15);
         leg->SetTextFont(font_code);
-        leg->SetTextSize(legend_size * 0.8);   // two columns: the long labels have half the width
+        leg->SetTextSize(legend_size * 0.62);  // three columns: the long labels have a third of the width
         leg->AddEntry(h_nom_draw, "nominal (stat)", "pe1");
         leg->AddEntry(g_syst, "quadrature systematic", "f");
 
@@ -762,7 +788,12 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
             h->SetLineColor(col_var[k % col_var.size()]);
             h->SetMarkerColor(col_var[k % col_var.size()]);
             h->SetLineWidth(2);
-            h->SetLineStyle(2 + (int) k);
+            // ROOT only defines line styles 1..10; the old 2 + k ran past that once the
+            // band grew, and an invalid style draws nothing at all -- including in the
+            // legend, where the entry silently lost its swatch. Cycling a short set of
+            // clearly distinct patterns keeps every curve drawable, and pairs with the
+            // colour so a repeated colour still reads as a different curve.
+            h->SetLineStyle(1 + (int) (k % 4));
             h->Draw("HIST same");
             leg->AddEntry(h, shift_labels[k], "l");
         }
@@ -837,7 +868,7 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
             }
             h_r->SetLineColor(col_var[k % col_var.size()]);
             h_r->SetLineWidth(2);
-            h_r->SetLineStyle(2 + (int) k);
+            h_r->SetLineStyle(1 + (int) (k % 4));   // same cycle as the top pad
             h_r->Draw("HIST same");
         }
 
@@ -1130,10 +1161,20 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
             TH1D *h_before = h_vars[k_off];   // no SF applied
             TH1D *h_after  = h_nom;           // the nominal: SF applied
 
+            // Particle-level MC for reference, so the plot answers not just "how big is the
+            // SF" but "does it move the data toward the theory". Loaded by the data-vs-gen
+            // block above and already unit-area normalised, the same as the two data
+            // curves. Null when that block did not run, and everything below is guarded.
+            TH1D *h_gen_ref = nullptr;
+            for (size_t g = 0; g < h_gen_curves.size(); ++g)
+                if (gen_curve_names[g] == "h_gen_" + GENERATOR) h_gen_ref = h_gen_curves[g];
+
             // Palette: red is the measurement, and the result WITH the SF is the
             // measurement. Before-SF is an intermediate correction stage -> green.
+            // Particle-level MC is blue, as everywhere else.
             const Color_t col_after  = (Color_t) TColor::GetColor("#C44E52");
             const Color_t col_before = (Color_t) TColor::GetColor("#4F8F52");
+            const Color_t col_gen    = (Color_t) TColor::GetColor("#4C72B0");
             gStyle->SetOptStat(0);
             gStyle->SetOptTitle(0);
             gStyle->SetLegendBorderSize(0);
@@ -1164,6 +1205,9 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
             for (int i = 1; i <= nbins; ++i)
                 ymax = std::max(ymax, std::max(h_a->GetBinContent(i) + h_a->GetBinError(i),
                                                h_b->GetBinContent(i) + h_b->GetBinError(i)));
+            if (h_gen_ref)
+                for (int i = 1; i <= nbins; ++i)
+                    ymax = std::max(ymax, h_gen_ref->GetBinContent(i));
             h_a->SetTitle("");
             h_a->GetYaxis()->SetRangeUser(0., ymax * 1.45);
             h_a->GetYaxis()->SetTitle("EEC(#Delta r)");
@@ -1179,11 +1223,22 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
             h_a->SetLineColor(col_after);  h_a->SetMarkerColor(col_after);
             h_a->SetMarkerStyle(kFullCircle); h_a->SetMarkerSize(1); h_a->SetLineWidth(2);
 
+            TH1D *h_g = nullptr;
+            if (h_gen_ref) {
+                h_g = (TH1D *) h_gen_ref->Clone("h_sfupart_gen_draw");
+                h_g->SetDirectory(nullptr);
+                h_g->SetLineColor(col_gen); h_g->SetMarkerColor(col_gen);
+                h_g->SetLineWidth(2); h_g->SetLineStyle(1);
+            }
+
             h_a->Draw("AXIS");
+            if (h_g) h_g->Draw("HIST same");
             h_b->Draw("HIST same");
             h_a->Draw("PE X0 same");
 
-            TLegend *leg_sf = new TLegend(0.52, 0.68, 0.93, 0.85);
+            // Sized by row count so two and three entries both sit tight.
+            const int n_sf_rows = 2 + (h_g ? 1 : 0);
+            TLegend *leg_sf = new TLegend(0.52, 0.85 - 0.055 * n_sf_rows, 0.93, 0.85);
             leg_sf->SetFillStyle(0);
             leg_sf->SetBorderSize(0);
             leg_sf->SetMargin(0.15);
@@ -1191,6 +1246,7 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
             leg_sf->SetTextSize(legend_size);
             leg_sf->AddEntry(h_b, "Before UParT SF", "l");
             leg_sf->AddEntry(h_a, "After UParT SF",  "pe1");
+            if (h_g) leg_sf->AddEntry(h_g, prettyGen(GENERATOR) + " (particle level)", "l");
             leg_sf->Draw();
 
             TLatex cms_sf;
