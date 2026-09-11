@@ -462,12 +462,28 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
 
                 // -- Effective bkg PDF. With a + b + c = 1 (a: 2B, b: 1B, c: 0B) and
                 // b' + c' = 1, this gives b' = b/(b+c) and c' = c/(b+c), with b+c = 1-a.
+                // NOTE: a, b, c come from int2/int1/int0, which are the DIJET (qcd) integrals
+                // only -- h_bb/h_b/h_nob, never the _bjet ones. The shapes being mixed are
+                // qcd+bjet when also_bjet. That is deliberate: qcd is the sample whose
+                // flavour composition matches the data, the bjet sample is there for template
+                // statistics and would bias c' downwards if it entered the ratio.
                     double eff_bkg0B = (1 - sig_fraction_true - bkg_fraction_b_true)/(1- sig_fraction_true);// c`
                     double eff_bkg1B = 1. - eff_bkg0B;// b`
             // Build effective bkg hist: with new relaitve normalization, the integral should = 1
             // Normlaize h_nob to be added effectively to the normalized bkg distribution
                 TH1D* norm_h_nob = (TH1D*) h_nob->Clone("norm_h_nob"); norm_h_nob->Scale(1./norm_h_nob->Integral(1,  h_bkg_bins, "width"));
-            // Variation of 0B template contribution
+            // Variation of 0B template contribution == the LIGHT-JET MISTAG systematic.
+            // The 0B template is the jets with jtNbHad == 0 that still passed the b tag,
+            // i.e. mistagged light and charm jets. How many of them sit under the data is
+            // taken from MC alone -- nothing in this fit constrains it, because 0B is not a
+            // free component: it is folded into the background PDF at the MC-predicted
+            // ratio c' = 0B/(0B+1B). So the mistag rate enters the measurement only through
+            // the SHAPE of the effective background, and the systematic is to rebuild that
+            // shape with the 0B admixture scaled by w_var_0B.
+            //
+            // w = 2 / w = 0 is a deliberately conservative +/-100% on the mistag rate: it
+            // brackets the measured light-flavour mistag scale factors (typically 20-50% at
+            // a tight working point) by a wide margin, and it needs no external SF input.
             double w_var_0B = 1; 
                 if (ivar == VARIED0B_UP) { w_var_0B = 2.0;}
                 else if (ivar == VARIED0B_DOWN) {w_var_0B = 0.0;}
@@ -476,6 +492,19 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
 
                 // change eff 1B accordingly                 
                 eff_bkg0B *= w_var_0B;
+                // Guard: eff_bkg1B = 1 - eff_bkg0B, so any eff_bkg0B > 1 makes the 1B term
+                // in the Add() below NEGATIVE. The integral check further down would still
+                // pass -- the two weights sum to 1 by construction -- but RooHistPdf would
+                // silently clip the negative bins and fit a PDF that is not the one built
+                // here. It cannot happen at the current WP (c' <= 0.19, so 2c' <= 0.37), but
+                // a looser b tag or a coarser dR bin can reach it, so refuse loudly instead.
+                if (eff_bkg0B > 1. || eff_bkg0B < 0.) {
+                    cout << Form("WARNING: (ptbin %d, deltaRbin %d) 0B variation w = %.1f gives "
+                                 "eff 0B = %.4f, outside [0,1] -- clipped. The variation is "
+                                 "truncated in this bin, so its systematic is a LOWER bound.",
+                                 ibin_pt, ibin_dr, w_var_0B, eff_bkg0B) << endl;
+                    eff_bkg0B = std::min(1., std::max(0., eff_bkg0B));
+                }
                 eff_bkg1B = 1. - eff_bkg0B;
                     
                     cout << "eff 0B weight = "<< w_var_0B << endl;
@@ -1363,12 +1392,28 @@ void Draw_template_Run3(TString &templates, TString pT_selection, TString folder
 
                 // -- Effective bkg PDF. With a + b + c = 1 (a: 2B, b: 1B, c: 0B) and
                 // b' + c' = 1, this gives b' = b/(b+c) and c' = c/(b+c), with b+c = 1-a.
+                // NOTE: a, b, c come from int2/int1/int0, which are the DIJET (qcd) integrals
+                // only -- h_bb/h_b/h_nob, never the _bjet ones. The shapes being mixed are
+                // qcd+bjet when also_bjet. That is deliberate: qcd is the sample whose
+                // flavour composition matches the data, the bjet sample is there for template
+                // statistics and would bias c' downwards if it entered the ratio.
                     double eff_bkg0B = (1 - sig_fraction_true - bkg_fraction_b_true)/(1- sig_fraction_true);// c`
                     double eff_bkg1B = 1. - eff_bkg0B;// b`
             // Build effective bkg hist: with new relaitve normalization, the integral should = 1
             // Normlaize h_nob to be added effectively to the normalized bkg distribution
                 TH1D* norm_h_nob = (TH1D*) h_nob->Clone("norm_h_nob"); norm_h_nob->Scale(1./norm_h_nob->Integral(1,  h_bkg_bins, "width"));
-            // Variation of 0B template contribution
+            // Variation of 0B template contribution == the LIGHT-JET MISTAG systematic.
+            // The 0B template is the jets with jtNbHad == 0 that still passed the b tag,
+            // i.e. mistagged light and charm jets. How many of them sit under the data is
+            // taken from MC alone -- nothing in this fit constrains it, because 0B is not a
+            // free component: it is folded into the background PDF at the MC-predicted
+            // ratio c' = 0B/(0B+1B). So the mistag rate enters the measurement only through
+            // the SHAPE of the effective background, and the systematic is to rebuild that
+            // shape with the 0B admixture scaled by w_var_0B.
+            //
+            // w = 2 / w = 0 is a deliberately conservative +/-100% on the mistag rate: it
+            // brackets the measured light-flavour mistag scale factors (typically 20-50% at
+            // a tight working point) by a wide margin, and it needs no external SF input.
             double w_var_0B = 1; 
                 if (ivar == VARIED0B_UP) { w_var_0B = 2.0;}
                 else if (ivar == VARIED0B_DOWN) {w_var_0B = 0.0;}
@@ -1377,6 +1422,19 @@ void Draw_template_Run3(TString &templates, TString pT_selection, TString folder
 
                 // change eff 1B accordingly                 
                 eff_bkg0B *= w_var_0B;
+                // Guard: eff_bkg1B = 1 - eff_bkg0B, so any eff_bkg0B > 1 makes the 1B term
+                // in the Add() below NEGATIVE. The integral check further down would still
+                // pass -- the two weights sum to 1 by construction -- but RooHistPdf would
+                // silently clip the negative bins and fit a PDF that is not the one built
+                // here. It cannot happen at the current WP (c' <= 0.19, so 2c' <= 0.37), but
+                // a looser b tag or a coarser dR bin can reach it, so refuse loudly instead.
+                if (eff_bkg0B > 1. || eff_bkg0B < 0.) {
+                    cout << Form("WARNING: (ptbin %d, deltaRbin %d) 0B variation w = %.1f gives "
+                                 "eff 0B = %.4f, outside [0,1] -- clipped. The variation is "
+                                 "truncated in this bin, so its systematic is a LOWER bound.",
+                                 ibin_pt, ibin_dr, w_var_0B, eff_bkg0B) << endl;
+                    eff_bkg0B = std::min(1., std::max(0., eff_bkg0B));
+                }
                 eff_bkg1B = 1. - eff_bkg0B;
                     
                     cout << "eff 0B weight = "<< w_var_0B << endl;
@@ -1840,15 +1898,96 @@ void Draw_template_Run3(TString &templates, TString pT_selection, TString folder
 }
 
 
-void template_fit(){
-    // -- Output folder to save the result of the tests 
+// The MC templates for one sample and generator: the MCGEN file that
+// create_files_for_template_fit.cpp wrote for it. Paths are listed rather than built,
+// because the Pythia8 ones are Afnan's merged production (btagWP712, _80_9999_2) and the
+// Herwig ones come from run_agg_ntuple_chunks.sh here (btagWP0712, _upartv2).
+// track_eff_unc = true takes the templates from the 3%-track-drop production instead
+// (TRACK_EFF_UNC=true in run_agg_ntuple_chunks.sh, then the per-block MCGEN files hadd'ed
+// to the agg_ntuple_chunks top level). Only Pythia8 has that production today; asking for
+// it with generator "herwig" returns "" and the caller stops with a message.
+TString mcgenTemplates(const TString &sample, const TString &generator,
+                       bool track_eff_unc = false)
+{
+    if (track_eff_unc) {
+        if (generator != "pythia") return "";   // no varied Herwig production
+        if (sample == "qcd")
+            return "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/QCD/agg_ntuple_chunks/Run3_btagWP0712_template_for_fit_histos_3D_qcd_fMCGEN_trkdrop030_upartv2.root";
+        if (sample == "bjet")
+            return "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/bJet/agg_ntuple_chunks/Run3_btagWP0712_template_for_fit_histos_3D_bjet_fMCGEN_trkdrop030_upartv2.root";
+        return "";
+    }
+    if (generator == "pythia") {
+        if (sample == "qcd")
+            return "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/QCD/agg_ntuple_chunks/MergedResult_btagWP712_MattProd/Run3_btagWP712_template_for_fit_histos_3D_qcd_f_80_9999_2MCGEN_merged.root";
+        if (sample == "bjet")
+            return "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/bJet/agg_ntuple_chunks/MergedResult_btagWP712_MattProd/Run3_btagWP712_template_for_fit_histos_3D_bjet_f_80_9999_2MCGEN_merged.root";
+    }
+    if (generator == "herwig") {
+        if (sample == "qcd")
+            return "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/QCDHerwig/agg_ntuple_chunks/Run3_btagWP0712_template_for_fit_histos_3D_qcd_fMCGEN_upartv2.root";
+        if (sample == "bjet")
+            return "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/bJetHerwig/agg_ntuple_chunks/Run3_btagWP0712_template_for_fit_histos_3D_bjet_fMCGEN_upartv2.root";
+    }
+    return "";
+}
+
+// SAMPLE:    qcd | both
+//            qcd  = fit with the dijet templates only (h3D_b, h3D_bb, h3D_0b)
+//            both = also take h3D_b and h3D_bb from the bjet sample (also_bjet)
+//            There is deliberately no "bjet": h3D_0b exists only in the qcd sample, the
+//            bjet sample being filtered to b jets, so a bjet-only fit has no 0B template.
+// GENERATOR: pythia | herwig -- which MC the templates come from. The data file is the
+//            same either way. Flags apply to RunN 3; the Run2 branch is untouched.
+//
+// TRACK_EFF_UNC: false (nominal) | true -- refit with the templates from the 3%
+//            track-drop production, so the signal fraction moves with the tracking
+//            efficiency too. The DATA being fitted is the same file either way; only the
+//            MC templates change. Writes to its own _trkdrop030 output directory, so the
+//            nominal fit is never overwritten. Pythia only.
+//
+// e.g.  root -l -b -q 'template_fit.cpp("both","pythia")'
+//       root -l -b -q 'template_fit.cpp("both","herwig")'
+//       root -l -b -q 'template_fit.cpp("both","pythia",true)'   // tracking variation
+void template_fit(TString SAMPLE = "both", TString GENERATOR = "pythia",
+                  bool TRACK_EFF_UNC = false){
+
+    if (SAMPLE == "bjet") {
+        std::cerr << "ERROR: SAMPLE 'bjet' is not a valid template fit: the 0B template "
+                  << "(h3D_0b) exists only in the qcd sample, the bjet sample being "
+                  << "filtered to b jets. Use qcd or both." << std::endl;
+        return;
+    }
+    if (SAMPLE != "qcd" && SAMPLE != "both") {
+        std::cerr << "ERROR: unknown SAMPLE '" << SAMPLE << "' (use qcd | both)" << std::endl;
+        return;
+    }
+    if (GENERATOR != "pythia" && GENERATOR != "herwig") {
+        std::cerr << "ERROR: unknown GENERATOR '" << GENERATOR << "' (use pythia | herwig)" << std::endl;
+        return;
+    }
+
+    // One output directory per flag combination. sDirname / sDirname_www are the globals
+    // from Help_Functions.h that every drawing function writes through, so set them here
+    // before anything is created.
+    // Same tag create_files_for_template_fit.cpp puts on the varied files, so the fit
+    // that used them is identifiable from its directory name alone. "" when nominal, so
+    // nominal output paths are unchanged.
+    const TString trk_tag = TRACK_EFF_UNC ? "_trkdrop030" : "";
+    sDirname     = "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/results/TemplateFit_Run3/"
+                   "TemplateFits_" + SAMPLE + "_" + GENERATOR + trk_tag + "_upartv2";
+    sDirname_www = sDirname;
+
+    // -- Output folder to save the result of the tests
     gSystem->mkdir(sDirname, kTRUE);// Predefined in Help.h -- holds the root files
     gSystem->mkdir(sDirname_www, kTRUE);// single flat folder holding every png
-    // TString folder = Form("/home/llr/cms/zaidan/analysis_lise/eec_2b_analysis/TemplateFit_Run3/%s/", sDirname.Data()); // this is sDirname 
-    TString folder = Form("%s", sDirname.Data()); // this is sDirname 
+    // TString folder = Form("/home/llr/cms/zaidan/analysis_lise/eec_2b_analysis/TemplateFit_Run3/%s/", sDirname.Data()); // this is sDirname
+    TString folder = Form("%s", sDirname.Data()); // this is sDirname
+        cout << "Sample: " << SAMPLE << ", generator: " << GENERATOR
+             << ", tracking-eff variation: " << (TRACK_EFF_UNC ? "ON (3% tracks dropped)" : "off") << endl;
         cout << "Output folder path: "<< folder << endl;
 
-    Int_t RunN = 3; // 3; 
+    Int_t RunN = 3; // 3;
 
 
     //Get data and mc labels
@@ -1868,16 +2007,32 @@ void template_fit(){
 
     // -- Set data/MC samples to use
     if (RunN == 3){
-        alsoLowEG = false; 
-        also_bjet = true;
+        alsoLowEG = false;
+        // "both" adds the bjet sample's b/bb templates on top of the dijet ones.
+        also_bjet = (SAMPLE == "both");
         // btagWP<NNN> follows BTAG_WP in the run scripts.
-        // dataset_HG = "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/HardProbes/agg_template_chunks/Run3_btagWP0712_template_for_fit_histos_3D_data_fMCGEN_upartv2.root"; // Does not exist! 
-        // templates_dijet = "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/QCD/agg_ntuple_chunks/Run3_btagWP0712_template_for_fit_histos_3D_qcd_fMCGEN_upartv2.root";
-        
+        // dataset_HG = "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/HardProbes/agg_template_chunks/Run3_btagWP0712_template_for_fit_histos_3D_data_fMCGEN_upartv2.root"; // Does not exist!
+
+        // Data is the same whichever generator the templates come from.
         dataset_HG = "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/HardProbes/agg_template_chunks/Run3_btagWP712_template_for_fit_histos_3D_data_f_80_9999_2MCGEN.root";
-        templates_dijet = "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/QCD/agg_ntuple_chunks/MergedResult_btagWP712_MattProd/Run3_btagWP712_template_for_fit_histos_3D_qcd_f_80_9999_2MCGEN_merged.root";
-        templates_bjet = "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/bJet/agg_ntuple_chunks/MergedResult_btagWP712_MattProd/Run3_btagWP712_template_for_fit_histos_3D_bjet_f_80_9999_2MCGEN_merged.root";
+        templates_dijet = mcgenTemplates("qcd",  GENERATOR, TRACK_EFF_UNC);
+        templates_bjet  = mcgenTemplates("bjet", GENERATOR, TRACK_EFF_UNC);
         fout_name = Form("Run%d_TemplateFits_histos_3d_%s.root", RunN, pT_selection.Data());
+
+        if (templates_dijet.Length() == 0 ||
+            (also_bjet && templates_bjet.Length() == 0)) {
+            std::cerr << "ERROR: no MC templates for generator '" << GENERATOR
+                      << "' -- add the paths to mcgenTemplates()" << std::endl;
+            return;
+        }
+        for (const TString &f : { templates_dijet, also_bjet ? templates_bjet : templates_dijet }) {
+            if (gSystem->AccessPathName(f)) {
+                std::cerr << "ERROR: missing template file " << f << std::endl;
+                return;
+            }
+        }
+        cout << "Templates (dijet): " << templates_dijet << endl;
+        if (also_bjet) cout << "Templates (bjet) : " << templates_bjet << endl;
     }
     else if (RunN == 2){
         alsoLowEG = true;

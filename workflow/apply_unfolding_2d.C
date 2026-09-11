@@ -1,4 +1,5 @@
 #include "binning_histos_small.h"
+#include "result_paths.h"   // the ONE definition of every result path and variation tag
 #include <algorithm>
 #include <vector>
 
@@ -31,6 +32,170 @@ TFile *openOrWarn(const TString &name)
         return nullptr;
     }
     return f;
+}
+
+std::vector<TFile *> openAllOrWarn(const std::vector<TString> &names)
+{
+    std::vector<TFile *> files;
+    for (const TString &n : names) {
+        TFile *f = openOrWarn(n);
+        if (!f) {
+            for (TFile *g : files) g->Close();
+            files.clear();
+            return files;
+        }
+        files.push_back(f);
+    }
+    return files;
+}
+
+// ---- Summing inputs across files ----------------------------------------------------
+// One list covers both levels of summing: the per-block outputs of run_agg_ntuple_chunks.sh,
+// and -- with sample "both" -- the bjet and qcd samples stacked on top of that. Same
+// operation as merge_RMatrixTH2D_bjet_qcd_merged.C, done in memory so no pre-merged file
+// is needed.
+//
+// ONLY count histograms and the response may be summed like this. The pre-divided ratios
+// (h_full_purity_tf, h_full_efficiency_tf, ...) must NOT be: adding N of them gives N x the
+// true value. They are recomputed from the summed counts by ratioFromCounts() below.
+template <typename T>
+T *sumOverFiles(const std::vector<TFile *> &files, const TString &name)
+{
+    T *out = nullptr;
+    for (TFile *f : files) {
+        T *h = getOrWarn<T>(f, name);
+        if (!h) { delete out; return nullptr; }
+        if (!out) {
+            out = (T *) h->Clone(name + "_sum");
+            out->SetDirectory(nullptr); // outlives the input files
+        } else {
+            out->Add(h);
+        }
+    }
+    if (!out) std::cerr << "ERROR: no input files to sum '" << name << "' from" << std::endl;
+    return out;
+}
+
+// RooUnfoldResponse::Add() adds the migration matrix together with the truth and measured
+// projections, which is what keeps the efficiency built into the response consistent.
+RooUnfoldResponse *sumResponseOverFiles(const std::vector<TFile *> &files, const TString &name)
+{
+    RooUnfoldResponse *out = nullptr;
+    for (TFile *f : files) {
+        RooUnfoldResponse *r = getOrWarn<RooUnfoldResponse>(f, name);
+        if (!r) { delete out; return nullptr; }
+        if (!out) {
+            out = new RooUnfoldResponse(*r);
+            out->SetName(r->GetName());
+            out->SetTitle(r->GetTitle());
+        } else {
+            out->Add(*r);
+        }
+    }
+    if (!out) std::cerr << "ERROR: no input files to sum '" << name << "' from" << std::endl;
+    return out;
+}
+
+// ---- Sample selection ---------------------------------------------------------------
+// sample "qcd" | "bjet" | "both", generator "pythia" | "herwig" -> the agg_ntuple_chunks
+// directories written by run_agg_ntuple_chunks.sh for those flags.
+std::vector<TString> samplesIn(const TString &sample)
+{
+    if (sample == "both") return {"qcd", "bjet"};
+    return {sample};
+}
+
+TString sampleSubdir(const TString &sample, const TString &generator)
+{
+    const bool herwig = (generator == "herwig");
+    if (sample == "qcd")  return herwig ? "QCDHerwig"  : "QCD";
+    if (sample == "bjet") return herwig ? "bJetHerwig" : "bJet";
+    std::cerr << "ERROR: unknown sample '" << sample << "' (use qcd | bjet | both)" << std::endl;
+    return "";
+}
+
+// Which of template_fit.cpp's variations supplies the signal fraction, and every path tag,
+// now live in result_paths.h -- shared with apply_weights_and_systematics.C so the writer
+// and the reader cannot disagree. varNames[] in Help_Functions.h are the same strings.
+
+// The template fit that supplies the signal fraction, the one generator-dependent input
+// that is NOT part of the unfolding MC. Returns "" when that fit does not exist, so both
+// the driver and apply_unfolding() can refuse before doing any work.
+TString templateFitFile(const TString &sample, const TString &tfGenerator,
+                        bool track_eff_unc = false,
+                        const TString &tfVariation = "nominal")
+{
+    // Written by template_fit.cpp(SAMPLE, GENERATOR), one directory per combination.
+    // Its SAMPLE is qcd | both only -- there is no bjet-only fit, since h3D_0b exists in
+    // the qcd sample alone -- so a bjet unfolding takes the qcd fit.
+    const TString tf_sample = (sample == "both") ? "both" : "qcd";
+    // With track_eff_unc the fit itself is redone on the 3%-track-drop templates
+    // (template_fit.cpp(SAMPLE, GENERATOR, true)), so the signal fraction moves with the
+    // tracking efficiency instead of being held at its nominal value. The data being
+    // fitted is the same either way.
+    const TString trk_tag = track_eff_unc ? "_trkdrop030" : "";
+    return "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/results/TemplateFit_Run3/TemplateFits_"
+         + tf_sample + "_" + tfGenerator + trk_tag + "_upartv2/"
+         + tfVariation + "_Run3_TemplateFits_histos_3d_80_inf.root";
+
+    /* ---- disabled (kept for reference): Afnan's fits, Pythia8 only ----
+    // These were the nominal until template_fit.cpp gained its own flags. Mixing them with
+    // a Herwig fit produced here would confound generator with producer and b-tag WP
+    // naming (btagWP712 vs btagWP0712), so both generators now come from the same macro.
+    "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/results/TemplateFit_Run3/TemplateFits_btagWP712_qcdbjet_upartv2/nominal_Run3_TemplateFits_histos_3d_80_inf.root" // qcd + bjet
+    "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/results/TemplateFit_Run3/TemplateFits_btagWP712_qcd_upartv2/nominal_Run3_TemplateFits_histos_3d_80_inf.root"     // qcd
+    "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/results/TemplateFits_Run3_minHLT60_LinearBin_upartv2/nominal_Run3_TemplateFits_histos_3d_80_inf.root"            // Zoe, older
+    ---- */
+}
+
+// MC systematic-variation tag, as create_files_for_template_fit.cpp writes it into the
+// per-block INPUT filenames. A different namespace from the results-path tags -- this one
+// names MC productions, those name result folders -- but it has to be the same literal, so
+// it delegates to trkTag() in result_paths.h rather than repeating "_trkdrop030".
+// (That literal tracks TrkEffSyst::kDropFraction in tracking_efficiency_syst.h.)
+// It sits between the MCGEN part of the name and the run script's OUT_TAG, so a variation
+// run looks for <varTag>_upartv2.
+TString mcVarTag(bool track_eff_unc)
+{
+    return trkTag(track_eff_unc);
+}
+
+// One per-block file, or the top-level merged one when block < 0. prefix is "RMatrix_" or
+// "" (the MCGEN templates), mid is "" or "MCGEN".
+TString aggChunkFile(const TString &base, const TString &subdir, int block,
+                     const TString &prefix, const TString &tag, const TString &mid,
+                     const TString &btagTag, const TString &outSuffix)
+{
+    TString path = base + "/" + subdir + "/agg_ntuple_chunks/";
+    if (block >= 0) path += Form("block_%04d/", block);
+    return path + prefix + "Run3_" + btagTag + "_template_for_fit_histos_3D_" + tag + "_f"
+                + mid + outSuffix + ".root";
+}
+
+// Every per-block file that exists, for one or both samples. Block counts differ per sample
+// (10 qcd/pythia, 9 bjet/pythia, 8 qcd/herwig, 9 bjet/herwig), so take what is on disk
+// rather than a fixed range -- same rule as the glob in run_agg_ntuple_chunks.sh.
+std::vector<TString> aggChunkFiles(const TString &base, const TString &sample,
+                                   const TString &generator, const TString &prefix,
+                                   const TString &mid, const TString &btagTag,
+                                   const TString &outSuffix, int max_blocks = 50)
+{
+    std::vector<TString> files;
+    for (const TString &s : samplesIn(sample)) {
+        const TString subdir = sampleSubdir(s, generator);
+        if (subdir.Length() == 0) return {};
+        int found = 0;
+        for (int b = 0; b < max_blocks; ++b) {
+            TString f = aggChunkFile(base, subdir, b, prefix, s, mid, btagTag, outSuffix);
+            if (gSystem->AccessPathName(f) == kFALSE) { files.push_back(f); ++found; }
+        }
+        std::cout << "   " << subdir << ": " << found << " block files" << std::endl;
+        if (found == 0)
+            std::cerr << "ERROR: no block files under " << base << "/" << subdir
+                      << "/agg_ntuple_chunks/ -- run run_agg_ntuple_chunks.sh for this sample"
+                      << std::endl;
+    }
+    return files;
 }
 
 
@@ -78,7 +243,10 @@ bool normalizeToUnitArea(TH1D *h)
 
 
 void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TString pT_selection,
-                     int test_mode, bool unfoldBayes, bool scan_niter)
+                     int test_mode, bool unfoldBayes, bool scan_niter,
+                     TString sample = "qcd", TString generator = "pythia",
+                     TString tfGenerator = "pythia", bool track_eff_unc = false,
+                     TString tfVariation = "nominal", TString sfupartVariation = "nominal")
 {
     // Unfolding options. test_mode and unfoldBayes are passed in as arguments:
     //   0 = FULL-MC closure : h3D_bb, full-sample corrections, truth h_full_efficiency_denominator_tf.
@@ -105,34 +273,80 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     const Color_t orange = ROCColor::orange();
     const Color_t teal = ROCColor::teal();
 
-    // btagWP<NNN> follows BTAG_WP in the run scripts.
-    //--  Signal fraction from template fit
-    // TString filename_template_fit = "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/results/TemplateFits_Run3_minHLT60_LinearBin_upartv2/nominal_Run3_TemplateFits_histos_3d_80_inf.root"; // Zoe 
-    TString filename_template_fit = "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/results/TemplateFit_Run3/TemplateFits_btagWP712_qcd_upartv2/nominal_Run3_TemplateFits_histos_3d_80_inf.root"; // fit to qcd sample
-    // TString filename_template_fit = "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/results/TemplateFit_Run3/TemplateFits_btagWP712_qcdbjet_upartv2/nominal_Run3_TemplateFits_histos_3d_80_inf.root"; // fit to qcd and bjet sample
+    // ---- MC inputs follow the sample/generator flags ---------------------------------
+    // The response, the corrections and the MC truth all come from the same file list, as
+    // they must: one set of events, one pT binning, or the full-MC closure cannot be 1.
+    // sample "both" appends the bjet blocks to the qcd ones and everything is summed.
+    // Switching generator switches all of it -- that is the unfolding-model systematic.
+    const TString mc_base   = "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024";
+    const TString btag_tag  = "btagWP0712"; // follows BTAG_WP in the run scripts (%04d of 1000*WP)
+    // OUT_TAG in the run scripts, preceded by the systematic-variation tag the macro
+    // writes. track_eff_unc = false is the nominal and gives exactly "_upartv2" as before;
+    // true reads the 3%-tracking-efficiency production instead. The response, the
+    // corrections, the truth and (in modes 0/1) the input all come from that same list,
+    // so the whole unfolding moves with the variation -- which is the point.
+    const TString out_tag   = mcVarTag(track_eff_unc) + "_upartv2";
 
-    std::cout << "Using template file: " << filename_template_fit << std::endl;
+    std::cout << "Sample: " << sample << ", unfolding generator: " << generator
+              << ", template-fit generator: " << tfGenerator << std::endl;
 
-    //-- RMatrix from MC ntuples 
-    // TString filename_response = "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/QCD/agg_ntuple_chunks/RMatrix_Run3_btagWP0712_template_for_fit_histos_3D_qcd_f_upartv2.root"; // Zoe 
-    TString filename_response = "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/QCD/agg_ntuple_chunks/MergedResult_btagWP712_MattProd/RMatrix_Run3_btagWP712_template_for_fit_histos_3D_qcd_f_80_9999_2_merged.root"; // Afnan (qcd matrix)
-    // TString filename_response = "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/bJet/agg_ntuple_chunks/MergedResult_btagWP712_MattProd/RMatrix_Run3_btagWP712_template_for_fit_histos_3D_bjet_f_80_9999_2_merged.root"; // Afnan (bjet matrix)
-    // TString filename_response = "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/bJet/agg_ntuple_chunks/MergedResult_btagWP712_MattProd/RMatrix_Run3_btagWP712_template_for_fit_histos_3D_bjet_qcd_merged.root"; // Afnan (bjet+qcd merged matrix)
+    std::vector<TString> filenames_response =
+        aggChunkFiles(mc_base, sample, generator, "RMatrix_", "", btag_tag, out_tag);
+    if (filenames_response.empty()) return;
 
-    std::cout << "Using response file: " << filename_response << std::endl;
+    /* ---- disabled (kept for reference): response-matrix-only variation ----
+    // Took ONLY the migration matrix from the other generator and left the corrections,
+    // the truth and the input alone, isolating the response (the closure is then not
+    // expected to be 1 -- that difference IS the uncertainty). Driven by a
+    // responseGenerator argument, with a _resp<gen> tag on the folder and filenames.
+    std::vector<TString> filenames_corrections =
+        aggChunkFiles(mc_base, sample, generator, "RMatrix_", "", btag_tag, out_tag);
+    std::vector<TString> filenames_response = filenames_corrections;
+    if (responseGenerator != generator)
+        filenames_response =
+            aggChunkFiles(mc_base, sample, responseGenerator, "RMatrix_", "", btag_tag, out_tag);
+    // ... and the response was then read from its own open-file list, everything else
+    // from the corrections list.
+    ---- */
 
-    // Dataset ntuples  to unfold: data or MC  (test mode decision)
-    // Modes 0/1 unfold MC (h3D_bb / h3D_pseudodata_bb), which live in the MCGEN file.
-    // Mode 2 unfolds real data from the data file.
-    TString filename_data = is_data
-        // ? "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/HardProbes/agg_template_chunks/Run3_btagWP0712_template_for_fit_histos_3D_data_fMCGEN_upartv2.root"
-        // : "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/QCD/agg_ntuple_chunks/Run3_btagWP0712_template_for_fit_histos_3D_qcd_fMCGEN_upartv2.root";
-        ? "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/HardProbes/agg_template_chunks/Run3_btagWP712_template_for_fit_histos_3D_data_f_80_9999_2MCGEN.root" // data templates 
-        : "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/QCD/agg_ntuple_chunks/MergedResult_btagWP712_MattProd/Run3_btagWP712_template_for_fit_histos_3D_qcd_f_80_9999_2MCGEN_merged.root"; // qcd sample templates 
-        // : "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/bJet/agg_ntuple_chunks/MergedResult_btagWP712_MattProd/Run3_btagWP712_template_for_fit_histos_3D_bjet_f_80_9999_2MCGEN_merged.root"; // bjet sample templates 
+    /* ---- disabled (kept for reference): pre-merged single response files ----
+    // Afnan's merged files, Pythia8 only. The bjet+qcd one was produced by
+    // merge_RMatrixTH2D_bjet_qcd_merged.C; sample="both" now does that sum in memory.
+    "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/QCD/agg_ntuple_chunks/MergedResult_btagWP712_MattProd/RMatrix_Run3_btagWP712_template_for_fit_histos_3D_qcd_f_80_9999_2_merged.root"
+    "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/bJet/agg_ntuple_chunks/MergedResult_btagWP712_MattProd/RMatrix_Run3_btagWP712_template_for_fit_histos_3D_bjet_f_80_9999_2_merged.root"
+    "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/bJet/agg_ntuple_chunks/MergedResult_btagWP712_MattProd/RMatrix_Run3_btagWP712_template_for_fit_histos_3D_bjet_qcd_merged.root"
+    ---- */
 
+    //--  Signal fraction from the template fit. This is the OTHER generator-dependent
+    // input and it is deliberately its own flag: tfGenerator, independent of the
+    // unfolding generator above. The sample still picks qcd vs qcd+bjet templates.
+    TString filename_template_fit = templateFitFile(sample, tfGenerator, track_eff_unc, tfVariation);
 
-    std::cout << "Getting data from " << filename_data << std::endl; //
+    if (multiply_sigfrac) {
+        if (filename_template_fit.Length() == 0) {
+            std::cerr << "ERROR: no template fit available for tfGenerator '" << tfGenerator
+                      << "' -- produce it and set the path in apply_unfolding_2d.C" << std::endl;
+            return;
+        }
+        std::cout << "Using template file (" << tfGenerator << "): "
+                  << filename_template_fit << std::endl;
+    }
+
+    // Dataset ntuples to unfold: data or MC (test mode decision).
+    // Modes 0/1 unfold MC (h3D_bb / h3D_pseudodata_bb) from the MCGEN files of the same
+    // sample as the response, so they are summed the same way.
+    // Mode 2 unfolds real data, which is one file and independent of the flags.
+    std::vector<TString> filenames_data;
+    if (is_data) {
+        filenames_data.push_back("/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/HardProbes/agg_template_chunks/Run3_btagWP712_template_for_fit_histos_3D_data_f_80_9999_2MCGEN.root");
+        // filenames_data.push_back("/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/HardProbes/agg_template_chunks/Run3_btagWP0712_template_for_fit_histos_3D_data_fMCGEN_upartv2.root"); // Zoe
+    } else {
+        filenames_data = aggChunkFiles(mc_base, sample, generator, "", "MCGEN", btag_tag, out_tag);
+        if (filenames_data.empty()) return;
+    }
+
+    std::cout << "Getting data from " << filenames_data.size() << " file(s), first: "
+              << filenames_data.front() << std::endl;
     //Select central pT bin
     int ibin_pt = 2;
     //Print options
@@ -174,18 +388,19 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     const Float_t  title_offset = 3.0; // 1.0 not enough 
 
     // ---- Grab response matrix + corrections
-    TString fname_unfolding = filename_response;
-    std::cout << "Getting response + corrections from : " << fname_unfolding << std::endl;
-    TFile *fin_unfolding = openOrWarn(fname_unfolding);
-    if (!fin_unfolding) return;
+    std::cout << "Getting response + corrections from " << filenames_response.size()
+              << " file(s), first: " << filenames_response.front() << std::endl;
+    std::vector<TFile *> fin_unfolding = openAllOrWarn(filenames_response);
+    if (fin_unfolding.empty()) return;
 
     // hadd (and any summing merger) sums the per-block RATIO histograms across blocks,
     // giving N_blocks x the true value (e.g. hEECweightEff ~ 10 x 1.67 ~ 17). So DON'T read
     // the pre-divided ratios; recompute every correction here from the COUNT histograms,
-    // which sum correctly. opt "b" = binomial (num is a subset of den), "" = normal errors.
+    // which sum correctly. That applies to summing bjet onto qcd as well.
+    // opt "b" = binomial (num is a subset of den), "" = normal errors.
     auto ratioFromCounts = [&](const char* num, const char* den, const char* opt) -> TH2D* {
-        TH2D* hn = getOrWarn<TH2D>(fin_unfolding, num);
-        TH2D* hd = getOrWarn<TH2D>(fin_unfolding, den);
+        TH2D* hn = sumOverFiles<TH2D>(fin_unfolding, num);
+        TH2D* hd = sumOverFiles<TH2D>(fin_unfolding, den);
         if (!hn || !hd) return nullptr;
         TH2D* r = (TH2D*) hn->Clone(Form("ratio_%s_over_%s", num, den));
         r->SetDirectory(0);
@@ -194,13 +409,13 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     };
 
     // ----------- Grab data -----------
-    TFile *fin_data = openOrWarn(filename_data);
-    if (!fin_data) return;
+    std::vector<TFile *> fin_data = openAllOrWarn(filenames_data);
+    if (fin_data.empty()) return;
     TString histname = (test_mode == 0) ? "h3D_bb"
                      : (test_mode == 1) ? "h3D_pseudodata_bb"
                      :                     "h3D_data";
     std::cout << "Using input histogram: " << histname << std::endl;
-    TH3D *h_data_reco_3D_in = getOrWarn<TH3D>(fin_data, histname);
+    TH3D *h_data_reco_3D_in = sumOverFiles<TH3D>(fin_data, histname);
     if (!h_data_reco_3D_in) {
         std::cerr << "       re-run create_files_for_template_fit.cpp to produce it." << std::endl;
         return;
@@ -227,6 +442,81 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     }
     else {
         std::cout << "\t---->Not multiplying by signal fraction" << std::endl;
+    }
+
+    // ---- UParT b-tag efficiency scale factor, on the RECO-level data ------------------
+    // Applied HERE, before unfolding, and not to the unfolded result: the SF is measured in
+    // reco R_BB bins, so it belongs on the distribution that is still in reco R_BB. The
+    // response matrix then carries it through the migration like any other feature of the
+    // data. Applying it afterwards would put a reco-binned correction on particle-level
+    // bins and silently ignore that migration.
+    //
+    // It is DIVIDED in: the chain corrects the data with the efficiency measured in MC, and
+    // the true efficiency is eps_data = SF * eps_MC, so data/eps_MC has to be further
+    // divided by SF. Data only -- there is no data in the closure modes, and the SF must
+    // never touch MC.
+    if (is_data && sfupartVariation == "off") {
+        std::cout << "\t---->UParT SF NOT applied (SFUPART_VARIATION=off): this is the BEFORE-SF "
+                  << "result, for comparison only" << std::endl;
+    }
+    else if (is_data) {
+        const TString sf_hist = sfupartHist(sfupartVariation);
+        std::cout << "\t---->Dividing reco data by the UParT SF (" << sfupartVariation
+                  << " -> " << sf_hist << ")" << std::endl;
+        TFile *fin_sf = openOrWarn(sfupartFile());
+        if (!fin_sf) return;
+        TH1D *h_sf = getOrWarn<TH1D>(fin_sf, sf_hist);
+        if (!h_sf) return;
+
+        const int nx = h_data_after_fit->GetNbinsX();   // x is dr, y is pt
+        if (h_sf->GetNbinsX() != nx) {
+            std::cerr << "ERROR: UParT SF has " << h_sf->GetNbinsX() << " dr bins but the "
+                      << "reco data has " << nx << std::endl;
+            return;
+        }
+
+        // Bin by bin: read the content, multiply by the INVERSE of the SF in that dr bin,
+        // write it back. The table prints the reco content before and after for the pT bin
+        // the analysis uses, so the correction can be checked by eye against the SF column.
+        printf("\n  UParT SF applied bin by bin (reco level, pT bin %d)\n", ibin_pt);
+        printf("  %3s %13s %9s %9s %14s %14s %8s\n",
+               "bin", "dr range", "SF", "1/SF", "before", "after", "ratio");
+        printf("  ---------------------------------------------------------------------------\n");
+
+        for (int ix = 1; ix <= nx; ++ix) {
+            const double sf  = h_sf->GetBinContent(ix);
+            const double esf = h_sf->GetBinError(ix);
+            if (sf == 0.) {
+                std::cerr << "ERROR: UParT SF is zero in dr bin " << ix << std::endl;
+                return;
+            }
+            const double inv_sf = 1. / sf;       // the number every bin is multiplied by
+            const double rel_sf = esf / sf;
+
+            const double before = h_data_after_fit->GetBinContent(ix, ibin_pt);
+
+            for (int iy = 1; iy <= h_data_after_fit->GetNbinsY(); ++iy) {
+                const double c = h_data_after_fit->GetBinContent(ix, iy);
+                const double e = h_data_after_fit->GetBinError(ix, iy);
+                const double c_new = c * inv_sf;
+                // The SF's own statistical error rides along into the data's error, so it
+                // ends up in the unfolded result's statistical error. It is uncorrelated
+                // between dr bins (each is a separate calibration measurement), which is
+                // what a bin-by-bin combination assumes.
+                const double e_new = (c != 0.)
+                    ? std::fabs(c_new) * std::sqrt((e / c) * (e / c) + rel_sf * rel_sf)
+                    : e * inv_sf;
+                h_data_after_fit->SetBinContent(ix, iy, c_new);
+                h_data_after_fit->SetBinError(ix, iy, e_new);
+            }
+
+            const double after = h_data_after_fit->GetBinContent(ix, ibin_pt);
+            printf("  %3d [%5.2f,%5.2f] %9.5f %9.5f %14.6g %14.6g %8.4f\n", ix,
+                   h_sf->GetXaxis()->GetBinLowEdge(ix), h_sf->GetXaxis()->GetBinUpEdge(ix),
+                   sf, inv_sf, before, after, (before != 0. ? after / before : 0.));
+        }
+        printf("\n");
+        fin_sf->Close();
     }
 
 
@@ -264,10 +554,10 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         h_full_purity = ratioFromCounts("h_full_pseudo_purity_numerator_tf", "h_full_pseudo_purity_denominator_tf", "h_pseudo_purity");
         h_full_efficiency = ratioFromCounts("h_full_pseudo_efficiency_numerator_tf", "h_full_pseudo_efficiency_denominator_tf", "h_pseudo_efficiency");
         
-        h_mc_reco = getOrWarn<TH2D>(fin_unfolding, apply_purity ? "h_full_pseudo_purity_numerator_tf"
-                                                                : "h_full_pseudo_purity_denominator_tf");
-        response = getOrWarn<RooUnfoldResponse>(fin_unfolding, "response_tf_pseudo_full");
-        h_mc_true_no_eff = getOrWarn<TH2D>(fin_unfolding, "h_full_pseudo_efficiency_numerator_tf");
+        h_mc_reco = sumOverFiles<TH2D>(fin_unfolding, apply_purity ? "h_full_pseudo_purity_numerator_tf"
+                                                                  : "h_full_pseudo_purity_denominator_tf");
+        response = sumResponseOverFiles(fin_unfolding, "response_tf_pseudo_full");
+        h_mc_true_no_eff = sumOverFiles<TH2D>(fin_unfolding, "h_full_pseudo_efficiency_numerator_tf");
     }
     else {
         // ---  
@@ -278,10 +568,10 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         h_full_purity     = ratioFromCounts("h_full_purity_numerator_tf", "h_full_purity_denominator_tf", "h_purity");
         h_full_efficiency = ratioFromCounts("h_full_efficiency_numerator_tf", "h_full_efficiency_denominator_tf", "h_efficiency");
 
-        h_mc_reco = getOrWarn<TH2D>(fin_unfolding, apply_purity ? "h_full_purity_numerator_tf"
-                                                                : "h_full_purity_denominator_tf");
-        response = getOrWarn<RooUnfoldResponse>(fin_unfolding, "response_tf_full");
-        h_mc_true_no_eff = getOrWarn<TH2D>(fin_unfolding, "h_full_efficiency_numerator_tf");
+        h_mc_reco = sumOverFiles<TH2D>(fin_unfolding, apply_purity ? "h_full_purity_numerator_tf"
+                                                                  : "h_full_purity_denominator_tf");
+        response = sumResponseOverFiles(fin_unfolding, "response_tf_full");
+        h_mc_true_no_eff = sumOverFiles<TH2D>(fin_unfolding, "h_full_efficiency_numerator_tf");
     }
     if (!h_full_purity || !h_full_efficiency || !h_mc_reco || !response) return;
 
@@ -295,24 +585,25 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
               << std::endl;
 
     // ---- Grab the truth level MC ----
-    // Must be the SAME production as filename_response: the truth, the response and the
+    // Must be the SAME production as the response files: the truth, the response and the
     // purity/efficiency corrections have to come from one set of events with one pT
     // binning, otherwise the full-MC closure (test_mode 0) cannot be exactly 1.
-    TFile *fin_response_truth = fin_unfolding;
-    std::cout << "Getting truth from : " << fin_response_truth->GetName() << std::endl;
+    std::vector<TFile *> &fin_response_truth = fin_unfolding;
+    std::cout << "Getting truth from the same " << fin_response_truth.size()
+              << " response file(s)" << std::endl;
     TH2D *h_mc_true = nullptr;
     if (test_mode == 1) {
         // Split test: the even half's gen distribution -- same gen_pass gate and same w_reco
         // weight the correction chain outputs. Independent from the odd-half corrections.
-        h_mc_true = getOrWarn<TH2D>(fin_response_truth, "h_pseudodata_truth_tf");
+        h_mc_true = sumOverFiles<TH2D>(fin_response_truth, "h_pseudodata_truth_tf");
     } else if (test_mode == 0) {
         // Full-MC closure: the full-sample all-gen distribution the chain recovers by construction.
-        h_mc_true = getOrWarn<TH2D>(fin_response_truth, "h_full_efficiency_denominator_tf");
+        h_mc_true = sumOverFiles<TH2D>(fin_response_truth, "h_full_efficiency_denominator_tf");
     } else {
         // Data: gen reference. After the combined SV-reco + b-tag correction below, the
         // result is at the "all true 2b" level, so compare against hgenjet_2b_all (the
         // combined-efficiency denominator), not hgenjet_2b_passbtag (2SV+btag level).
-        h_mc_true = getOrWarn<TH2D>(fin_response_truth, "hgenjet_2b_all");
+        h_mc_true = sumOverFiles<TH2D>(fin_response_truth, "hgenjet_2b_all");
     }
     if (!h_mc_true) return;
 
@@ -353,8 +644,8 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
 
     for (int iter = niter_min; iter <= niter_max; ++iter) {
 
-    // Single non-scan pass keeps the nominal 4 iterations; the scan walks 1..100.
-    const Int_t niter_now = scan_niter ? iter + 1 : 8;
+    // Single non-scan pass keeps the nominal 7 iterations; the scan walks 1..100.
+    const Int_t niter_now = scan_niter ? iter + 1 : 7;
 
     // ---- Unfold
     std::cout << "\t---->Unfolding (niter = " << niter_now << ")" << std::endl;
@@ -623,7 +914,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         pad_ratio->RedrawAxis();
 
         // Suffix so the normalised and absolute versions do not overwrite each other.
-        TString cmp_stem = folder + "correction_stages" + label + Form("_pt%d", ibin_pt)
+        TString cmp_stem = folder + "correction_stages_" + label + Form("_pt%d", ibin_pt)
                          + (normalise_corr_stages ? "_norm" : "");
         c_cmp->Print(cmp_stem + ".pdf");
         c_cmp->Print(cmp_stem + ".png");
@@ -632,8 +923,8 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
 
     // ---- DEBUG: reco SV pt vs gen B pt, to explain the size of the EEC-weight correction ----
     if (test_mode == 2) {
-        TH2D *h_svpt = getOrWarn<TH2D>(fin_unfolding, "h_svpt_vs_bpt");
-        TH1D *h_ptr  = getOrWarn<TH1D>(fin_unfolding, "h_ptratio");
+        TH2D *h_svpt = sumOverFiles<TH2D>(fin_unfolding, "h_svpt_vs_bpt");
+        TH1D *h_ptr  = sumOverFiles<TH1D>(fin_unfolding, "h_ptratio");
         if (h_svpt) {
             std::cout << "\t---->Making DEBUG reco-vs-gen pt plot" << std::endl;
             gStyle->SetPalette(kViridis);
@@ -660,8 +951,8 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
             TLatex cmsd; cmsd.SetNDC();
             cmsd.SetTextFont(62); cmsd.SetTextSize(0.042); cmsd.DrawLatex(0.13, 0.945, "CMS");
             cmsd.SetTextFont(52); cmsd.SetTextSize(0.034); cmsd.DrawLatex(0.235, 0.945, "Internal");
-            c_dbg->Print(folder + "debug_svpt_vs_bpt" + label + ".pdf");
-            c_dbg->Print(folder + "debug_svpt_vs_bpt" + label + ".png");
+            c_dbg->Print(folder + "debug_svpt_vs_bpt_" + label + ".pdf");
+            c_dbg->Print(folder + "debug_svpt_vs_bpt_" + label + ".png");
         }
     }
 
@@ -1069,7 +1360,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
             c_unfold->Print(Form("%siteration_%03d.png", png_dir.Data(), iter + 1), "png");
         } else {
             // Single run: the usual one-off bottomline plot next to the other outputs.
-            TString plot_stem = folder + "unfolding_plot" + label + "_bottomline_test_eec_2D";
+            TString plot_stem = folder + "unfolding_plot_" + label + "_bottomline_test_eec_2D";
             c_unfold->Print(plot_stem + ".pdf");
             c_unfold->Print(plot_stem + ".png");
         }
@@ -1095,7 +1386,13 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
 
     //Write 2D histograms for plotting
     h_mc_reco_2D->Write();
-    //h_mc_true_2D->Write();
+    // The particle-level gen reference -- hgenjet_2b_all in data mode. Re-enabled so
+    // apply_weights_and_systematics.C can draw it against the final result: it is the only
+    // curve in this file that lives at gen level, and without it the theory comparison
+    // would have to re-open and re-sum every per-block MC file itself. Already restricted
+    // to [ibin_dr_min, ibin_dr_max] and unit-normalised by the bottomline block above,
+    // exactly like h_data_fully_corrected_2D next to it.
+    h_mc_true_2D->Write();
     h_data_purity_corrected_2D->Write();
     h_data_fully_corrected_2D->Write();
     h_data_refolded_2D->Write();
@@ -1276,27 +1573,152 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     // gApplication -> Terminate(0);
 }
 
+// SAMPLE:      qcd | bjet | both   ("both" sums the bjet response, corrections and truth
+//              onto the qcd ones -- counts and RooUnfoldResponse are added, the
+//              purity/efficiency ratios are recomputed from the summed counts)
+// There are two independent generator choices, one per half of the chain:
+//
+// UNFOLDING_GENERATOR: pythia | herwig
+//              Everything the unfolding uses: the migration matrix, the purity and
+//              efficiency corrections, the truth reference, h_mc_reco, the hgenjet_2b_*
+//              corrections, and in modes 0/1 the MC being unfolded. Read from the
+//              per-block output of run_agg_ntuple_chunks.sh, so no pre-merged file.
+// TF_GENERATOR: pythia | herwig
+//              The template fit that supplies the signal fraction (data mode only).
+//              Independent of UNFOLDING_GENERATOR: only a Pythia fit exists today, so
+//              a Herwig unfolding still takes its signal fraction from the Pythia fit.
+//              Setting it to herwig stops with a message until that fit is produced.
 // test_mode:   0 = full-MC closure, 1 = split test, 2 = data
 // unfoldBayes: true = Bayesian, false = matrix inversion
 // scan_niter:  true = scan niter = 1..100 and pick the optimal one from the refolding
 //              goodness-of-fit test; false = one unfolding at the nominal niter = 4.
 //              Bayesian only -- matrix inversion has no iterations to scan.
-// e.g.  root -l 'apply_unfolding_2d.C(2, true, true)'   // data, Bayesian, scan the iterations
-void apply_unfolding_2d(int test_mode = 2, bool unfoldBayes = true, bool scan_niter = false){
-    TString dataset = "data" ; 
-    test_mode = 2; // 0 1 2 
-    unfoldBayes = true; // false true 
-    scan_niter = true;
+// TRACK_EFF_UNC: false (nominal) | true
+//              Which MC production to unfold with. true reads the files written with 3%
+//              of the reconstructed tracks thrown away during the B reconstruction
+//              (TRACK_EFF_UNC=true in run_agg_ntuple_chunks.sh) -- the tracking-efficiency
+//              systematic. It varies BOTH halves of the MC: the response/corrections AND
+//              the template fit that supplies the signal fraction, so the propagation is
+//              complete -- which means template_fit.cpp(SAMPLE, TF_GENERATOR, true) has to
+//              have been run first. Only the MC changes; the data being unfolded and the
+//              data being fitted are the same files either way.
+//              Results go to their own folder, so the nominal is never overwritten.
+// TF_VARIATION: nominal | var0B_2 | var0B_0
+//              Which of template_fit.cpp's variations supplies the signal fraction (data
+//              mode only). var0B_2 / var0B_0 are the LIGHT-JET MISTAG variations: the 0B
+//              template -- the jets with no gen b hadron that passed the b tag, i.e.
+//              mistagged light and charm -- has its contribution to the background PDF
+//              doubled or removed, and the fit is redone. Both fits already exist in every
+//              template-fit directory (template_fit.cpp writes one file per variation), so
+//              this costs one more unfolding and no refit. Results go to their own folder.
+//              Unlike TRACK_EFF_UNC this varies ONLY the signal fraction: the response and
+//              the corrections are the nominal ones, which is right -- the mistag rate
+//              affects what fraction of the data is signal, not how signal migrates.
+//
+// e.g.  root -l -b -q 'apply_unfolding_2d.C("both","pythia")'   // nominal
+//       root -l -b -q 'apply_unfolding_2d.C("both","herwig")'   // Herwig unfolding MC
+//       root -l -b -q 'apply_unfolding_2d.C("both","pythia",2,true,false,"pythia",true)'
+//                                                             // tracking-efficiency variation
+//       root -l -b -q 'apply_unfolding_2d.C("both","pythia",2,true,false,"pythia",false,"var0B_2")'
+//                                                             // light-jet mistag up
+// SFUPART_VARIATION: nominal | jpcalib_hf | qqrate_up | qqrate_down
+//              Which UParT b-tag efficiency scale factor to divide into the RECO-level data
+//              (data mode only). The SF is measured in reco R_BB bins, so it is applied
+//              before unfolding and the response matrix carries it through the migration.
+//              nominal is the central SF -- it is a CORRECTION, applied in every run, not an
+//              opt-in. The other three are its calibration systematics: jpcalib_hf swaps the
+//              JP heavy-flavour calibration, qqrate_up/down move the qq rate by +/-25%.
+//              Each lands in its own results folder.
+void apply_unfolding_2d(TString SAMPLE = "both", TString UNFOLDING_GENERATOR = "pythia",
+                        int test_mode = 2, bool unfoldBayes = true, bool scan_niter = false,
+                        TString TF_GENERATOR = "herwig", bool TRACK_EFF_UNC = false,
+                        TString TF_VARIATION = "nominal",
+                        TString SFUPART_VARIATION = "nominal"){
 
+    // Kept so the old positional name still reads naturally below.
+    TString GENERATOR = UNFOLDING_GENERATOR;
 
-    // ---- disabled (kept for reference): previous output location ----
-    // TString folder = "/data_CMS/cms/zaidan/analysis_lise/Run3/";
-    // TString folder = "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/results/unfolding_upartv2/"; // Zoe directory
-    
-    // TString folder = "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/results/unfolding_qcd_upartv2/"; // Afnan 
-    // TString folder = "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/results/unfolding_bjet_upartv2/"; // Afnan 
-    // TString folder = "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/results/unfolding_Rqcdbjet_upartv2/"; // Afnan 
-    TString folder = "/home/llr/cms/shatat/CMSAnalysis/eec_2b_analysis/workflow/unfolding_test/"; // test 
+    // A typo must not fall through to the default sample: check before reading anything.
+    if (SAMPLE != "qcd" && SAMPLE != "bjet" && SAMPLE != "both") {
+        std::cerr << "ERROR: unknown SAMPLE '" << SAMPLE << "' (use qcd | bjet | both)" << std::endl;
+        return;
+    }
+    if (GENERATOR != "pythia" && GENERATOR != "herwig") {
+        std::cerr << "ERROR: unknown UNFOLDING_GENERATOR '" << GENERATOR
+                  << "' (use pythia | herwig)" << std::endl;
+        return;
+    }
+    if (TF_GENERATOR != "pythia" && TF_GENERATOR != "herwig") {
+        std::cerr << "ERROR: unknown TF_GENERATOR '" << TF_GENERATOR
+                  << "' (use pythia | herwig)" << std::endl;
+        return;
+    }
+    if (TF_VARIATION != "nominal" && TF_VARIATION != "var0B_2" && TF_VARIATION != "var0B_0") {
+        std::cerr << "ERROR: unknown TF_VARIATION '" << TF_VARIATION
+                  << "' (use nominal | var0B_2 | var0B_0)" << std::endl;
+        return;
+    }
+    // A varied signal fraction only ever multiplies real data, so in the closure modes it
+    // would change nothing while still writing to a separate folder -- which reads as a
+    // result and is not one.
+    if (TF_VARIATION != "nominal" && test_mode != 2) {
+        std::cerr << "ERROR: TF_VARIATION '" << TF_VARIATION << "' needs test_mode 2 (data): "
+                  << "the signal fraction is only applied to data" << std::endl;
+        return;
+    }
+    if (sfupartHist(SFUPART_VARIATION).Length() == 0) {
+        std::cerr << "ERROR: unknown SFUPART_VARIATION '" << SFUPART_VARIATION
+                  << "' (use nominal | jpcalib_hf | qqrate_up | qqrate_down)" << std::endl;
+        return;
+    }
+    // Same reasoning as TF_VARIATION: the SF is only ever applied to data.
+    if (SFUPART_VARIATION != "nominal" && SFUPART_VARIATION != "off" && test_mode != 2) {
+        std::cerr << "ERROR: SFUPART_VARIATION '" << SFUPART_VARIATION << "' needs test_mode 2 (data): "
+                  << "the UParT SF is only applied to data" << std::endl;
+        return;
+    }
+    // Refuse before creating anything, as above: a missing SF file would otherwise surface
+    // only in the log, after the results folder exists.
+    if (test_mode == 2 && SFUPART_VARIATION != "off") {
+        if (gSystem->AccessPathName(sfupartFile())) {
+            std::cerr << "ERROR: missing UParT SF file " << sfupartFile() << std::endl;
+            return;
+        }
+    }
+
+    // Refuse before creating anything: past this point stdout goes to the log file, so a
+    // failure inside apply_unfolding() would leave an empty results folder and a silent
+    // terminal.
+    if (test_mode == 2) {
+        const TString tf_file = templateFitFile(SAMPLE, TF_GENERATOR, TRACK_EFF_UNC, TF_VARIATION);
+        if (tf_file.Length() == 0 || gSystem->AccessPathName(tf_file)) {
+            std::cerr << "ERROR: no template fit for TF_GENERATOR '" << TF_GENERATOR
+                      << "'" << (TRACK_EFF_UNC ? " with TRACK_EFF_UNC" : "")
+                      << ", variation '" << TF_VARIATION << "'"
+                      << ": " << tf_file << "\n       run template_fit.cpp(\""
+                      << ((SAMPLE == "both") ? "both" : "qcd") << "\",\"" << TF_GENERATOR
+                      << "\"" << (TRACK_EFF_UNC ? ",true" : "") << ") first" << std::endl;
+            return;
+        }
+    }
+
+    // Tag only what actually differs from the nominal, so nominal names are unchanged.
+    // Both built by result_paths.h, the same functions apply_weights_and_systematics.C uses
+    // to FIND them. "" tags mean nominal, so nominal paths are exactly what they always
+    // were; a variation lands in its own directory next to the nominal, never over it.
+    TString dataset = SAMPLE + "_" + GENERATOR
+                    + variationTag(TF_GENERATOR, TRACK_EFF_UNC, TF_VARIATION, SFUPART_VARIATION);
+
+    TString folder = resultFolder(SAMPLE, GENERATOR, TF_GENERATOR, TRACK_EFF_UNC,
+                                  TF_VARIATION, SFUPART_VARIATION);
+
+    // An unrecognised variation name poisons the tag rather than silently becoming the
+    // nominal (see result_paths.h). Catch it here, before a directory is created.
+    if (folder.Contains(kUnknownTag())) {
+        std::cerr << "ERROR: refusing to run -- one of the variation names is not recognised."
+                  << std::endl;
+        return;
+    }
 
     gSystem->mkdir(folder, kTRUE);
     TString pT_selection = "80_inf";
@@ -1320,11 +1742,29 @@ void apply_unfolding_2d(int test_mode = 2, bool unfoldBayes = true, bool scan_ni
     if(test_mode==1)  label += "_split_test";
     if(test_mode==2)  label += "_data";
     if(scan_niter)    label += "_iterative";
-    TString logfile = folder +  "unfolding" + label + "_" +  timestamp + ".log";
+    TString logfile = folder +  "unfolding_" + dataset + label + "_" +  timestamp + ".log";
     gSystem->RedirectOutput(logfile);  // "a" = append
-	apply_unfolding(dataset, folder, btag, n, pT_selection, test_mode, unfoldBayes, scan_niter);
+	apply_unfolding(dataset, folder, btag, n, pT_selection, test_mode, unfoldBayes, scan_niter,
+	                SAMPLE, GENERATOR, TF_GENERATOR, TRACK_EFF_UNC, TF_VARIATION, SFUPART_VARIATION);
 
     // Restore terminal output
     gSystem->RedirectOutput(nullptr);
+
+    // Close the loop between writer and reader: resultFile() is the path
+    // apply_weights_and_systematics.C will look for. Check here, at write time, that it
+    // actually resolves -- otherwise a mismatch only shows up much later as a variation
+    // that is "missing" or, worse, as one that silently resolved to something else.
+    const TString expected = resultFile(SAMPLE, GENERATOR, test_mode, unfoldBayes,
+                                        TF_GENERATOR, TRACK_EFF_UNC, TF_VARIATION,
+                                        SFUPART_VARIATION);
+    if (gSystem->AccessPathName(expected)) {
+        std::cerr << "WARNING: the run finished but its result is not where the systematics "
+                  << "macro will look for it:\n         " << expected
+                  << "\n         Check " << logfile << " -- the unfolding may have returned "
+                  << "early, or the naming in result_paths.h has drifted from what "
+                  << "apply_unfolding() writes." << std::endl;
+    } else {
+        std::cout << "Result: " << expected << std::endl;
+    }
 
 }
