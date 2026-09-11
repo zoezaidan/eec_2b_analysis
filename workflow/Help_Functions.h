@@ -250,6 +250,13 @@ TLegend* CreateLegend(
 
 // ------------
 // ------------------
+// The LIGHT-JET MISTAG systematic on the template fit.
+//
+// h[VARIED0B_UP] / h[VARIED0B_DOWN] are the signal fraction refitted with the 0B (= no gen
+// b hadron, i.e. mistagged light/charm) contribution to the background PDF doubled and
+// removed. The band written out is the per-dR envelope max(|up-nom|, |nom-down|)/nom, a
+// RELATIVE uncertainty on the signal fraction -- apply_unfolding_2d.C multiplies the reco
+// data by that fraction, so it propagates as a relative shift of the unfolded EEC.
 void draw_variation_uncertainity(TFile *foutputPlots, TFile *fsys, int ibin_pt){
     //// Can be modified for more variations //// 
     // -- compute relative uncertaintiy to nominal value. 
@@ -267,7 +274,10 @@ void draw_variation_uncertainity(TFile *foutputPlots, TFile *fsys, int ibin_pt){
 
 
         // Read extracted EEC(2B) 
-        TH1D* h[NVAR];
+        // Zero-initialised: template_fit.cpp only runs the first four variations, so
+        // h[FITRANGE_0_7] is never filled and a `continue` above leaves any other entry
+        // unset too. Without the {} those would be indeterminate pointers.
+        TH1D* h[NVAR] = {};
         for (int ivar = 0; ivar < NVAR; ivar++)
         {
 
@@ -282,6 +292,15 @@ void draw_variation_uncertainity(TFile *foutputPlots, TFile *fsys, int ibin_pt){
                 h[ivar]->SetTitle(varNames[ivar].Data());
             if (!h[ivar]) {  std::cout << "Missing histogram: " << hname << std::endl; h[ivar] = nullptr; continue; }
             h[ivar]->SetDirectory(0); 
+        }
+
+        // The envelope needs exactly these three; anything missing means the fit did not
+        // run all of NOMINAL / VARIED0B_UP / VARIED0B_DOWN and there is no systematic to
+        // build. Bail out rather than dereference a null below.
+        if (!h[NOMINAL] || !h[VARIED0B_UP] || !h[VARIED0B_DOWN]) {
+            std::cout << "draw_variation_uncertainity: missing nominal or 0B variation for "
+                      << "pt bin " << ibin_pt << " -- no mistag systematic written" << std::endl;
+            return;
         }
 
     auto c_syst = new TCanvas(Form("c_syst_%d", ibin_pt),"", 900, 900); // 900, 1100
