@@ -1,6 +1,6 @@
 # Archived: the b/non-b momentum fractions `fnb`, `fb`, `lnfb`
 
-Moved out of `readme_workflow.md` on 2026-09-24, verbatim. None of the three is measured:
+Moved out of the workflow readme (now the repo-root `README.md`) on 2026-09-24, verbatim. None of the three is measured:
 they were disabled on 2026-09-22 and the measurement is EEC(ΔR) and dN/dB only. Their code
 is still in `observables.h`, `binning_histos_small.h`, `result_paths.h` and
 `create_files_for_template_fit.cpp`, inside `DISABLED 2026-09-22` blocks. Paths and

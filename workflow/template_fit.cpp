@@ -2066,7 +2066,7 @@ void template_fit(TString SAMPLE = "both", TString GENERATOR = "pythia",
     ---- end disabled ---- */
     // For B, EEC_WEIGHT_OFF is not a variation -- it IS the measurement. The EEC weight
     // pT_b1*pT_b2 equals B(1-B)S², an analytic function of B itself, so an EEC-weighted B
-    // distribution is the yield times a known kinematic factor. See readme_workflow.md.
+    // distribution is the yield times a known kinematic factor. See README.md (repo root).
     if (nominalEecWeightOff(OBSERVABLE) && !EEC_WEIGHT_OFF)
         std::cout << "NOTE: fitting the EEC-WEIGHTED " << OBSERVABLE << " templates. The "
                   << "measurement is the YIELD run (EEC_WEIGHT_OFF=true); this one is the "

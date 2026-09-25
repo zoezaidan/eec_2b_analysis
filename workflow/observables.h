@@ -228,7 +228,7 @@ struct ObsDef {
     // Histogram name for this observable. dr's suffix is "", so dr keeps the names every
     // existing reader already knows -- template_fit.cpp, apply_unfolding_2d.C and every
     // result file on disk are unaffected by this refactor. That is verified, not assumed:
-    // see the A/B check in readme_workflow.md.
+    // see the A/B check in README.md (repo root).
     TString n(const char *base) const { return TString(base) + suffix; }
 };
 
