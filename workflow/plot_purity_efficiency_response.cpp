@@ -21,7 +21,10 @@
 
 // Plots go to /data_CMS so this folder keeps only code.
 // const char* PLOT_OUTDIR = "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/results";
-// const char* PLOT_OUTDIR = "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/results/unfolding_upartv2/Response_qcd_upartv2"; // qcd Rmatrix
+// const char* PLOT_OUTDIR_DEFAULT_UNUSED = "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/results/unfolding_upartv2/Response_qcd_upartv2"; // qcd Rmatrix
+// Default kept as it was. NOTE it points into a COLLEAGUE'S area, which is not writable
+// from this account -- the macro's third argument overrides it, and must be used for any
+// run that needs to actually save its plots.
 const char* PLOT_OUTDIR = "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/results/unfolding_bjet_upartv2/Response_bjet_upartv2"; // bjet Rmatrix
 // const char* PLOT_OUTDIR = "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/results/unfolding_Rqcdbjet_upartv2/Response_bjetqndqcd_upartv2"; // qcd+bjet merged matrix 
 
@@ -186,8 +189,23 @@ double responseConditionNumber(const TH2 *h, const char *tag)
     return kappa;
 }
 
-void plot_purity_efficiency_response()
+// infile      : the RMatrix file to read. Default keeps the bjet merged file this macro has
+//               always used, so an argument-less call is unchanged.
+// observable  : "dr" (default) | "B" -- picks response_tf_full vs response_tf_full_B.
+//
+// For the momentum balance, the responses live in the per-block "_upartv2_B" production and
+// have to be merged first (hadd needs the RooUnfold env, see CLAUDE.md):
+//   hadd -f RMatrix_MERGED_qcdbjet_noeecw_upartv2_B.root <QCD and bJet block files>
+//   root -l -b -q 'plot_purity_efficiency_response.cpp("<that file>","B")'
+//
+// ⚠️ The balance was called "z" and its histograms "..._z" before 2026-09-22. A pre-rename
+// RMatrix file has no response_tf_full_B in it.
+void plot_purity_efficiency_response(const char *infile = nullptr,
+                                     const char *observable = "dr",
+                                     const char *outdir = nullptr)
 {
+  // PLOT_OUTDIR is a global the SaveAs calls below read; override it when asked.
+  if (outdir) { PLOT_OUTDIR = outdir; gSystem->mkdir(outdir, kTRUE); }
   // CMS aesthetics: no stats box, no title box, ticks on all four sides.
   gStyle->SetOptStat(0);
   gStyle->SetOptTitle(0);
@@ -208,8 +226,13 @@ void plot_purity_efficiency_response()
   // TFile *f = TFile::Open("/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/QCD/agg_ntuple_chunks/MergedResult_btagWP712_MattProd/"
                          // "RMatrix_Run3_btagWP712_template_for_fit_histos_3D_qcd_f_80_9999_2_merged.root","READ"); // QCD matrix 
   /// bjet only 
-  TFile *f = TFile::Open("/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/bJet/agg_ntuple_chunks/MergedResult_btagWP712_MattProd/"
-                         "RMatrix_Run3_btagWP712_template_for_fit_histos_3D_bjet_f_80_9999_2_merged.root","READ"); // bjet matrix
+  TFile *f = infile
+      ? TFile::Open(infile, "READ")
+      : TFile::Open("/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/bJet/agg_ntuple_chunks/MergedResult_btagWP712_MattProd/"
+                    "RMatrix_Run3_btagWP712_template_for_fit_histos_3D_bjet_f_80_9999_2_merged.root","READ"); // bjet matrix
+  if (!f || f->IsZombie()) { std::cout << "cannot open input file" << std::endl; return; }
+  // "" for dr, so the dr path reads exactly the object it always read.
+  const TString obs_sfx = (TString(observable) == "dr") ? "" : ("_" + TString(observable));
 
   /// Merged Rmatrix: qcd + bjet
   // TFile *f = TFile::Open("/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/bJet/agg_ntuple_chunks/MergedResult_btagWP712_MattProd/"
@@ -328,7 +351,7 @@ void plot_purity_efficiency_response()
     gPad->RedrawAxis();
 
     // ---- Response matrix -------------------------------------------------------
-    RooUnfoldResponse *resp = (RooUnfoldResponse*)f->Get("response_tf_full");
+    RooUnfoldResponse *resp = (RooUnfoldResponse*)f->Get("response_tf_full" + obs_sfx);
 
     if (!resp) {
       std::cout << "Response not found!" << std::endl;

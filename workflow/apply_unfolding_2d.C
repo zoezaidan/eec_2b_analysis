@@ -1,5 +1,6 @@
 #include "binning_histos_small.h"
-#include "result_paths.h"   // the ONE definition of every result path and variation tag
+#include "result_paths.h"
+#include "observables.h"   // ObsDef + gFitObs(): which observable is on the second axis   // the ONE definition of every result path and variation tag
 #include <algorithm>
 #include <vector>
 
@@ -123,7 +124,9 @@ TString sampleSubdir(const TString &sample, const TString &generator)
 // the driver and apply_unfolding() can refuse before doing any work.
 TString templateFitFile(const TString &sample, const TString &tfGenerator,
                         bool track_eff_unc = false,
-                        const TString &tfVariation = "nominal")
+                        const TString &tfVariation = "nominal",
+                        bool eec_weight_off = false,
+                        const TString &observable = "dr")
 {
     // Written by template_fit.cpp(SAMPLE, GENERATOR), one directory per combination.
     // Its SAMPLE is qcd | both only -- there is no bjet-only fit, since h3D_0b exists in
@@ -134,8 +137,16 @@ TString templateFitFile(const TString &sample, const TString &tfGenerator,
     // tracking efficiency instead of being held at its nominal value. The data being
     // fitted is the same either way.
     const TString trk_tag = track_eff_unc ? "_trkdrop030" : "";
+    // The yield run fits the UNWEIGHTED templates -- template_fit.cpp(SAMPLE, GENERATOR,
+    // false, true) -- so the signal fraction is the one a yield measurement needs rather
+    // than the EEC-weighted one. Its own directory, never the EEC fit's.
+    const TString eecw_tag = eec_weight_off ? "_noeecw" : "";
+    // The observable tag template_fit() stamps on its own output directory. It must match,
+    // or the B unfolding would read the dR fit's h_sig_fraction_fit -- which has the right
+    // NAME and the wrong binning, the quietest possible way to be wrong.
+    const TString obs_tag = (observable == "dr") ? "" : ("_" + observable);
     return "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/results/TemplateFit_Run3/TemplateFits_"
-         + tf_sample + "_" + tfGenerator + trk_tag + "_upartv2/"
+         + tf_sample + "_" + tfGenerator + trk_tag + eecw_tag + obs_tag + "_upartv2/"
          + tfVariation + "_Run3_TemplateFits_histos_3d_80_inf.root";
 
     /* ---- disabled (kept for reference): Afnan's fits, Pythia8 only ----
@@ -155,9 +166,15 @@ TString templateFitFile(const TString &sample, const TString &tfGenerator,
 // (That literal tracks TrkEffSyst::kDropFraction in tracking_efficiency_syst.h.)
 // It sits between the MCGEN part of the name and the run script's OUT_TAG, so a variation
 // run looks for <varTag>_upartv2.
-TString mcVarTag(bool track_eff_unc)
+// obsProdTag() -- which MC production carries an observable -- lives in result_paths.h,
+// shared with template_fit.cpp, which has to open the same blocks.
+
+TString mcVarTag(bool track_eff_unc, bool eec_weight_off = false)
 {
-    return trkTag(track_eff_unc);
+    // eecWeightTag() is "_noeecw": the yield production, written by the same macro with the
+    // EEC weight switched off. Same delegation rule as above -- one literal, in
+    // result_paths.h, shared by the MC-production names and the result folders.
+    return trkTag(track_eff_unc) + eecWeightTag(eec_weight_off);
 }
 
 // One per-block file, or the top-level merged one when block < 0. prefix is "RMatrix_" or
@@ -246,8 +263,14 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
                      int test_mode, bool unfoldBayes, bool scan_niter,
                      TString sample = "qcd", TString generator = "pythia",
                      TString tfGenerator = "pythia", bool track_eff_unc = false,
-                     TString tfVariation = "nominal", TString sfupartVariation = "nominal")
+                     TString tfVariation = "nominal", TString sfupartVariation = "nominal",
+                     bool eec_weight_off = false, TString observable = "dr",
+                     int niter_fixed = 7)
 {
+    // Every histogram name below carries this observable's suffix -- "" for dr, so the dr
+    // path reads exactly the histograms it always read.
+    const ObsDef obs = obsByName(observable);
+
     // Unfolding options. test_mode and unfoldBayes are passed in as arguments:
     //   0 = FULL-MC closure : h3D_bb, full-sample corrections, truth h_full_efficiency_denominator_tf.
     //       Same events in and out, so a technical (not statistically independent) closure.
@@ -256,7 +279,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     //   2 = DATA            : h3D_data + template-fit signal fraction, full-sample corrections.
     //   unfoldBayes: true = Bayesian, false = matrix inversion.
     //   scan_niter:  true = scan niter 1..100 and pick the optimal one from the refolding
-    //       goodness-of-fit test; false = a single unfolding at niter = 4. Bayesian only.
+    //       goodness-of-fit test; false = a single unfolding at niter_fixed. Bayesian only.
     const bool split_test       = (test_mode == 1);  // -> pseudo (odd-half) corrections + even-half truth
     const bool is_data          = (test_mode == 2);
     const bool multiply_sigfrac = is_data;           // only real data needs the bb template fit
@@ -265,6 +288,28 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     // contains jets whose gen jet fails gen_pass, and the response has no truth row for them.
     bool apply_purity = true;
 
+
+    // What the observable is called on every axis. The yield run is the same machinery
+    // measuring dN/dr, so calling it "EEC" on the plots would be simply wrong.
+    // Name the OBSERVABLE, not always dr: "dN/dB" and "EEC(B)" for the momentum balance.
+    // obs.axis is the full label (p_{T}^{b1}/(...)), too long for a y-axis, so use a short
+    // symbol for the quantity and put the full label on the x axis.
+    const TString obs_sym   = obsSymbol(observable);
+    const TString obs_title = eec_weight_off ? ("dN/d" + obs_sym) : ("EEC(" + obs_sym + ")");
+    // The x-axis title, used by every plot below. dr spells it "#Delta r" rather than taking
+    // obs.axis ("#DeltaR"), so that all of this chain's plots -- these and the ones
+    // apply_weights_and_systematics.C draws next to them -- label the axis identically.
+    const TString obs_axis  = (observable == "dr") ? "#Delta r" : obs.axis;
+
+    // An axis with no explicit range is padded by ROOT when it draws it: B lives on [0.5, 1.0]
+    // and comes out drawn to 1.1, empty frame where the observable cannot go (B = 1 needs one
+    // B hadron with zero pT). Asking for the bin range explicitly is what stops it. Call this on
+    // whichever histogram is drawn FIRST in a pad -- that one owns the pad's axes.
+    // dr already draws as exactly [0, 0.45], so it is left alone and its plots are unchanged.
+    // Same fix, same reason, as fixXRange() in apply_weights_and_systematics.C.
+    auto fixXRange = [&](TH1 *h) {
+        if (observable != "dr" && h) h->GetXaxis()->SetRange(1, h->GetNbinsX());
+    };
 
     const Color_t blue = ROCColor::blue();
     const Color_t red = ROCColor::red();
@@ -285,7 +330,12 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     // true reads the 3%-tracking-efficiency production instead. The response, the
     // corrections, the truth and (in modes 0/1) the input all come from that same list,
     // so the whole unfolding moves with the variation -- which is the point.
-    const TString out_tag   = mcVarTag(track_eff_unc) + "_upartv2";
+    // ⚠️ The B histograms exist ONLY in the "_upartv2_B" production, run from this working
+    // copy after the 2026-09-22 rename. The nominal "_upartv2" blocks hold dR only, and the
+    // older "_zfirst" / "_3obs" / "_lnfblin" / "_fb" blocks carry the balance axis under its
+    // OLD name "_z" -- a B run pointed at any of them fails on a missing h3D_data_B.
+    const TString out_tag   = mcVarTag(track_eff_unc, eec_weight_off)
+                            + obsProdTag(observable);
 
     std::cout << "Sample: " << sample << ", unfolding generator: " << generator
               << ", template-fit generator: " << tfGenerator << std::endl;
@@ -320,7 +370,8 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     //--  Signal fraction from the template fit. This is the OTHER generator-dependent
     // input and it is deliberately its own flag: tfGenerator, independent of the
     // unfolding generator above. The sample still picks qcd vs qcd+bjet templates.
-    TString filename_template_fit = templateFitFile(sample, tfGenerator, track_eff_unc, tfVariation);
+    TString filename_template_fit = templateFitFile(sample, tfGenerator, track_eff_unc,
+                                                    tfVariation, eec_weight_off, observable);
 
     if (multiply_sigfrac) {
         if (filename_template_fit.Length() == 0) {
@@ -338,7 +389,20 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     // Mode 2 unfolds real data, which is one file and independent of the flags.
     std::vector<TString> filenames_data;
     if (is_data) {
-        filenames_data.push_back("/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/HardProbes/agg_template_chunks/Run3_btagWP712_template_for_fit_histos_3D_data_f_80_9999_2MCGEN.root");
+        // The data file has to match the OBSERVABLE, not just the selection: h3D_data is
+        // filled with eec * weight_tree, so unfolding the EEC-weighted file through an
+        // unweighted response would hand back the EEC. The yield run takes its own data
+        // production instead (make_hardprobes_condor_scripts.sh, EEC_WEIGHT_OFF=true).
+        //
+        // ⚠️ It also has to match the PRODUCTION: only the "_upartv2_B" data carries the
+        // B histograms at all. The dR-era files below predate the observable axis, and the
+        // pre-rename ones name the balance axis "_z", so a B run pointed at either fails on
+        // a missing h3D_data_B rather than reading the wrong thing -- which is the right way
+        // round, but it has to be pointed correctly here.
+        // dataTemplateFile() (result_paths.h) is the ONE definition of which data file an
+        // observable is measured from, shared with template_fit.cpp and plot_raw_yields.C --
+        // the fit, the unfolding and the raw-yield plot must all read the same jets.
+        filenames_data.push_back(dataTemplateFile(eec_weight_off, observable));
         // filenames_data.push_back("/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/HardProbes/agg_template_chunks/Run3_btagWP0712_template_for_fit_histos_3D_data_fMCGEN_upartv2.root"); // Zoe
     } else {
         filenames_data = aggChunkFiles(mc_base, sample, generator, "", "MCGEN", btag_tag, out_tag);
@@ -385,7 +449,16 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     const Float_t  title_size = 15. * font_scale;
     const Float_t  legend_size = 15. * font_scale;
     // One offset for every axis title, so they all sit the same distance from their numbers.
-    const Float_t  title_offset = 3.0; // 1.0 not enough 
+    const Float_t  title_offset = 3.0; // 1.0 not enough
+    // ... except on the X axis of a RATIO pad. With precision-43 (pixel) fonts the offset is
+    // measured in units of the PAD height, and the ratio pads here are 0.3 of the canvas, so
+    // 3.0 puts the x title about a full pad below the axis -- off the bottom of the canvas,
+    // drawn nowhere. That is why the correction-stages and bottomline plots came out with a
+    // bare x axis: the title was set all along, it just landed outside the picture.
+    // The Y titles keep title_offset, where the same scaling works out fine.
+    // 1.3 still clipped the descender of the "#Delta" against the canvas edge; 1.0 clears the
+    // tick labels and leaves the glyphs whole in both pads' bottom margins (0.23 and 0.18).
+    const Float_t  ratio_x_title_offset = 1.0;
 
     // ---- Grab response matrix + corrections
     std::cout << "Getting response + corrections from " << filenames_response.size()
@@ -398,22 +471,68 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     // the pre-divided ratios; recompute every correction here from the COUNT histograms,
     // which sum correctly. That applies to summing bjet onto qcd as well.
     // opt "b" = binomial (num is a subset of den), "" = normal errors.
-    auto ratioFromCounts = [&](const char* num, const char* den, const char* opt) -> TH2D* {
+    // TString, not const char*: the callers pass obs.n(...), which returns a TString.
+    auto ratioFromCounts = [&](const TString &num, const TString &den, const char* opt) -> TH2D* {
         TH2D* hn = sumOverFiles<TH2D>(fin_unfolding, num);
         TH2D* hd = sumOverFiles<TH2D>(fin_unfolding, den);
         if (!hn || !hd) return nullptr;
-        TH2D* r = (TH2D*) hn->Clone(Form("ratio_%s_over_%s", num, den));
+        TH2D* r = (TH2D*) hn->Clone(Form("ratio_%s_over_%s", num.Data(), den.Data()));
         r->SetDirectory(0);
         r->Divide(hn, hd, 1., 1., opt);
         return r;
     };
 
+    // Apply an MC-derived correction to the data as a pure bin-by-bin RESCALING: the
+    // content and the error in each bin are multiplied by the SAME factor, so the data's
+    // RELATIVE error is unchanged.
+    //
+    // This is deliberately NOT TH2::Multiply/Divide. Those propagate the correction's own
+    // statistical error into the result, which mixes the MC's limited statistics into the
+    // DATA's statistical error. The convention here is to treat every MC-derived correction
+    // as EXACT and to carry its statistical precision separately, as its own systematic --
+    // otherwise the same uncertainty is neither cleanly attributable nor separable.
+    //
+    // Runs over underflow and overflow too, so out-of-range bins stay consistent with the
+    // in-range ones rather than being silently left uncorrected.
+    //
+    // A zero correction cannot be rescaled: the bin is emptied and counted, and the count is
+    // reported. TH2::Divide would also produce 0 there, but silently.
+    auto applyCorrection = [](TH2D *h, const TH2D *corr, bool divide, const char *what) {
+        if (!h || !corr) return;
+        if (corr->GetNbinsX() != h->GetNbinsX() || corr->GetNbinsY() != h->GetNbinsY()) {
+            std::cerr << "ERROR: " << what << " has " << corr->GetNbinsX() << "x"
+                      << corr->GetNbinsY() << " bins but the data has " << h->GetNbinsX()
+                      << "x" << h->GetNbinsY() << " -- NOT applied" << std::endl;
+            return;
+        }
+        int n_zero = 0;
+        for (int ix = 0; ix <= h->GetNbinsX() + 1; ++ix) {
+            for (int iy = 0; iy <= h->GetNbinsY() + 1; ++iy) {
+                const double c = corr->GetBinContent(ix, iy);
+                if (c == 0.) {
+                    if (h->GetBinContent(ix, iy) != 0.) ++n_zero;
+                    h->SetBinContent(ix, iy, 0.);
+                    h->SetBinError(ix, iy, 0.);
+                    continue;
+                }
+                const double f = divide ? (1. / c) : c;
+                h->SetBinContent(ix, iy, h->GetBinContent(ix, iy) * f);
+                h->SetBinError  (ix, iy, h->GetBinError(ix, iy)   * f);   // same factor
+            }
+        }
+        std::cout << "\t---->" << (divide ? "Dividing by " : "Multiplying by ") << what
+                  << " (bin-by-bin rescale; MC treated as exact)";
+        if (n_zero) std::cout << " -- WARNING: " << n_zero
+                              << " non-empty bin(s) had a zero correction and were emptied";
+        std::cout << std::endl;
+    };
+
     // ----------- Grab data -----------
     std::vector<TFile *> fin_data = openAllOrWarn(filenames_data);
     if (fin_data.empty()) return;
-    TString histname = (test_mode == 0) ? "h3D_bb"
-                     : (test_mode == 1) ? "h3D_pseudodata_bb"
-                     :                     "h3D_data";
+    TString histname = (test_mode == 0) ? obs.n("h3D_bb")
+                     : (test_mode == 1) ? obs.n("h3D_pseudodata_bb")
+                     :                     obs.n("h3D_data");
     std::cout << "Using input histogram: " << histname << std::endl;
     TH3D *h_data_reco_3D_in = sumOverFiles<TH3D>(fin_data, histname);
     if (!h_data_reco_3D_in) {
@@ -468,52 +587,118 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         TH1D *h_sf = getOrWarn<TH1D>(fin_sf, sf_hist);
         if (!h_sf) return;
 
-        const int nx = h_data_after_fit->GetNbinsX();   // x is dr, y is pt
-        if (h_sf->GetNbinsX() != nx) {
-            std::cerr << "ERROR: UParT SF has " << h_sf->GetNbinsX() << " dr bins but the "
-                      << "reco data has " << nx << std::endl;
-            return;
-        }
-
-        // Bin by bin: read the content, multiply by the INVERSE of the SF in that dr bin,
-        // write it back. The table prints the reco content before and after for the pT bin
-        // the analysis uses, so the correction can be checked by eye against the SF column.
-        printf("\n  UParT SF applied bin by bin (reco level, pT bin %d)\n", ibin_pt);
-        printf("  %3s %13s %9s %9s %14s %14s %8s\n",
-               "bin", "dr range", "SF", "1/SF", "before", "after", "ratio");
-        printf("  ---------------------------------------------------------------------------\n");
-
-        for (int ix = 1; ix <= nx; ++ix) {
-            const double sf  = h_sf->GetBinContent(ix);
-            const double esf = h_sf->GetBinError(ix);
-            if (sf == 0.) {
-                std::cerr << "ERROR: UParT SF is zero in dr bin " << ix << std::endl;
+        // For the variations that propagate a QUOTED UNCERTAINTY rather than swapping in a
+        // different curve (jpsyst_up/jpsyst_dn), the per-bin error to add sits in its own
+        // histogram in the same file. Null for every other variation, and the arithmetic
+        // below then reduces to exactly what it was.
+        TH1D *h_sf_syst = nullptr;
+        const TString sf_syst_hist = sfupartSystHist(sfupartVariation);
+        if (sf_syst_hist.Length()) {
+            h_sf_syst = getOrWarn<TH1D>(fin_sf, sf_syst_hist);
+            if (!h_sf_syst) return;
+            // Indexed with the SAME bin number as the SF, so a mismatch would silently apply
+            // the wrong bin's uncertainty. Refuse instead.
+            if (h_sf_syst->GetNbinsX() != h_sf->GetNbinsX()) {
+                std::cerr << "ERROR: " << sf_syst_hist << " has " << h_sf_syst->GetNbinsX()
+                          << " bins, " << sf_hist << " has " << h_sf->GetNbinsX() << std::endl;
                 return;
             }
-            const double inv_sf = 1. / sf;       // the number every bin is multiplied by
-            const double rel_sf = esf / sf;
+        }
 
-            const double before = h_data_after_fit->GetBinContent(ix, ibin_pt);
+        const int nx = h_data_after_fit->GetNbinsX();   // x is dr, y is pt
+        const int ny = h_data_after_fit->GetNbinsY();
 
-            for (int iy = 1; iy <= h_data_after_fit->GetNbinsY(); ++iy) {
-                const double c = h_data_after_fit->GetBinContent(ix, iy);
-                const double e = h_data_after_fit->GetBinError(ix, iy);
-                const double c_new = c * inv_sf;
-                // The SF's own statistical error rides along into the data's error, so it
-                // ends up in the unfolded result's statistical error. It is uncorrelated
-                // between dr bins (each is a separate calibration measurement), which is
-                // what a bin-by-bin combination assumes.
-                const double e_new = (c != 0.)
-                    ? std::fabs(c_new) * std::sqrt((e / c) * (e / c) + rel_sf * rel_sf)
-                    : e * inv_sf;
-                h_data_after_fit->SetBinContent(ix, iy, c_new);
-                h_data_after_fit->SetBinError(ix, iy, e_new);
+        // The SF has FEWER dr bins than the analysis: its last bin spans 0.35-0.45, which
+        // covers the analysis's last TWO bins. So the analysis bin is matched to the SF bin
+        // by BIN CENTRE rather than by index -- bins 8 and 9 both land in SF bin 8 on their
+        // own, with no special case to get wrong if the binning changes again.
+        auto sfBinFor = [&](int ix) -> int {
+            // Underflow/overflow have no meaningful centre: clamp them to the nearest real
+            // SF bin, so every bin of the data gets corrected by something sensible.
+            if (ix < 1)  return 1;
+            if (ix > nx) return h_sf->GetNbinsX();
+            const double c = h_data_after_fit->GetXaxis()->GetBinCenter(ix);
+            int b = h_sf->GetXaxis()->FindBin(c);
+            if (b < 1)                     b = 1;
+            if (b > h_sf->GetNbinsX())     b = h_sf->GetNbinsX();
+            return b;
+        };
+
+        // Bin by bin: read the content, multiply by the INVERSE of the SF for that dr bin,
+        // write it back.
+        //
+        // INVERSE, i.e. divided in, because SF = eff_b_data / eff_b_mc (verified against
+        // h_eff_b_data_* / h_eff_b_mc_* in the same file) and the chain corrects the data
+        // with the efficiency measured in MC -- Divide(h_full_efficiency) and
+        // Divide(h_svbtag_eff) above. The true efficiency is eps_data = SF * eps_MC, so
+        // data/eps_MC still has to be divided by SF. Physically: SF < 1 means data tags
+        // LESS efficiently than MC, so the yield has to be scaled UP, which is 1/SF > 1.
+        // Multiplying would move it the wrong way. Flip this one flag if that reading is
+        // ever wrong -- everything else follows from it.
+        const bool kDivideBySF = true;
+        //
+        // No jet pT dependence is assumed: the same dr-dependent SF is applied to every pT
+        // bin. The loop below runs over all of y for that reason.
+        //
+        // The loops run 0..n+1, so the UNDERFLOW and OVERFLOW bins are corrected too. Both
+        // are empty in the current data (dr underflow = 0 against 7.9e8 in range), so this
+        // is a no-op today -- but it keeps the out-of-range bins consistent with the rest
+        // if they are ever filled, rather than leaving them silently uncorrected.
+        // statup/statdn shift the central SF by +/- its own statistical error, coherently in
+        // every dr bin. That error is the calibration's statistical precision; it is booked
+        // as its OWN systematic rather than being folded into the data's statistical error,
+        // so that the data error bar stays a data error bar.
+        const double stat_shift = (sfupartVariation == "statup") ?  1.
+                                : (sfupartVariation == "statdn") ? -1. : 0.;
+        // The JP HF CALIBRATION uncertainty, applied the same coherent way: +/- the quoted
+        // per-bin systematic in every dr bin at once. This is the second of the two ways to
+        // use the JP HF measurement -- see isKnownSfupartVariation() in result_paths.h for
+        // why applying the alternative curve (jpcalib_hf) is not the same thing.
+        const double syst_shift = sfupartSystShift(sfupartVariation);
+
+        printf("\n  UParT SF applied bin by bin (reco level, pT bin %d, %s%s%s)\n",
+               ibin_pt, kDivideBySF ? "data / SF" : "data * SF",
+               stat_shift > 0 ? ", SF shifted UP by its stat error"
+             : stat_shift < 0 ? ", SF shifted DOWN by its stat error" : "",
+               syst_shift > 0 ? ", SF shifted UP by the JP HF syst"
+             : syst_shift < 0 ? ", SF shifted DOWN by the JP HF syst" : "");
+        printf("  %3s %13s %5s %9s %9s %14s %14s %8s\n",
+               "bin", "dr range", "sfbin", "SF", "factor", "before", "after", "ratio");
+        printf("  -------------------------------------------------------------------------------------\n");
+
+        for (int ix = 0; ix <= nx + 1; ++ix) {
+            const int  isf = sfBinFor(ix);
+            const double sf = h_sf->GetBinContent(isf)
+                            + stat_shift * h_sf->GetBinError(isf)
+                            + (h_sf_syst ? syst_shift * h_sf_syst->GetBinContent(isf) : 0.);
+            if (sf == 0.) {
+                std::cerr << "ERROR: UParT SF is zero in its bin " << isf << std::endl;
+                return;
+            }
+            const double factor = kDivideBySF ? (1. / sf) : sf;
+
+            const double before = (ix >= 1 && ix <= nx)
+                                ? h_data_after_fit->GetBinContent(ix, ibin_pt) : 0.;
+
+            for (int iy = 0; iy <= ny + 1; ++iy) {
+                // A pure rescale: the content and the DATA's statistical error are both
+                // multiplied by the same factor, so the data's relative error is unchanged
+                // and the error bar still means what it says. The SF's own error is NOT
+                // added in quadrature here -- it is the statup/statdn systematic instead.
+                // Same treatment the MC corrections get further down.
+                h_data_after_fit->SetBinContent(ix, iy,
+                                                h_data_after_fit->GetBinContent(ix, iy) * factor);
+                h_data_after_fit->SetBinError  (ix, iy,
+                                                h_data_after_fit->GetBinError(ix, iy)   * factor);
             }
 
+            if (ix < 1 || ix > nx) continue;   // nothing useful to print for under/overflow
             const double after = h_data_after_fit->GetBinContent(ix, ibin_pt);
-            printf("  %3d [%5.2f,%5.2f] %9.5f %9.5f %14.6g %14.6g %8.4f\n", ix,
-                   h_sf->GetXaxis()->GetBinLowEdge(ix), h_sf->GetXaxis()->GetBinUpEdge(ix),
-                   sf, inv_sf, before, after, (before != 0. ? after / before : 0.));
+            printf("  %3d [%5.2f,%5.2f] %5d %9.5f %9.5f %14.6g %14.6g %8.4f%s\n", ix,
+                   h_data_after_fit->GetXaxis()->GetBinLowEdge(ix),
+                   h_data_after_fit->GetXaxis()->GetBinUpEdge(ix),
+                   isf, sf, factor, before, after, (before != 0. ? after / before : 0.),
+                   (ix > 1 && isf == sfBinFor(ix - 1)) ? "   <- shares the SF bin above" : "");
         }
         printf("\n");
         fin_sf->Close();
@@ -540,6 +725,12 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     TH2D *h_full_efficiency = nullptr;
     TH2D *h_mc_reco = nullptr;
     RooUnfoldResponse *response = nullptr;
+    // ⚠️ ASSIGNED BUT NEVER USED (checked 2026-09-22). Nothing downstream reads it, so the
+    // two branches below are dead. Left in place because it is the obvious handle for a
+    // "before the efficiency correction" comparison -- but note that in the split test it is
+    // assigned the ODD half (the response half's matched gen), NOT the even half the
+    // pseudodata comes from. If it is ever wired up to a plot, it must be swapped for the
+    // even-half equivalent first, or that comparison would be against the matrix's own truth.
     TH2D *h_mc_true_no_eff = nullptr;
 
     // The reco-level MC comparison must match what the data curve has had done to it:
@@ -547,31 +738,31 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     if (split_test){
         std::cout << "\t----> Doing split test" << std::endl;
         // --- 
-        // h_full_purity = getOrWarn<TH2D>(fin_unfolding, "h_full_pseudo_purity_tf"); // wrong ratio due to merged files 
-        // h_full_efficiency = getOrWarn<TH2D>(fin_unfolding, "h_full_pseudo_efficiency_tf"); // wrong ratio due to merged files 
+        // h_full_purity = getOrWarn<TH2D>(fin_unfolding, obs.n("h_full_pseudo_purity_tf")); // wrong ratio due to merged files 
+        // h_full_efficiency = getOrWarn<TH2D>(fin_unfolding, obs.n("h_full_pseudo_efficiency_tf")); // wrong ratio due to merged files 
         // --- 
 
-        h_full_purity = ratioFromCounts("h_full_pseudo_purity_numerator_tf", "h_full_pseudo_purity_denominator_tf", "h_pseudo_purity");
-        h_full_efficiency = ratioFromCounts("h_full_pseudo_efficiency_numerator_tf", "h_full_pseudo_efficiency_denominator_tf", "h_pseudo_efficiency");
+        h_full_purity = ratioFromCounts(obs.n("h_full_pseudo_purity_numerator_tf"), obs.n("h_full_pseudo_purity_denominator_tf"), "h_pseudo_purity");
+        h_full_efficiency = ratioFromCounts(obs.n("h_full_pseudo_efficiency_numerator_tf"), obs.n("h_full_pseudo_efficiency_denominator_tf"), "h_pseudo_efficiency");
         
-        h_mc_reco = sumOverFiles<TH2D>(fin_unfolding, apply_purity ? "h_full_pseudo_purity_numerator_tf"
-                                                                  : "h_full_pseudo_purity_denominator_tf");
-        response = sumResponseOverFiles(fin_unfolding, "response_tf_pseudo_full");
-        h_mc_true_no_eff = sumOverFiles<TH2D>(fin_unfolding, "h_full_pseudo_efficiency_numerator_tf");
+        h_mc_reco = sumOverFiles<TH2D>(fin_unfolding, apply_purity ? obs.n("h_full_pseudo_purity_numerator_tf")
+                                                                  : obs.n("h_full_pseudo_purity_denominator_tf"));
+        response = sumResponseOverFiles(fin_unfolding, obs.n("response_tf_pseudo_full"));
+        h_mc_true_no_eff = sumOverFiles<TH2D>(fin_unfolding, obs.n("h_full_pseudo_efficiency_numerator_tf"));
     }
     else {
         // ---  
-        // h_full_purity = getOrWarn<TH2D>(fin_unfolding, "h_full_purity_tf"); // Wrong ratio due to merged files 
-        // h_full_efficiency = getOrWarn<TH2D>(fin_unfolding, "h_full_efficiency_tf"); // wrong ratio due to merged files 
+        // h_full_purity = getOrWarn<TH2D>(fin_unfolding, obs.n("h_full_purity_tf")); // Wrong ratio due to merged files 
+        // h_full_efficiency = getOrWarn<TH2D>(fin_unfolding, obs.n("h_full_efficiency_tf")); // wrong ratio due to merged files 
         // --- 
 
-        h_full_purity     = ratioFromCounts("h_full_purity_numerator_tf", "h_full_purity_denominator_tf", "h_purity");
-        h_full_efficiency = ratioFromCounts("h_full_efficiency_numerator_tf", "h_full_efficiency_denominator_tf", "h_efficiency");
+        h_full_purity     = ratioFromCounts(obs.n("h_full_purity_numerator_tf"), obs.n("h_full_purity_denominator_tf"), "h_purity");
+        h_full_efficiency = ratioFromCounts(obs.n("h_full_efficiency_numerator_tf"), obs.n("h_full_efficiency_denominator_tf"), "h_efficiency");
 
-        h_mc_reco = sumOverFiles<TH2D>(fin_unfolding, apply_purity ? "h_full_purity_numerator_tf"
-                                                                  : "h_full_purity_denominator_tf");
-        response = sumResponseOverFiles(fin_unfolding, "response_tf_full");
-        h_mc_true_no_eff = sumOverFiles<TH2D>(fin_unfolding, "h_full_efficiency_numerator_tf");
+        h_mc_reco = sumOverFiles<TH2D>(fin_unfolding, apply_purity ? obs.n("h_full_purity_numerator_tf")
+                                                                  : obs.n("h_full_purity_denominator_tf"));
+        response = sumResponseOverFiles(fin_unfolding, obs.n("response_tf_full"));
+        h_mc_true_no_eff = sumOverFiles<TH2D>(fin_unfolding, obs.n("h_full_efficiency_numerator_tf"));
     }
     if (!h_full_purity || !h_full_efficiency || !h_mc_reco || !response) return;
 
@@ -593,17 +784,27 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
               << " response file(s)" << std::endl;
     TH2D *h_mc_true = nullptr;
     if (test_mode == 1) {
-        // Split test: the even half's gen distribution -- same gen_pass gate and same w_reco
-        // weight the correction chain outputs. Independent from the odd-half corrections.
-        h_mc_true = sumOverFiles<TH2D>(fin_response_truth, "h_pseudodata_truth_tf");
+        // ⚠️ THE TRUTH OF THE PSEUDODATA, NOT THE TRUTH THAT FILLED THE MATRIX.
+        // h_pseudodata_truth_tf is filled in create_files_for_template_fit.cpp under
+        // `ient % 2 == 0` -- the EVEN half, the same events that fill h3D_pseudodata_bb,
+        // which is what this mode unfolds. The response and the purity/efficiency ratios are
+        // the ODD half (`ient % 2 == 1`, the ps_* histograms). So the closure asked here is
+        // "does the odd-half response recover the even half's own gen distribution", which is
+        // a real independent test. Comparing against the odd half's gen instead
+        // (h_full_pseudo_efficiency_denominator_tf) would be testing the unfolding against
+        // the prior it was built from -- it would close better and mean nothing.
+        // Both halves carry the same gen_pass gate and the same w_reco weight, so the
+        // normalisations are directly comparable; they are ~half the sample each, so a
+        // half-swap would NOT show up as a gross scale error. It has to be read off the name.
+        h_mc_true = sumOverFiles<TH2D>(fin_response_truth, obs.n("h_pseudodata_truth_tf"));
     } else if (test_mode == 0) {
         // Full-MC closure: the full-sample all-gen distribution the chain recovers by construction.
-        h_mc_true = sumOverFiles<TH2D>(fin_response_truth, "h_full_efficiency_denominator_tf");
+        h_mc_true = sumOverFiles<TH2D>(fin_response_truth, obs.n("h_full_efficiency_denominator_tf"));
     } else {
         // Data: gen reference. After the combined SV-reco + b-tag correction below, the
         // result is at the "all true 2b" level, so compare against hgenjet_2b_all (the
         // combined-efficiency denominator), not hgenjet_2b_passbtag (2SV+btag level).
-        h_mc_true = sumOverFiles<TH2D>(fin_response_truth, "hgenjet_2b_all");
+        h_mc_true = sumOverFiles<TH2D>(fin_response_truth, obs.n("hgenjet_2b_all"));
     }
     if (!h_mc_true) return;
 
@@ -611,8 +812,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     //------- Apply purity correction
     TH2D *h_data_purity_corrected = (TH2D *) h_data_after_fit->Clone("h_data_purity_corrected");
     if (apply_purity) {
-        std::cout << "\t---->Multiplying data by purity" << std::endl;
-        h_data_purity_corrected->Multiply(h_full_purity);
+        applyCorrection(h_data_purity_corrected, h_full_purity, /*divide=*/false, "purity");
     } else {
         std::cout << "\t---->NOT multiplying data by purity" << std::endl;
     }
@@ -645,26 +845,45 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     for (int iter = niter_min; iter <= niter_max; ++iter) {
 
     // Single non-scan pass keeps the nominal 7 iterations; the scan walks 1..100.
-    const Int_t niter_now = scan_niter ? iter + 1 : 7;
+    // scan_niter walks 1..50; otherwise use niter_fixed. The old hardcoded 7 is the default,
+    // so an unchanged call is unchanged -- but for a new observable the right value has to be
+    // found with scan_niter=true first. For the balance the scan says 21-26; 7 refolds at
+    // chi2/ndf = 16 (p = 2e-29), i.e. badly under-iterated and still close to the prior.
+    //
+    // ⚠️ A scan_niter run WRITES THE LAST PASS (niter = 50), not the optimum it reports. Use
+    // the scan to find the number, then re-run with scan_niter=false and niter_fixed set.
+    const Int_t niter_now = scan_niter ? iter + 1 : niter_fixed;
 
     // ---- Unfold
-    std::cout << "\t---->Unfolding (niter = " << niter_now << ")" << std::endl;
+    // Say WHICH unfolding: an "niter" in the log of a matrix inversion reads as a Bayesian
+    // run at that iteration count, and the two results are not the same measurement.
+    std::cout << (unfoldBayes ? Form("\t---->Unfolding, Bayesian (niter = %d)", (int) niter_now)
+                              : "\t---->Unfolding, matrix inversion (no regularisation)")
+              << std::endl;
     RooUnfold::ErrorTreatment errorTreatment = RooUnfold::kCovariance;
     TH2D *h_data_unfolded = nullptr;
-    TMatrixD covariance_matrix_before_unfolding(dim,dim);
-    TMatrixD covariance_matrix_after_unfolding(dim,dim);
+    // ---- disabled (kept for reference): the two covariance matrices ----
+    // Nothing downstream ever read them, and RooUnfold hands back matrices whose dimension
+    // is not dim = bins_pt*bins_dr, so each assignment printed
+    //     Error in <operator=(const TMatrixT &)>: matrices not compatible
+    // and left the matrix as it was. Harmless, but it is an "Error" in every log, and matrix
+    // inversion is now the default -- a real inversion problem has to be visible in that log.
+    // The per-bin errors that ARE used come from Hreco(kCovariance) just below, which
+    // computes the same covariance internally.
+    // TMatrixD covariance_matrix_before_unfolding(dim,dim);
+    // TMatrixD covariance_matrix_after_unfolding(dim,dim);
     if (unfoldBayes) {
         RooUnfoldBayes unfold(response, h_data_purity_corrected, niter_now);
         // Clone before `unfold` leaves scope: some RooUnfold versions hand back a cached
         // histogram that the unfolder owns and deletes with itself.
         h_data_unfolded = (TH2D *) unfold.Hreco(errorTreatment)->Clone("h_data_unfolded");
-        covariance_matrix_before_unfolding = unfold.GetMeasuredCov();
-        covariance_matrix_after_unfolding = unfold.Ereco();
+        // covariance_matrix_before_unfolding = unfold.GetMeasuredCov();
+        // covariance_matrix_after_unfolding = unfold.Ereco();
     } else {
         RooUnfoldInvert unfold(response, h_data_purity_corrected);
         h_data_unfolded = (TH2D *) unfold.Hreco(errorTreatment)->Clone("h_data_unfolded");
-        covariance_matrix_before_unfolding = unfold.GetMeasuredCov();
-        covariance_matrix_after_unfolding = unfold.Ereco();
+        // covariance_matrix_before_unfolding = unfold.GetMeasuredCov();
+        // covariance_matrix_after_unfolding = unfold.Ereco();
     }
 
     // ---- Fold back
@@ -679,9 +898,15 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
                                          ibin_dr_min, ibin_dr_max, 1, bins_pt);
     const RefoldGof gof_pt  = refoldChi2(h_data_refolded, h_data_purity_corrected,
                                          ibin_dr_min, ibin_dr_max, ibin_pt, ibin_pt);
-    std::cout << Form("\t---->Refolding GoF  niter = %3d | 2D: chi2/ndf = %8.2f/%3d = %6.3f, "
+    // "niter = " only where there are iterations; matrix inversion would otherwise report the
+    // untouched niter_fixed and read as a Bayesian run at that value. Built as its own
+    // TString, NOT a nested Form(): Form() returns a pointer into one static buffer, so a
+    // Form() inside a Form() has the outer call overwrite what the inner one returned.
+    const TString reg_label = unfoldBayes ? TString::Format("niter = %3d", (int) niter_now)
+                                          : TString("inversion");
+    std::cout << Form("\t---->Refolding GoF  %-11s | 2D: chi2/ndf = %8.2f/%3d = %6.3f, "
                       "p = %8.3e | pT bin %d: chi2/ndf = %8.2f/%3d = %6.3f, p = %8.3e",
-                      niter_now,
+                      reg_label.Data(),
                       gof_all.chi2, gof_all.ndf, gof_all.chi2ndf(), gof_all.pvalue,
                       ibin_pt, gof_pt.chi2, gof_pt.ndf, gof_pt.chi2ndf(), gof_pt.pvalue)
               << std::endl;
@@ -692,9 +917,9 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     v_chi2ndf_pt.push_back(gof_pt.chi2ndf());
 
     // ---- Apply efficiency correction
-    std::cout << "\t---->Dividing by recostruction efficiency" << std::endl;
     TH2D *h_data_efficiency_corrected = (TH2D *) h_data_unfolded->Clone("h_data_efficiency_corrected");
-    h_data_efficiency_corrected->Divide(h_full_efficiency);
+    applyCorrection(h_data_efficiency_corrected, h_full_efficiency, /*divide=*/true,
+                    "reconstruction efficiency");
 
     // ---- Final corrections
     TH2D *h_data_fully_corrected = (TH2D *) h_data_efficiency_corrected->Clone("h_data_fully_corrected");
@@ -705,18 +930,33 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
     // Orthogonal to the reconstruction-kinematic efficiency (h_full_efficiency) applied above.
     // Skipped in closure modes (0/1), whose truth targets live at the 2SV+btag level.
     if (test_mode == 2) {
-        TH2D *h_svbtag_eff = ratioFromCounts("hgenjet_2b_reco_btag", "hgenjet_2b_all", "b");
+        TH2D *h_svbtag_eff = ratioFromCounts(obs.n("hgenjet_2b_reco_btag"), obs.n("hgenjet_2b_all"), "b");
         if (h_svbtag_eff) {
-            std::cout << "\t---->Dividing by combined SV-reco + b-tag efficiency" << std::endl;
             // systematic hook: scale h_svbtag_eff by the CMS b-tag SF map here, then vary SF +/-.
-            h_data_fully_corrected->Divide(h_svbtag_eff);
+            applyCorrection(h_data_fully_corrected, h_svbtag_eff, /*divide=*/true,
+                            "combined SV-reco + b-tag efficiency");
         }
         // EEC-weight correction: convert the reco-EEC-weighted result to gen-EEC-weighted.
         // r_eec = sum(eec_gen)/sum(eec_reco) over reconstructed 2b jets -> MULTIPLY.
-        TH2D *h_eec_weight_eff = ratioFromCounts("hgenjet_2b_reco_btag", "hgenjet_2b_passbtag", "");
+        //
+        // THE EEC MEASUREMENT ONLY. Its two inputs are the same jets filled with w_reco =
+        // weight * eec_reco and w_gen = weight * eec_gen, so with the weight off
+        // (EecWeight::value() returns 1) they are the SAME histogram and the ratio is exactly
+        // 1 -- verified bit-for-bit on one of the (now disabled) fraction productions, all
+        // 10 cells. Applying it to a
+        // yield was therefore harmless but wrong to show: the correction-stages plot drew a
+        // "+ EEC weight" stage sitting exactly on the one before it, and the log announced a
+        // correction that corrected nothing. A yield has no EEC weight to correct back to.
+        TH2D *h_eec_weight_eff = eec_weight_off
+                               ? nullptr
+                               : ratioFromCounts(obs.n("hgenjet_2b_reco_btag"),
+                                                 obs.n("hgenjet_2b_passbtag"), "");
         if (h_eec_weight_eff) {
-            std::cout << "\t---->Multiplying by EEC-weight (reco->gen) correction" << std::endl;
-            h_data_fully_corrected->Multiply(h_eec_weight_eff);
+            applyCorrection(h_data_fully_corrected, h_eec_weight_eff, /*divide=*/false,
+                            "EEC-weight (reco->gen) correction");
+        } else if (eec_weight_off) {
+            std::cout << "\t---->No EEC-weight correction: the weight is off, this is a yield"
+                      << std::endl;
         }
     }
 
@@ -735,9 +975,11 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         const bool normalise_corr_stages = false;
         std::cout << "\t---->Making correction-stage EEC + ratio plot ("
                   << (normalise_corr_stages ? "normalised" : "absolute") << ")" << std::endl;
-        TH2D *h_btag_c = ratioFromCounts("hgenjet_2b_passbtag",  "hgenjet_2b",          "b"); // b-tag only, after 2SV
-        TH2D *h_svb_c  = ratioFromCounts("hgenjet_2b_reco_btag", "hgenjet_2b_all",      "b"); // 2SV + b-tag combined
-        TH2D *h_eec_c  = ratioFromCounts("hgenjet_2b_reco_btag", "hgenjet_2b_passbtag", "");  // EEC weight
+        TH2D *h_btag_c = ratioFromCounts(obs.n("hgenjet_2b_passbtag"),  obs.n("hgenjet_2b"),          "b"); // b-tag only, after 2SV
+        TH2D *h_svb_c  = ratioFromCounts(obs.n("hgenjet_2b_reco_btag"), obs.n("hgenjet_2b_all"),      "b"); // 2SV + b-tag combined
+        // Null for a yield run, exactly as above: no EEC weight, no EEC-weight stage.
+        TH2D *h_eec_c  = eec_weight_off ? nullptr
+                       : ratioFromCounts(obs.n("hgenjet_2b_reco_btag"), obs.n("hgenjet_2b_passbtag"), "");  // EEC weight
 
         // 2SV alone. No count pair gives it directly (hgenjet_2b / hgenjet_2b_all mixes in the
         // reco/gen EEC-weight ratio, different weights), so factorise the combined efficiency:
@@ -829,7 +1071,10 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         // pad_main ->SetMargin(0.13, 0.05, 0.00, 0.08);
         // pad_ratio->SetMargin(0.13, 0.05, 0.32, 0.00);
         pad_main->SetMargin(0.1, 0.1, 0.0, 0.1);
-        pad_ratio->SetMargin(0.1, 0.1, 0.23, 0.0);
+        // Bottom margin 0.30, not 0.23: the x title has to fit UNDER the tick labels, and B's
+        // label (p_{T}^{b1}/(p_{T}^{b1} + p_{T}^{b2})) is two storeys tall -- at 0.23 its
+        // subscripts were cut off by the canvas edge. #Delta r is unaffected either way.
+        pad_ratio->SetMargin(0.1, 0.1, 0.30, 0.0);
 
 
         c_cmp->cd(); pad_main->Draw(); pad_ratio->Draw();
@@ -838,8 +1083,8 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         pad_main->cd();
         p_base->SetTitle("");
         p_base->GetYaxis()->SetRangeUser(0., ymax * 1.6);
-        p_base->GetYaxis()->SetTitle(normalise_corr_stages ? "normalised EEC(#Delta r)"
-                                                          : "EEC(#Delta r)");
+        p_base->GetYaxis()->SetTitle(normalise_corr_stages ? "normalised " + obs_title
+                                                          : obs_title);
         p_base->GetYaxis()->CenterTitle(true);
         p_base->GetYaxis()->SetTitleFont(font_code); p_base->GetYaxis()->SetTitleSize(title_size); p_base->GetYaxis()->SetTitleOffset(1.5);
         p_base->GetYaxis()->SetLabelFont(font_code); p_base->GetYaxis()->SetLabelSize(label_size);
@@ -852,8 +1097,13 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         p_base->SetLineWidth(2);
         // Gen MC as an outline with its error band, like the bottomline plot, so it reads as the
         // reference rather than as another correction stage.
+        fixXRange(p_base);
         p_base->Draw("PE X0"); p_true->Draw("HIST E SAME");
-        p_2sv->Draw("PE X0 SAME"); p_svbtag->Draw("PE X0 SAME"); p_full->Draw("PE X0 SAME");
+        p_2sv->Draw("PE X0 SAME"); p_svbtag->Draw("PE X0 SAME");
+        // p_full only exists as a separate stage when there is an EEC weight to correct: in a
+        // yield run h_eec_c is null, so p_full IS p_svbtag and drawing it again would put a
+        // second marker on top of the first and claim a stage that did nothing.
+        if (h_eec_c) p_full->Draw("PE X0 SAME");
 
         TLegend *lg = new TLegend(0.17, 0.60, 0.60, 0.85);
         lg->SetFillStyle(0); lg->SetBorderSize(0); lg->SetMargin(0.15);
@@ -863,7 +1113,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         lg->AddEntry(p_base,   "after unfolding",            "pe1");
         lg->AddEntry(p_2sv,    "+ 2SV eff.",                 "pe1");
         lg->AddEntry(p_svbtag, "+ 2SV + b-tag eff.",         "pe1");
-        lg->AddEntry(p_full,   "+ 2SV + b-tag + EEC weight", "pe1");
+        if (h_eec_c) lg->AddEntry(p_full,   "+ 2SV + b-tag + EEC weight", "pe1");
         lg->AddEntry(p_true,   normalise_corr_stages ? "Gen MC" : "Gen MC (scaled to data)", "l");
         lg->Draw();
 
@@ -886,14 +1136,16 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         r_2sv->GetYaxis()->SetTitleFont(font_code); r_2sv->GetYaxis()->SetTitleSize(title_size); r_2sv->GetYaxis()->SetTitleOffset(1.5);
         r_2sv->GetYaxis()->SetLabelFont(font_code); r_2sv->GetYaxis()->SetLabelSize(label_size);
         r_2sv->GetYaxis()->SetNdivisions(505);
-        r_2sv->GetXaxis()->SetTitle("#Delta r");
+        r_2sv->GetXaxis()->SetTitle(obs_axis);
         r_2sv->GetXaxis()->CenterTitle(true);
 
-        // Precision-43 offsets scale off the (short) ratio-pad height: 3.2 put the title clean
-        // off the bottom of the canvas, so no x title was drawn at all. 1.3 lands it under the labels.
-        r_2sv->GetXaxis()->SetTitleFont(font_code); r_2sv->GetXaxis()->SetTitleSize(title_size); r_2sv->GetXaxis()->SetTitleOffset(title_offset);
+        // Precision-43 offsets scale off the (short) ratio-pad height, so this is
+        // ratio_x_title_offset and NOT title_offset -- see where they are defined.
+        r_2sv->GetXaxis()->SetTitleFont(font_code); r_2sv->GetXaxis()->SetTitleSize(title_size); r_2sv->GetXaxis()->SetTitleOffset(ratio_x_title_offset);
         r_2sv->GetXaxis()->SetLabelFont(font_code); r_2sv->GetXaxis()->SetLabelSize(label_size);
-        r_2sv->Draw("PE X0"); r_btag->Draw("PE X0 SAME"); r_eec->Draw("PE X0 SAME");
+        fixXRange(r_2sv);
+        r_2sv->Draw("PE X0"); r_btag->Draw("PE X0 SAME");
+        if (h_eec_c) r_eec->Draw("PE X0 SAME");
 
         // Unity reference. A cloned histogram drawn with "HIST L" joins BIN CENTRES, so it stopped
         // half a bin short of each end of the axis; a TLine spans the plotted range edge to edge.
@@ -909,7 +1161,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         lg_r->SetTextFont(font_code); lg_r->SetTextSize(legend_size * 0.8);
         lg_r->AddEntry(r_2sv,  "2SV",  "pe1");
         lg_r->AddEntry(r_btag, "+b-tag", "pe1");
-        lg_r->AddEntry(r_eec,  "+EEC weight", "pe1");
+        if (h_eec_c) lg_r->AddEntry(r_eec,  "+EEC weight", "pe1");
         lg_r->Draw();
         pad_ratio->RedrawAxis();
 
@@ -1013,14 +1265,19 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
                        ? Form("p_{T}^{jet} > %.0f GeV", pt_min_plot)
                        : Form("%.0f < p_{T}^{jet} < %.0f GeV", pt_min_plot, pt_max_plot));
 
-        // Name every curve by what it is and, in the split test, which half it came from.
-        TString lbl_reco     = split_test ? "Reco pseudodata"  : "Reco data";
-        TString lbl_mc_reco  = split_test ? (apply_purity ? "Reco MC, matched"
-                                                          : "Reco MC, all reco")
+        // Name every curve by what it is and, in the split test, WHICH HALF it came from.
+        // The halves are not interchangeable and the plot has to say which is which:
+        //   even half (ient % 2 == 0) = the pseudodata, and its own gen truth
+        //   odd  half (ient % 2 == 1) = the response matrix and the purity/efficiency ratios
+        // The closure being tested is "unfolded even half" against "even half truth" -- the
+        // gen of the PSEUDODATA, not the gen that filled the matrix. A legend that just said
+        // "Gen MC" left that unsaid, which is the one thing a reader of this plot has to know.
+        TString lbl_reco     = split_test ? "Reco pseudodata (even half)"  : "Reco data";
+        TString lbl_mc_reco  = split_test ? (apply_purity ? "Reco MC, matched (odd half)"
+                                                          : "Reco MC, all reco (odd half)")
                                           : "Reco MC";
-        TString lbl_unfolded = split_test ? "Unfolded pseudodata"  : "Unfolded data";
-        // Same gen distribution, two disjoint samples. Only the half differs.
-        TString lbl_mc_true  = split_test ? "Gen MC"  : "Gen MC";
+        TString lbl_unfolded = split_test ? "Unfolded pseudodata (even half)"  : "Unfolded data";
+        TString lbl_mc_true  = split_test ? "Gen MC, pseudodata truth (even half)"  : "Gen MC";
 
         // Only the first histogram drawn owns the pad's axes; style them there and nowhere else.
         h_data_purity_corrected_2D->SetTitle("");//Data, " + label + " " + " response matrix");
@@ -1033,7 +1290,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         h_data_purity_corrected_2D->GetYaxis()->SetRangeUser(0., ymax*1.75);
         // TLatex (#Delta), not TMathText (\Delta\mbox{r}): TMathText axis titles do not get
         // placed reliably — the x-axis title was silently dropped altogether.
-        h_data_purity_corrected_2D->GetYaxis()->SetTitle("EEC(#Delta r)");
+        h_data_purity_corrected_2D->GetYaxis()->SetTitle(obs_title);
         h_data_purity_corrected_2D->GetYaxis()->CenterTitle(true);
         h_data_purity_corrected_2D->GetYaxis()->SetTitleFont(font_code);
         h_data_purity_corrected_2D->GetYaxis()->SetTitleSize(title_size);
@@ -1105,7 +1362,10 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         //pad_main->SetLogx();
 
         pad_main->SetMargin(0.1, 0.1, 0.0, 0.1);
-        pad_ratio->SetMargin(0.1, 0.1, 0.23, 0.0);
+        // Bottom margin 0.30, not 0.23: the x title has to fit UNDER the tick labels, and B's
+        // label (p_{T}^{b1}/(p_{T}^{b1} + p_{T}^{b2})) is two storeys tall -- at 0.23 its
+        // subscripts were cut off by the canvas edge. #Delta r is unaffected either way.
+        pad_ratio->SetMargin(0.1, 0.1, 0.30, 0.0);
 
     
         // Attach the pads to the canvas before drawing into them, so gPad and the pad's
@@ -1116,6 +1376,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
 
         pad_main->cd();
         h_data_purity_corrected_2D->GetXaxis()->SetRange(ibin_dr_min, ibin_dr_max);
+        fixXRange(h_data_purity_corrected_2D);
         h_data_purity_corrected_2D->Draw("PE X0");
 
         //h_data_unfolded_2D->Draw("pe1 same");
@@ -1195,7 +1456,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         h_mc_gen_reco_ratio->SetLineWidth(1);
         h_mc_gen_reco_ratio->SetMarkerSize(0);
                 h_mc_gen_reco_ratio->GetYaxis()->SetTitle("ratio");
-                h_mc_gen_reco_ratio->GetXaxis()->SetTitle("#Delta r");
+                h_mc_gen_reco_ratio->GetXaxis()->SetTitle(obs_axis);
                         h_mc_gen_reco_ratio->GetYaxis()->CenterTitle(true);
                         h_mc_gen_reco_ratio->GetXaxis()->CenterTitle(true);
         h_mc_gen_reco_ratio->GetXaxis()->SetTitleSize(0.2); 
@@ -1213,13 +1474,19 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         // Match the ratio-pad axes to the main pad: pixel (precision-43) fonts with the same
         // title size, label size and title offset, so every axis name is the same size and the
         // same distance from its numbers. Overrides the fractional sizes set just above.
+        // h_mc_gen_reco_ratio is drawn FIRST in the ratio pad, so it owns that pad's axes and
+        // these are the settings that render -- the ones on h_data_mc_reco_ratio below do not.
         for (TAxis *ax : { h_mc_gen_reco_ratio->GetXaxis(), h_mc_gen_reco_ratio->GetYaxis() }) {
             ax->SetTitleFont(font_code);
             ax->SetTitleSize(title_size);
-            ax->SetTitleOffset(title_offset); //title_offset = 1.0 default   not enough for the unfolding plot 
             ax->SetLabelFont(font_code);
             ax->SetLabelSize(label_size);
         }
+        // X gets the ratio-pad offset, Y keeps the canvas-wide one: at title_offset the x title
+        // is drawn a full pad height below the axis, i.e. off the canvas, which is why this
+        // plot had no x title at all.
+        h_mc_gen_reco_ratio->GetYaxis()->SetTitleOffset(title_offset);
+        h_mc_gen_reco_ratio->GetXaxis()->SetTitleOffset(ratio_x_title_offset);
 
 
         // Orange, not red: its numerator is the unfolded data, but red is already drawn in this pad
@@ -1242,7 +1509,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         h_data_mc_reco_ratio->GetYaxis()->SetLabelFont(font_code);
         h_data_mc_reco_ratio->GetYaxis()->SetLabelSize(label_size);
         h_data_mc_reco_ratio->GetYaxis()->SetNdivisions(505);
-        h_data_mc_reco_ratio->GetXaxis()->SetTitle("#Delta r");
+        h_data_mc_reco_ratio->GetXaxis()->SetTitle(obs_axis);
         h_data_mc_reco_ratio->GetXaxis()->CenterTitle(true);
         h_data_mc_reco_ratio->GetXaxis()->SetTitleFont(font_code);
         h_data_mc_reco_ratio->GetXaxis()->SetTitleSize(title_size);
@@ -1265,7 +1532,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         h_mc_gen_reco_ratio->GetYaxis()->SetLabelFont(font_code);
         h_mc_gen_reco_ratio->GetYaxis()->SetLabelSize(label_size);
         h_mc_gen_reco_ratio->GetYaxis()->SetNdivisions(505);
-        h_mc_gen_reco_ratio->GetXaxis()->SetTitle("#Delta r");
+        h_mc_gen_reco_ratio->GetXaxis()->SetTitle(obs_axis);
         h_mc_gen_reco_ratio->GetXaxis()->CenterTitle(true);
         h_mc_gen_reco_ratio->GetXaxis()->SetTitleFont(font_code);
         h_mc_gen_reco_ratio->GetXaxis()->SetTitleSize(title_size);
@@ -1318,6 +1585,7 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
         band_before_after->SetFillStyle(1001);
         band_before_after->SetLineWidth(0);
 
+        fixXRange(h_mc_gen_reco_ratio);
         h_mc_gen_reco_ratio->Draw("hist");     // axes + blue line
         band_before_after->Draw("f same");     // band behind the curves
         h_mc_gen_reco_ratio->Draw("hist same");// redraw blue crisp over the band
@@ -1589,10 +1857,16 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
 //              a Herwig unfolding still takes its signal fraction from the Pythia fit.
 //              Setting it to herwig stops with a message until that fit is produced.
 // test_mode:   0 = full-MC closure, 1 = split test, 2 = data
-// unfoldBayes: true = Bayesian, false = matrix inversion
+// unfoldBayes: true = Bayesian, false = matrix inversion.
+//              DEFAULT false: matrix inversion is the unfolding of BOTH observables. It has
+//              no regularisation and so no iteration count to justify per observable -- the
+//              Bayesian run needed niter = 7 for dr and 21-26 for B, two numbers tuned on two
+//              refolding scans, and a band built from variations unfolded at a regularisation
+//              strength of their own is not a band. Pass true to get the Bayesian result back.
 // scan_niter:  true = scan niter = 1..100 and pick the optimal one from the refolding
 //              goodness-of-fit test; false = one unfolding at the nominal niter = 4.
-//              Bayesian only -- matrix inversion has no iterations to scan.
+//              Bayesian only -- matrix inversion has no iterations to scan, so it is refused
+//              with unfoldBayes = false rather than silently ignored.
 // TRACK_EFF_UNC: false (nominal) | true
 //              Which MC production to unfold with. true reads the files written with 3%
 //              of the reconstructed tracks thrown away during the B reconstruction
@@ -1617,23 +1891,42 @@ void apply_unfolding(TString &label, TString &folder, bool btag, Int_t n, TStrin
 //
 // e.g.  root -l -b -q 'apply_unfolding_2d.C("both","pythia")'   // nominal
 //       root -l -b -q 'apply_unfolding_2d.C("both","herwig")'   // Herwig unfolding MC
-//       root -l -b -q 'apply_unfolding_2d.C("both","pythia",2,true,false,"pythia",true)'
+//       root -l -b -q 'apply_unfolding_2d.C("both","pythia",2,false,false,"pythia",true)'
 //                                                             // tracking-efficiency variation
-//       root -l -b -q 'apply_unfolding_2d.C("both","pythia",2,true,false,"pythia",false,"var0B_2")'
+//       root -l -b -q 'apply_unfolding_2d.C("both","pythia",2,false,false,"pythia",false,"var0B_2")'
 //                                                             // light-jet mistag up
-// SFUPART_VARIATION: nominal | jpcalib_hf | qqrate_up | qqrate_down
+// SFUPART_VARIATION: nominal | off | jpcalib_hf | qqrate_up | qqrate_down | statup | statdn
+//                    | jpsyst_up | jpsyst_dn
 //              Which UParT b-tag efficiency scale factor to divide into the RECO-level data
 //              (data mode only). The SF is measured in reco R_BB bins, so it is applied
 //              before unfolding and the response matrix carries it through the migration.
 //              nominal is the central SF -- it is a CORRECTION, applied in every run, not an
-//              opt-in. The other three are its calibration systematics: jpcalib_hf swaps the
-//              JP heavy-flavour calibration, qqrate_up/down move the qq rate by +/-25%.
+//              opt-in. The rest are its variations: jpcalib_hf swaps in the JP heavy-flavour
+//              calibration curve, qqrate_up/down move the qq rate by +/-25%, statup/statdn
+//              shift the central SF by +/- its statistical error, and jpsyst_up/jpsyst_dn
+//              shift it by +/- the quoted JP HF systematic.
 //              Each lands in its own results folder.
+//
+//              THE TWO JP HF TREATMENTS ARE DIFFERENT AND BOTH ARE KEPT:
+//                jpcalib_hf            = the blue curve as measured. Its shift flips sign
+//                                        across dr, so it reshapes and survives the unit-area
+//                                        normalisation.
+//                jpsyst_up/jpsyst_dn   = +/- |jphf - central| coherently in all dr bins. Same
+//                                        magnitudes, one sign; closer to a normalisation, so
+//                                        much of it cancels in the normalisation.
+//              Same input numbers used two ways -- never put both in the band at once.
 void apply_unfolding_2d(TString SAMPLE = "both", TString UNFOLDING_GENERATOR = "pythia",
-                        int test_mode = 2, bool unfoldBayes = true, bool scan_niter = false,
-                        TString TF_GENERATOR = "herwig", bool TRACK_EFF_UNC = false,
+                        int test_mode = 2, bool unfoldBayes = false, bool scan_niter = false,
+                        // "pythia", the nominal. It was "herwig" until 2026-09-24, so the
+                        // documented nominal call apply_unfolding_2d.C("both","pythia") in
+                        // fact wrote the _tfherwig VARIATION, while the reader
+                        // (apply_weights_and_systematics.C) defaults to "pythia".
+                        TString TF_GENERATOR = "pythia", bool TRACK_EFF_UNC = false,
                         TString TF_VARIATION = "nominal",
-                        TString SFUPART_VARIATION = "nominal"){
+                        TString SFUPART_VARIATION = "nominal",
+                        bool EEC_WEIGHT_OFF = false,
+                        TString OBSERVABLE = "dr",
+                        int NITER = 7){
 
     // Kept so the old positional name still reads naturally below.
     TString GENERATOR = UNFOLDING_GENERATOR;
@@ -1653,6 +1946,47 @@ void apply_unfolding_2d(TString SAMPLE = "both", TString UNFOLDING_GENERATOR = "
                   << "' (use pythia | herwig)" << std::endl;
         return;
     }
+    if (!isKnownObservable(OBSERVABLE)) {
+        std::cerr << "ERROR: unknown OBSERVABLE '" << OBSERVABLE << "' (use dr | B)" << std::endl;
+        return;
+    }
+    // Matrix inversion has nothing to regularise, so there is no iteration count to scan.
+    // Refuse rather than ignore the flag: a scan run that quietly did one inversion would
+    // still write a "regularisation" plot, and that plot would mean nothing.
+    if (scan_niter && !unfoldBayes) {
+        std::cerr << "ERROR: scan_niter needs unfoldBayes = true -- matrix inversion has no "
+                  << "iterations to scan." << std::endl;
+        return;
+    }
+    // The UParT scale factor is measured in reco dR bins and has no B equivalent, so there
+    // is nothing to apply for B. This is a KNOWN GAP, not a silent skip: the dr result
+    // carries a correction (0.933 -> 1.149 across its range) that a B result does not.
+    // Refuse an explicit SF request rather than pretend to honour it.
+    if (OBSERVABLE == "B" && SFUPART_VARIATION != "nominal" && SFUPART_VARIATION != "off") {
+        std::cerr << "ERROR: SFUPART_VARIATION '" << SFUPART_VARIATION << "' is meaningless "
+                  << "for OBSERVABLE 'B': the UParT SF is binned in reco dR and has no B "
+                  << "equivalent. Use \"off\"." << std::endl;
+        return;
+    }
+    // What the nominal run of this observable is -- both rules live in result_paths.h, so the
+    // reader (apply_weights_and_systematics.C) builds the same paths from the same two
+    // functions instead of reproducing the forcing below from memory.
+    if (SFUPART_VARIATION == "nominal" && nominalSfupart(OBSERVABLE) == "off") {
+        std::cout << "NOTE: OBSERVABLE '" << OBSERVABLE << "' -- no UParT SF is applied (none "
+                  << "exists in " << OBSERVABLE << "). Forcing SFUPART_VARIATION to \"off\" so "
+                  << "the results path says so." << std::endl;
+        SFUPART_VARIATION = "off";
+    }
+    // B is a yield measurement: the EEC weight is off, so the result is dN/dB. Forced, not
+    // assumed, because a weighted-B production does exist -- and a B result unfolded with the
+    // weight on would land in its own folder, be read by nothing, and leave the B band
+    // looking like a missing file.
+    if (!EEC_WEIGHT_OFF && nominalEecWeightOff(OBSERVABLE)) {
+        std::cout << "NOTE: OBSERVABLE '" << OBSERVABLE << "' is measured WITHOUT the EEC "
+                  << "weight (dN/d" << OBSERVABLE << "). Forcing EEC_WEIGHT_OFF to true -- see "
+                  << "nominalEecWeightOff() in result_paths.h." << std::endl;
+        EEC_WEIGHT_OFF = true;
+    }
     if (TF_VARIATION != "nominal" && TF_VARIATION != "var0B_2" && TF_VARIATION != "var0B_0") {
         std::cerr << "ERROR: unknown TF_VARIATION '" << TF_VARIATION
                   << "' (use nominal | var0B_2 | var0B_0)" << std::endl;
@@ -1668,7 +2002,8 @@ void apply_unfolding_2d(TString SAMPLE = "both", TString UNFOLDING_GENERATOR = "
     }
     if (sfupartHist(SFUPART_VARIATION).Length() == 0) {
         std::cerr << "ERROR: unknown SFUPART_VARIATION '" << SFUPART_VARIATION
-                  << "' (use nominal | jpcalib_hf | qqrate_up | qqrate_down)" << std::endl;
+                  << "' (use nominal | off | jpcalib_hf | qqrate_up | qqrate_down | statup | "
+                  << "statdn | jpsyst_up | jpsyst_dn)" << std::endl;
         return;
     }
     // Same reasoning as TF_VARIATION: the SF is only ever applied to data.
@@ -1690,14 +2025,17 @@ void apply_unfolding_2d(TString SAMPLE = "both", TString UNFOLDING_GENERATOR = "
     // failure inside apply_unfolding() would leave an empty results folder and a silent
     // terminal.
     if (test_mode == 2) {
-        const TString tf_file = templateFitFile(SAMPLE, TF_GENERATOR, TRACK_EFF_UNC, TF_VARIATION);
+        const TString tf_file = templateFitFile(SAMPLE, TF_GENERATOR, TRACK_EFF_UNC, TF_VARIATION,
+                                                EEC_WEIGHT_OFF, OBSERVABLE);
         if (tf_file.Length() == 0 || gSystem->AccessPathName(tf_file)) {
             std::cerr << "ERROR: no template fit for TF_GENERATOR '" << TF_GENERATOR
                       << "'" << (TRACK_EFF_UNC ? " with TRACK_EFF_UNC" : "")
                       << ", variation '" << TF_VARIATION << "'"
-                      << ": " << tf_file << "\n       run template_fit.cpp(\""
+                      << ": " << tf_file << "\n       run template_fit.cpp+(\""
                       << ((SAMPLE == "both") ? "both" : "qcd") << "\",\"" << TF_GENERATOR
-                      << "\"" << (TRACK_EFF_UNC ? ",true" : "") << ") first" << std::endl;
+                      << "\"," << (TRACK_EFF_UNC ? "true" : "false") << ","
+                      << (EEC_WEIGHT_OFF ? "true" : "false") << ",\"" << OBSERVABLE
+                      << "\") first" << std::endl;
             return;
         }
     }
@@ -1707,10 +2045,11 @@ void apply_unfolding_2d(TString SAMPLE = "both", TString UNFOLDING_GENERATOR = "
     // to FIND them. "" tags mean nominal, so nominal paths are exactly what they always
     // were; a variation lands in its own directory next to the nominal, never over it.
     TString dataset = SAMPLE + "_" + GENERATOR
-                    + variationTag(TF_GENERATOR, TRACK_EFF_UNC, TF_VARIATION, SFUPART_VARIATION);
+                    + variationTag(TF_GENERATOR, TRACK_EFF_UNC, TF_VARIATION, SFUPART_VARIATION,
+                                   EEC_WEIGHT_OFF, OBSERVABLE);
 
-    TString folder = resultFolder(SAMPLE, GENERATOR, TF_GENERATOR, TRACK_EFF_UNC,
-                                  TF_VARIATION, SFUPART_VARIATION);
+    TString folder = resultFolder(SAMPLE, GENERATOR, unfoldBayes, TF_GENERATOR, TRACK_EFF_UNC,
+                                  TF_VARIATION, SFUPART_VARIATION, EEC_WEIGHT_OFF, OBSERVABLE);
 
     // An unrecognised variation name poisons the tag rather than silently becoming the
     // nominal (see result_paths.h). Catch it here, before a directory is created.
@@ -1745,7 +2084,8 @@ void apply_unfolding_2d(TString SAMPLE = "both", TString UNFOLDING_GENERATOR = "
     TString logfile = folder +  "unfolding_" + dataset + label + "_" +  timestamp + ".log";
     gSystem->RedirectOutput(logfile);  // "a" = append
 	apply_unfolding(dataset, folder, btag, n, pT_selection, test_mode, unfoldBayes, scan_niter,
-	                SAMPLE, GENERATOR, TF_GENERATOR, TRACK_EFF_UNC, TF_VARIATION, SFUPART_VARIATION);
+	                SAMPLE, GENERATOR, TF_GENERATOR, TRACK_EFF_UNC, TF_VARIATION, SFUPART_VARIATION,
+	                EEC_WEIGHT_OFF, OBSERVABLE, NITER);
 
     // Restore terminal output
     gSystem->RedirectOutput(nullptr);
@@ -1756,7 +2096,7 @@ void apply_unfolding_2d(TString SAMPLE = "both", TString UNFOLDING_GENERATOR = "
     // that is "missing" or, worse, as one that silently resolved to something else.
     const TString expected = resultFile(SAMPLE, GENERATOR, test_mode, unfoldBayes,
                                         TF_GENERATOR, TRACK_EFF_UNC, TF_VARIATION,
-                                        SFUPART_VARIATION);
+                                        SFUPART_VARIATION, EEC_WEIGHT_OFF, OBSERVABLE);
     if (gSystem->AccessPathName(expected)) {
         std::cerr << "WARNING: the run finished but its result is not where the systematics "
                   << "macro will look for it:\n         " << expected
@@ -1767,4 +2107,233 @@ void apply_unfolding_2d(TString SAMPLE = "both", TString UNFOLDING_GENERATOR = "
         std::cout << "Result: " << expected << std::endl;
     }
 
+}
+
+// ============================================================================
+// The tracking-efficiency variation on the PLAIN dr distribution
+// ============================================================================
+//
+// The band quotes the 3% track drop on the EEC, where every jet enters weighted by
+// (pt1*pt2)^n. This draws the same variation on dr with NO EEC weight -- the plain number of
+// selected 2b jets per dr bin -- so the weight's contribution to the systematic can be seen
+// rather than assumed.
+//
+// Both histograms are filled side by side in create_files_for_template_fit.cpp and are
+// already in every production, nominal and _trkdrop030 alike:
+//     h3D_bb     (mB, dr, jtpt) filled with eec * weight_tree   <- what the analysis uses
+//     h_count_bb (mB, dr, jtpt) filled with weight_tree only    <- the unweighted counts
+// so this needs no new production and no new unfolding.
+//
+// RECO LEVEL, and it cannot be anything else without new MC. The response, the purity, the
+// efficiency and the truth are ALL built with w_reco = weight_tree * eec_reco
+// (create_files_for_template_fit.cpp:1169), so there is no unweighted response to unfold an
+// unweighted spectrum through. Unfolding the counts with the EEC-weighted response would be
+// meaningless. What is shown here is therefore the variation as it enters the chain, before
+// unfolding -- the right comparison for "what does the EEC weight do to this systematic",
+// and NOT a second estimate of the systematic on the measurement.
+//
+// It lives in this file because it reuses aggChunkFiles()/sumOverFiles() above, but it is a
+// separate entry point, so load the file and call it rather than running the macro:
+//
+//   root -l -b -q -e '.L apply_unfolding_2d.C' -e 'plot_tracking_eff_dr("both","pythia")'
+// ============================================================================
+void plot_tracking_eff_dr(TString SAMPLE = "both", TString GENERATOR = "pythia",
+                          int ibin_pt = 2)
+{
+    if (!isKnownSample(SAMPLE) || !isKnownGenerator(GENERATOR)) {
+        std::cerr << "ERROR: bad SAMPLE / GENERATOR" << std::endl;
+        return;
+    }
+
+    const TString mc_base  = "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024";
+    const TString btag_tag = "btagWP0712";
+
+    // The two productions: identical events, one with 3% of the reco tracks thrown away.
+    const TString tag_nom = mcVarTag(false) + "_upartv2";
+    const TString tag_trk = mcVarTag(true)  + "_upartv2";
+
+    std::cout << "Nominal production:" << std::endl;
+    std::vector<TString> files_nom_n =
+        aggChunkFiles(mc_base, SAMPLE, GENERATOR, "", "MCGEN", btag_tag, tag_nom);
+    std::cout << "3% track-drop production:" << std::endl;
+    std::vector<TString> files_trk_n =
+        aggChunkFiles(mc_base, SAMPLE, GENERATOR, "", "MCGEN", btag_tag, tag_trk);
+    if (files_nom_n.empty() || files_trk_n.empty()) {
+        std::cerr << "ERROR: need BOTH productions -- run run_agg_ntuple_chunks.sh with "
+                  << "TRACK_EFF_UNC=false and again with TRACK_EFF_UNC=true" << std::endl;
+        return;
+    }
+
+    std::vector<TFile *> f_nom = openAllOrWarn(files_nom_n);
+    std::vector<TFile *> f_trk = openAllOrWarn(files_trk_n);
+    if (f_nom.empty() || f_trk.empty()) return;
+
+    // h_count_bb = no EEC weight, h3D_bb = the EEC weight. Same events, same selection.
+    TH3D *c_nom = sumOverFiles<TH3D>(f_nom, "h_count_bb");
+    TH3D *c_trk = sumOverFiles<TH3D>(f_trk, "h_count_bb");
+    // Literal name, not obs.n(): plot_tracking_eff_dr is a dR-only diagnostic and reads the
+    // nominal _upartv2 production, which predates the observable axis and holds dR only.
+    TH3D *e_nom = sumOverFiles<TH3D>(f_nom, "h3D_bb");
+    TH3D *e_trk = sumOverFiles<TH3D>(f_trk, "h3D_bb");
+    if (!c_nom || !c_trk || !e_nom || !e_trk) return;
+
+    // (mB, dr, jtpt) -> dr, integrating mB over everything and taking one jet-pT bin, which
+    // is the same slice the unfolded result is quoted in.
+    auto drOf = [&](TH3D *h, const char *name) {
+        TH1D *p = (TH1D *) h->ProjectionY(name, 1, h->GetNbinsX(), ibin_pt, ibin_pt);
+        p->SetDirectory(nullptr);
+        const double I = p->Integral("width");
+        if (I > 0.) p->Scale(1. / I, "width");   // unit area, as the EEC result is normalised
+        return p;
+    };
+    TH1D *p_c_nom = drOf(c_nom, "p_count_nom");
+    TH1D *p_c_trk = drOf(c_trk, "p_count_trk");
+    TH1D *p_e_nom = drOf(e_nom, "p_eec_nom");
+    TH1D *p_e_trk = drOf(e_trk, "p_eec_trk");
+
+    const int nb = p_c_nom->GetNbinsX();
+
+    // Ratios: the variation over the nominal, with and without the weight. The ratio of two
+    // unit-area spectra, so a pure normalisation change cancels and what is left is shape --
+    // exactly what the systematic on the normalised result is made of.
+    TH1D *r_count = (TH1D *) p_c_trk->Clone("r_count");
+    TH1D *r_eec   = (TH1D *) p_e_trk->Clone("r_eec");
+    for (TH1D *h : {r_count, r_eec}) h->SetDirectory(nullptr);
+    r_count->Divide(p_c_nom);
+    r_eec  ->Divide(p_e_nom);
+    for (TH1D *h : {r_count, r_eec})
+        for (int i = 1; i <= nb; ++i) h->SetBinError(i, 0.);
+
+    // ---- draw ----
+    // Reco-level MC, so neither curve is "the measurement" and neither is particle level:
+    // the house red and blue stay unused here. Nominal is the reference (black), the
+    // variation and the two ratios take the secondary green and purple.
+    const Color_t col_nom   = kBlack;
+    const Color_t col_trk   = ROCColor::green();
+    const Color_t col_eec_r = ROCColor::purple();
+    gStyle->SetOptStat(0);
+    gStyle->SetOptTitle(0);
+    gStyle->SetLegendBorderSize(0);
+    gStyle->SetLegendFillColor(0);
+
+    const Float_t font_scale  = 1200. / 800.;
+    const Style_t font_code   = 43;
+    const Float_t label_size  = 15. * font_scale;
+    const Float_t title_size  = 15. * font_scale;
+    const Float_t legend_size = 14. * font_scale;
+
+    TCanvas *c = new TCanvas("c_trkeff_dr", "", 800, 850);
+    TPad *t_top = new TPad("t_top", "", 0., 0.40, 1., 1.);
+    TPad *t_bot = new TPad("t_bot", "", 0., 0.,   1., 0.40);
+    for (TPad *q : {t_top, t_bot}) { q->SetTicks(1, 0); q->SetFillColor(0); }
+    t_top->SetMargin(0.13, 0.05, 0.0,  0.08);
+    t_bot->SetMargin(0.13, 0.05, 0.18, 0.0);
+    c->cd();
+    t_top->Draw(); t_bot->Draw();
+
+    // ---- top: the unweighted dr spectrum, nominal vs 3% drop ----
+    t_top->cd();
+    double ymax = 0.;
+    for (int i = 1; i <= nb; ++i)
+        ymax = std::max(ymax, std::max(p_c_nom->GetBinContent(i), p_c_trk->GetBinContent(i)));
+
+    p_c_nom->SetTitle("");
+    p_c_nom->GetYaxis()->SetRangeUser(0., ymax * 1.45);
+    p_c_nom->GetYaxis()->SetTitle("Normalised counts");
+    p_c_nom->GetYaxis()->CenterTitle(true);
+    p_c_nom->GetYaxis()->SetTitleFont(font_code); p_c_nom->GetYaxis()->SetTitleSize(title_size);
+    p_c_nom->GetYaxis()->SetTitleOffset(1.6);
+    p_c_nom->GetYaxis()->SetLabelFont(font_code); p_c_nom->GetYaxis()->SetLabelSize(label_size);
+    // The pads touch (bottom margin 0), so the lowest label sits exactly on the boundary and
+    // is drawn half-clipped. Suppress it; the axis is still read from the ones above.
+    p_c_nom->GetYaxis()->ChangeLabel(1, -1, 0.);
+    p_c_nom->GetXaxis()->SetTitleSize(0);
+    p_c_nom->GetXaxis()->SetLabelSize(0);
+
+    p_c_nom->SetLineColor(col_nom); p_c_nom->SetMarkerColor(col_nom);
+    p_c_nom->SetMarkerStyle(kFullCircle); p_c_nom->SetMarkerSize(1.0);
+    p_c_nom->SetLineWidth(2);
+    p_c_trk->SetLineColor(col_trk); p_c_trk->SetMarkerColor(col_trk);
+    p_c_trk->SetLineWidth(3); p_c_trk->SetLineStyle(2);
+
+    p_c_nom->Draw("PE X0");
+    p_c_trk->Draw("HIST same");
+    p_c_nom->Draw("PE X0 same");
+    gPad->RedrawAxis();
+
+    TLegend *leg = new TLegend(0.45, 0.66, 0.93, 0.90);
+    leg->SetTextFont(font_code); leg->SetTextSize(legend_size);
+    leg->AddEntry(p_c_nom, "Nominal", "pe");
+    leg->AddEntry(p_c_trk, "3% of reco tracks dropped", "l");
+    leg->Draw();
+
+    // ---- bottom: the variation/nominal ratio, with and without the EEC weight ----
+    t_bot->cd();
+    double rlo = 1., rhi = 1.;
+    for (int i = 1; i <= nb; ++i) {
+        rlo = std::min(rlo, std::min(r_count->GetBinContent(i), r_eec->GetBinContent(i)));
+        rhi = std::max(rhi, std::max(r_count->GetBinContent(i), r_eec->GetBinContent(i)));
+    }
+    const double rpad = std::max(0.01, 0.55 * (rhi - rlo));
+
+    r_count->SetTitle("");
+    r_count->GetYaxis()->SetRangeUser(rlo - rpad, rhi + rpad);
+    r_count->GetYaxis()->SetTitle("Dropped / nominal");
+    r_count->GetXaxis()->SetTitle("#Delta r");   // dR-only diagnostic; no ObsDef in scope
+    r_count->GetXaxis()->CenterTitle(true);
+    r_count->GetYaxis()->CenterTitle(true);
+    r_count->GetYaxis()->SetNdivisions(505);
+    for (TAxis *ax : { r_count->GetXaxis(), r_count->GetYaxis() }) {
+        ax->SetTitleFont(font_code); ax->SetTitleSize(title_size);
+        ax->SetLabelFont(font_code); ax->SetLabelSize(label_size);
+    }
+    r_count->GetXaxis()->SetTitleOffset(1.1);
+    r_count->GetYaxis()->SetTitleOffset(1.6);
+
+    r_count->SetLineColor(col_trk);   r_count->SetLineWidth(3); r_count->SetMarkerSize(0);
+    r_eec  ->SetLineColor(col_eec_r); r_eec  ->SetLineWidth(3); r_eec  ->SetMarkerSize(0);
+    r_eec  ->SetLineStyle(2);
+
+    r_count->Draw("HIST");
+    r_eec  ->Draw("HIST same");
+
+    TLine *l_one = new TLine(r_count->GetXaxis()->GetXmin(), 1.,
+                             r_count->GetXaxis()->GetXmax(), 1.);
+    l_one->SetLineColor(kGray + 1); l_one->SetLineStyle(2);
+    l_one->Draw();
+    t_bot->RedrawAxis();
+
+    TLegend *leg2 = new TLegend(0.16, 0.80, 0.92, 0.97);
+    leg2->SetNColumns(2);
+    leg2->SetTextFont(font_code); leg2->SetTextSize(legend_size);
+    leg2->AddEntry(r_count, "no EEC weight", "l");
+    leg2->AddEntry(r_eec,   "with EEC weight", "l");
+    leg2->Draw();
+
+    // Nothing here is unfolded -- this is a RECO-level diagnostic -- so it does not belong in
+    // the matrix_inversion/ production. It keeps the flat results layout, which is what
+    // methodDir(true) gives.
+    const TString stem = resultFolder(SAMPLE, GENERATOR, /*unfoldBayes=*/true)
+                       + "tracking_eff_dr_"
+                       + SAMPLE + "_" + GENERATOR + Form("_pt%d", ibin_pt);
+    c->Print(stem + ".pdf");
+    c->Print(stem + ".png");
+    std::cout << "\nWrote " << stem << ".{pdf,png}" << std::endl;
+
+    printf("\n  3%% track drop on dr, reco level, unit-area normalised (pT bin %d)\n", ibin_pt);
+    printf("  %3s %13s | %12s %12s | %12s\n",
+           "bin", "dr range", "no weight", "with weight", "ratio of the two");
+    printf("  -----------------+---------------------------+-----------------\n");
+    for (int i = 1; i <= nb; ++i) {
+        const double rc = r_count->GetBinContent(i), re = r_eec->GetBinContent(i);
+        printf("  %3d [%5.2f,%5.2f] | %+11.2f%% %+11.2f%% | %12.2f\n", i,
+               r_count->GetXaxis()->GetBinLowEdge(i), r_count->GetXaxis()->GetBinUpEdge(i),
+               100. * (rc - 1.), 100. * (re - 1.),
+               (std::fabs(re - 1.) > 1e-9) ? (rc - 1.) / (re - 1.) : 0.);
+    }
+    printf("\n  Reco level: there is no unweighted response to unfold through, so this is the\n"
+           "  variation as it ENTERS the chain, not a second estimate of the systematic.\n");
+
+    for (TFile *f : f_nom) f->Close();
+    for (TFile *f : f_trk) f->Close();
 }

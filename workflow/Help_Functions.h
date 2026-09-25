@@ -38,6 +38,12 @@
 #include <string>
 #include <cmath>
 
+// The measured observable and its binning. This header used to rely on whoever included it
+// having included binning_histos_small.h first; observables.h pulls that in (both are
+// include-guarded) and adds gFitObs(), which CheckInputBinning() and the label helpers below
+// need in order to work for an observable other than dR.
+#include "observables.h"
+
 
 // Plot palette + style helpers, defined at the top of the first header template_fit.cpp
 // includes so everything downstream can use them regardless of include order. Same hex
@@ -215,9 +221,13 @@ bool CheckInputBinning(const TH3D* h3)
 {
     if (!h3) { Error("CheckInputBinning", "null histogram"); return false; }
     const char* name = h3->GetName();
-    return CheckAxisMatchesBinning(h3->GetXaxis(), mb_binsVectorSize   - 1, mb_binsVector,   "m_{2B}",  name)
-        && CheckAxisMatchesBinning(h3->GetYaxis(), dr_binsVectorSize   - 1, dr_binsVector,   "deltaR",  name)
-        && CheckAxisMatchesBinning(h3->GetZaxis(), jtpt_binsVectorSize - 1, jtpt_binsVector, "jet pT",  name);
+    // The Y axis is the MEASURED OBSERVABLE, not necessarily dR: gFitObs() is set by the
+    // template_fit() driver and defaults to dR, so a caller that never sets it validates
+    // against dr_binsVector exactly as before.
+    const ObsDef& o = gFitObs();
+    return CheckAxisMatchesBinning(h3->GetXaxis(), mb_binsVectorSize   - 1, mb_binsVector,   "m_{2B}",   name)
+        && CheckAxisMatchesBinning(h3->GetYaxis(), o.nbins,                 o.bins,          o.name,     name)
+        && CheckAxisMatchesBinning(h3->GetZaxis(), jtpt_binsVectorSize - 1, jtpt_binsVector, "jet pT",   name);
 }
 
 
@@ -660,8 +670,16 @@ void DrawCommonTextTopRight(TPad* pad,  int ibin_dr, int ibin_pt, const double* 
     double pt_last = 0;
     double dr_first = 0;
     double dr_last = 0;
+    // The last bin is quoted as "-> infinity" only for an observable whose top bin really
+    // is open-ended. dR folds everything above dr_max into its last bin, so it is. z is
+    // bounded by 1 by construction (it is a ratio pT_lead/(pT1+pT2) <= 1), so writing
+    // "0.9 < z < infinity" would be technically true of the histogram and wrong about the
+    // physics. ObsDef::upperOpen says which.
     if(!ibin_dr ){dr_first = newyBins[0]; dr_last = -1;} // integrated bin to infinity 
-    else if (ibin_dr == N_bins_dr) { dr_first =  newyBins[ibin_dr -1];  dr_last = -1;} // last binto infintiy 
+    else if (ibin_dr == N_bins_dr) {
+        dr_first = newyBins[ibin_dr -1];
+        dr_last  = gFitObs().upperOpen ? -1. : newyBins[ibin_dr];
+    }
         else { dr_first =  newyBins[ibin_dr -1]; dr_last  = newyBins[ibin_dr];} // normal 
 
     //cout << "HOLA dr bin #"<< ibin_dr << "first and last are : " << dr_first << ", " << dr_last << endl;
@@ -672,8 +690,11 @@ void DrawCommonTextTopRight(TPad* pad,  int ibin_dr, int ibin_pt, const double* 
 
     cout << "pt bin #"<< ibin_pt << "pt first and last are : " << pt_first << ", " << pt_last << endl;
 
-    if (dr_last < 0.0) latex.DrawLatex(x, y, Form("%g < #DeltaR < #infty", dr_first)); // we use lower cut(no underflow)
-    else latex.DrawLatex(x, y, Form("%g < #DeltaR < %g", dr_first, dr_last));
+    // Label the observable actually being fitted, not always dR. gFitObs() defaults to dR,
+    // so an unset caller prints exactly what it printed before.
+    const TString obsLabel = gFitObs().axis;
+    if (dr_last < 0.0) latex.DrawLatex(x, y, Form("%g < %s < #infty", dr_first, obsLabel.Data())); // we use lower cut(no underflow)
+    else latex.DrawLatex(x, y, Form("%g < %s < %g", dr_first, obsLabel.Data(), dr_last));
     latex.DrawLatex(x, y - 0.04, pt_label(pt_first, pt_last));
     latex.DrawLatex(x, y - 0.08, extra);
 }
@@ -886,7 +907,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
     h_ratio->GetYaxis()->SetTitleSize(0.10);
     h_ratio->GetYaxis()->SetLabelSize(0.09);
     h_ratio->GetYaxis()->SetTitleOffset(0.5);
-    h_ratio->GetXaxis()->SetTitle("Bin(#DeltaR)");
+    h_ratio->GetXaxis()->SetTitle(Form("Bin(%s)", gFitObs().axis.Data()));
     h_ratio->GetXaxis()->SetTitleSize(0.12);
     h_ratio->GetXaxis()->SetLabelSize(0.10);
     
@@ -947,13 +968,17 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
 
         // -- convert bin number to absolute dr values 
         // -- signal
-        Int_t N_dr_bins; // 
+        // ⚠️ The x axis is the MEASURED OBSERVABLE's binning, not dr_binsVector. This used
+        // to read dr_binsVector unconditionally, which for a z fit plotted the z fractions
+        // against the first 5 dR edges (0 -> 0.25) -- right numbers, wrong axis, and it
+        // looked plausible. gFitObs() defaults to dR, so the dR plots are unchanged.
+        Int_t N_dr_bins; //
         const double* binsvector = nullptr;
-        binsvector = dr_binsVector; N_dr_bins = bins_dr;
+        binsvector = gFitObs().bins; N_dr_bins = gFitObs().nbins;
 
 
         TH1D* h_dr = new TH1D("h_dr", "h_dr", N_dr_bins, binsvector); 
-        h_dr->GetXaxis() ->SetTitle("#DeltaR"); 
+        h_dr->GetXaxis() ->SetTitle(gFitObs().axis); 
         h_dr->Reset();
         cout << "\n old histogram binning with integrated dr:  #bins = " << h->GetNbinsX()<< endl;
         cout << " and the new dr axis without integarted dr: #bins = " << h_dr->GetNbinsX()<< endl;       
@@ -1054,7 +1079,7 @@ std::unique_ptr<TCanvas> draw_template_fit_result(
             h_ratio_dr->GetYaxis()->SetTitleSize(0.10);
             h_ratio_dr->GetYaxis()->SetLabelSize(0.09);
             h_ratio_dr->GetYaxis()->SetTitleOffset(0.5);
-            h_ratio_dr->GetXaxis()->SetTitle("#DeltaR");
+            h_ratio_dr->GetXaxis()->SetTitle(gFitObs().axis);
             h_ratio_dr->GetXaxis()->SetTitleSize(0.12);
             h_ratio_dr->GetXaxis()->SetLabelSize(0.10);
 
