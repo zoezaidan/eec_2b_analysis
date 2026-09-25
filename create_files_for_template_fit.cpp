@@ -97,6 +97,38 @@ TString kinLabel(const AnalysisConfig& cfg) {
   return Form("_%g_%g_%d", cfg.kin.ptLow, cfg.kin.ptHigh, jtpt_binsVectorSize - 1);
 }
 
+class JetVetoMap {
+ public:
+  explicit JetVetoMap(const std::string& path) : map_(nullptr) {
+    TFile* file = TFile::Open(path.c_str(), "READ");
+    if (!file || file->IsZombie()) {
+      delete file;
+      throw std::runtime_error("Could not open jet veto map: " + path);
+    }
+    TH2D* source = dynamic_cast<TH2D*>(file->Get("jetvetomap_all"));
+    if (!source) {
+      file->Close();
+      delete file;
+      throw std::runtime_error("Histogram jetvetomap_all is missing from: " + path);
+    }
+    map_ = dynamic_cast<TH2D*>(source->Clone("jetVetoMap_2024"));
+    map_->SetDirectory(nullptr);
+    file->Close();
+    delete file;
+    std::cout << "Loaded jet veto map: " << path << std::endl;
+  }
+
+  ~JetVetoMap() { delete map_; }
+
+  bool Pass(double eta, double phi) const {
+    if (!std::isfinite(eta) || !std::isfinite(phi)) return false;
+    return map_->GetBinContent(map_->FindBin(eta, phi)) == 0.0;
+  }
+
+ private:
+  TH2D* map_;
+};
+
 
 struct Vertex {
     ROOT::Math::PtEtaPhiMVector p4;
@@ -727,7 +759,7 @@ struct AggBHadronNtupleRow {
   Float_t weight, jtpt, jteta, refpt, refeta, muMax;
   Int_t jtNbHad, jtNcHad;
   Float_t btagScore, jetProbability, wrongJetProbability;
-  Int_t passRecoKin, passGenKin, passBtag, nRecoAgg, nGenAgg, genStatus1, genStatus2;
+  Int_t passRecoKin, passGenKin, passBtag, passJetVeto, nRecoAgg, nGenAgg, genStatus1, genStatus2;
   Int_t recoStatus1, recoStatus2, fullBStatus1, fullBStatus2;
   Int_t fullBHasMatchedSv1, fullBHasMatchedSv2;
   Int_t genHasMatchedSv1, genHasMatchedSv2;
@@ -755,7 +787,7 @@ struct AggBHadronNtupleRow {
     jtpt = jteta = refpt = refeta = muMax = -999.0;
     jtNbHad = jtNcHad = -1;
     btagScore = jetProbability = wrongJetProbability = -999.0;
-    passRecoKin = passGenKin = passBtag = 0;
+    passRecoKin = passGenKin = passBtag = passJetVeto = 0;
     nRecoAgg = nGenAgg = 0;
     genStatus1 = genStatus2 = 0;
     recoStatus1 = recoStatus2 = 0;
@@ -805,6 +837,7 @@ void makeAggBHadronBranches(TTree* tree, AggBHadronNtupleRow& row) {
   tree->Branch("passRecoKin", &row.passRecoKin, "passRecoKin/I");
   tree->Branch("passGenKin", &row.passGenKin, "passGenKin/I");
   tree->Branch("passBtag", &row.passBtag, "passBtag/I");
+  tree->Branch("passJetVeto", &row.passJetVeto, "passJetVeto/I");
   tree->Branch("nRecoAgg", &row.nRecoAgg, "nRecoAgg/I");
   tree->Branch("nGenAgg", &row.nGenAgg, "nGenAgg/I");
   tree->Branch("recoChargedBPt", &row.recoChargedBPt, "recoChargedBPt/F");
@@ -1651,6 +1684,11 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
   }
 #endif
 
+  const bool apply2024JetVeto = cfg.dataset.RunN == 3;
+  const std::string jetVetoMapPath =
+      (TString(gSystem->DirName(__FILE__)) + "/Winter24Prompt24_2024BCDEFGHI.root").Data();
+  JetVetoMap jetVetoMap(jetVetoMapPath);
+
   // -- Output files name
   TString job_suffix = (job_idx >= 0) ? Form("_job%d", job_idx) : "";
   TString fout_name = cfg.dataset.output_folder + cfg.dataset.output_hist + kinLabel(cfg) + job_suffix + "MCGEN.root"; // for reposnse matrix: has Prefix: Response
@@ -2009,11 +2047,14 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 
     for (Int_t ijet = 0; ijet < t.nref; ijet++) { // Jet loop
 
+      const bool passJetVeto =
+          !apply2024JetVeto || jetVetoMap.Pass(t.jteta[ijet], t.jtphi[ijet]);
+
 
       /////////----  To Fill templates: Require Jet kinematics + btagging (even if btag is false --> it is embedded in passBtag())
       /// NOTE: Templates use DATA or RECO MC
 
-      if(isMakeTemplates && passRecoJetKinematics(t, ijet, cfg) &&  passBtag(t, ijet, cfg)){
+      if(isMakeTemplates && passJetVeto && passRecoJetKinematics(t, ijet, cfg) &&  passBtag(t, ijet, cfg)){
 
               // -- Fill here Selected jets histogram: selected jets after btagging + >=2svx (cut)
               if (t.jtNsvtx[ijet] >= 2){
@@ -2136,6 +2177,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 	            aggRow.passRecoKin = passRecoJetKinematics(t, ijet, cfg);
 	            aggRow.passGenKin = cfg.dataset.isMC ? passGenJetKinematics(t, ijet, cfg) : 0;
 	            aggRow.passBtag = passBtag(t, ijet, cfg);
+	            aggRow.passJetVeto = passJetVeto;
 
 	                // step1: for Response matrix ---- Gen b hadrons ----
 	                std::vector<ROOT::Math::PtEtaPhiMVector> gen_bh;
@@ -2354,7 +2396,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
                   if (dr_reco_fill >= dr_max) dr_reco_fill = dr_max_fill;
 			   
             // Define reco_pass: full detector-level selection
-            bool reco_pass = passRecoJetKinematics(t, ijet, cfg) && dr_reco_fill > 0.005; 
+            bool reco_pass = passJetVeto && passRecoJetKinematics(t, ijet, cfg) && dr_reco_fill > 0.005;
                 
             // Define gen_pass: particle-level jet kinematics + gen observable range.
             // Requires gen_ok: a jet with < 2 aggregatable gen B-hadrons has no gen
