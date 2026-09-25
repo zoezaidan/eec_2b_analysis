@@ -3,8 +3,8 @@
 set -u
 
 WORK=/home/llr/cms/mnguyen/eec_2b_analysis
-SCRIPT_DIR=${WORK}/condor_hardprobes_data_scripts_JEC_Prompt24HIpp
-OUT_BASE=/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/agg_template_chunks_JEC_Prompt24HIpp
+SCRIPT_DIR=${WORK}/condor_hardprobes_data_scripts_JEC_Prompt24HIpp_JetVeto
+OUT_BASE=/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/HardProbes/agg_template_chunks_JEC_Prompt24HIpp_JetVeto
 
 if [ -e "${SCRIPT_DIR}" ]; then
   echo "ERROR: script directory already exists; refusing to overwrite: ${SCRIPT_DIR}"

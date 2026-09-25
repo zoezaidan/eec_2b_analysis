@@ -28,7 +28,7 @@ export LD_LIBRARY_PATH=${ROOUNFOLD_BUILD}:${LD_LIBRARY_PATH:-}
 #INPUT_DIR=/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/bJet/Pythia8_UParTV2_chunks/
 #OUT_BASE=$mydata/bJetAggRun3/PPRef2024/bJet/Pythia8_UParTV2_chunks/
 INPUT_DIR=/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/Pythia8_UParTV2_chunks/
-OUT_BASE=$mydata/bJetAggRun3/PPRef2024/QCD/Pythia8_UParTV2_chunks_JEC_Prompt24HIpp
+OUT_BASE=$mydata/bJetAggRun3/PPRef2024/QCD/Pythia8_UParTV2_chunks_JEC_Prompt24HIpp_JetVeto
 LOG_DIR=${OUT_BASE}/logs
 
 if [ -e "${OUT_BASE}" ]; then

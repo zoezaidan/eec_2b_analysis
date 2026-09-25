@@ -53,3 +53,4 @@ condor_hardprobes_data_scripts/
 # jetAnalysis is 445 MB and holds CSVs above GitHub's file size limit.
 /RooUnfold_build_test/
 /jetAnalysis/
+!Winter24Prompt24_2024BCDEFGHI.root
