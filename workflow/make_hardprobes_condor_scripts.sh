@@ -18,9 +18,32 @@ INPUT_TAG=UParTV2
 # names (..._template_for_fit_histos_3D_<SAMPLE_TAG>_f). These jobs run HardProbes data.
 SAMPLE_TAG=data
 
-# Suffix on every output .root; leave empty for untagged names.
-OUT_TAG=upartv2
+# ---------------------------------------------------------------------------
+# EEC weight on/off -- the OBSERVABLE, not a systematic.
+# ---------------------------------------------------------------------------
+# false (default) measures the EEC: every 2b jet enters weighted by (pt1*pt2)^n.
+# true drops that weight, so h3D_data becomes the plain 2b-jet yield per dr bin.
+# DATA MUST MATCH THE MC: unfolding EEC-weighted data through an unweighted
+# response (or fitting it against unweighted templates) mixes two observables
+# and is simply wrong, so a yield analysis needs this production as well as the
+# MC one. Overridable for one run:  EEC_WEIGHT_OFF=true ./make_hardprobes_condor_scripts.sh
+EEC_WEIGHT_OFF=${EEC_WEIGHT_OFF:-false}   # true | false
+EECW_TAG=$([ "${EEC_WEIGHT_OFF}" = true ] && echo "_noeecw" || echo "")
+if [ "${EEC_WEIGHT_OFF}" != true ] && [ "${EEC_WEIGHT_OFF}" != false ]; then
+  echo "EEC_WEIGHT_OFF must be exactly 'true' or 'false', got '${EEC_WEIGHT_OFF}'"; exit 1
+fi
+
+# Suffix appended on the way out of the staging dir. The MACRO already writes the
+# observable tag into its own filename (EecWeight::tag()), exactly as it writes the
+# tracking tag, so EECW_TAG must NOT be repeated here -- doing so produced
+# ..._fMCGEN_noeecw_noeecw_upartv2.root. Same rule as run_agg_ntuple_chunks.sh: the
+# variation tag names the staging dir and the logs, the macro names the file.
+# Overridable, same as in run_agg_ntuple_chunks.sh, so an exploratory data production can
+# write to its own files:  OUT_TAG=upartv2_B ./make_hardprobes_condor_scripts.sh
+OUT_TAG=${OUT_TAG:-upartv2}
 OUT_SUFFIX="${OUT_TAG:+_${OUT_TAG}}"
+# Staging dir only, so two productions can never share a staging area.
+STAGE_TAG="${EECW_TAG}${OUT_SUFFIX}"
 
 # Must match BTAG_WP in run_agg_ntuple_chunks.sh.
 case "${INPUT_TAG}" in
@@ -29,6 +52,9 @@ case "${INPUT_TAG}" in
   *) echo "unknown INPUT_TAG '${INPUT_TAG}': set BTAG_WP for it explicitly"; exit 1 ;;
 esac
 echo "sample ${INPUT_TAG}, b-tag WP ${BTAG_WP}"
+if [ "${EEC_WEIGHT_OFF}" = true ]; then
+  echo "EEC WEIGHT OFF: this data production measures YIELDS (dN/dr), file tag ${EECW_TAG}"
+fi
 
 mkdir -p "${SCRIPT_DIR}" "${CONDOR_LOG_DIR}"
 rm -f "${SCRIPT_DIR}"/job_*.sh "${SCRIPT_DIR}"/jobs_*.sh
@@ -44,7 +70,7 @@ for primary_dataset in $(seq 0 4); do
     outdir="${OUT_BASE}/HardProbes${primary_dataset}/block_${block}"
     logdir="${OUT_BASE}/HardProbes${primary_dataset}/logs"
     # The macro picks its own filenames, so stage them and rename on the way out.
-    stagedir="${outdir}/.stage${OUT_SUFFIX}"
+    stagedir="${outdir}/.stage${STAGE_TAG}"
 
     cat > "${script}" <<EOF
 #!/bin/bash
@@ -78,7 +104,7 @@ if [ ! -f "\${ACLIC_BUILD_DIR}/create_files_for_template_fit_cpp.so" ]; then
   exit 3
 fi
 
-root -l -b -q -e "gSystem->AddIncludePath(\"-I\${ROOUNFOLD_INC} -I\${ROOUNFOLD_BUILD}\"); if (gSystem->Load(\"\${ROOUNFOLD_BUILD}/libRooUnfold.so\") < 0) gSystem->Exit(3); if (gSystem->Load(\"\${ACLIC_BUILD_DIR}/create_files_for_template_fit_cpp.so\") < 0) gSystem->Exit(3); create_files_for_template_fit(3,80,2,1,true,false,${BTAG_WP},true,false,true,0,-1,\"\${INPUT}\",\"\${STAGEDIR}\",\"${SAMPLE_TAG}\")"
+root -l -b -q -e "gSystem->AddIncludePath(\"-I\${ROOUNFOLD_INC} -I\${ROOUNFOLD_BUILD}\"); if (gSystem->Load(\"\${ROOUNFOLD_BUILD}/libRooUnfold.so\") < 0) gSystem->Exit(3); if (gSystem->Load(\"\${ACLIC_BUILD_DIR}/create_files_for_template_fit_cpp.so\") < 0) gSystem->Exit(3); create_files_for_template_fit(3,80,2,1,true,false,${BTAG_WP},true,false,true,0,-1,\"\${INPUT}\",\"\${STAGEDIR}\",\"${SAMPLE_TAG}\",false,20260908,${EEC_WEIGHT_OFF})"
 
 for f in "\${STAGEDIR}"/*.root; do
   [ -e "\${f}" ] || continue

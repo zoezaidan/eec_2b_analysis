@@ -2,6 +2,7 @@
 
 #include "tTree.h"
 #include "binning_histos_small.h"
+#include "result_paths.h"   // obsProdTag(): which MC production carries which observable
 #include "Help_Functions.h"
 #include "Draw_EEC.h"
 //#include "../CMSStyle.C" // CMS style impored from Matthew
@@ -38,14 +39,17 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
     TFile *fout = new TFile(Form("%s/%s", sDirname.Data(), fout_name.Data()), "recreate");
 
     // -- Using new naming convention
-    TString namehData = "h3D_data"; // h3D_data with eec on the weight 
+    // The names carry the observable suffix from gFitObs(): "" for dR, so the dR fit reads
+    // exactly the histograms it always read, and "_B" for the momentum balance.
+    const ObsDef &obs = gFitObs();
+    TString namehData = obs.n("h3D_data"); // h3D_data with eec on the weight 
     TString namehMC = "";
 
     // -- Input Histogram name: signal and bkg templates
-    TString nameh2B = "h3D_bb";
-    TString nameh1B = "h3D_b";
+    TString nameh2B = obs.n("h3D_bb");
+    TString nameh1B = obs.n("h3D_b");
 
-    TString nameh0B = "h3D_0b";
+    TString nameh0B = obs.n("h3D_0b");
     // -- Additional histograms
     TString namehmore2B = "";
  
@@ -56,7 +60,12 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
         TH3D *h3D_bb = (TH3D*)file_dijet->Get(nameh2B)->Clone("h3D_bb");
             if(!h3D_b){Error("Get:", "histogram does not exist '%s' ",h3D_b->GetName()); return;}
             if(!h3D_bb){Error("Get:", "histogram does not exist '%s' ",h3D_bb->GetName()); return;}
-        TH3D *h3D_nob = (TH3D*)file_dijet->Get(nameh0B)->Clone(nameh0B);
+        TH3D *h3D_nob = (TH3D*)file_dijet->Get(nameh0B)->Clone("h3D_0b");  // clone to the
+            // CANONICAL name, not nameh0B: the input histogram carries the observable
+            // suffix ("h3D_0b_B"), but everything downstream -- Draw_EEC.h in particular
+            // -- looks the templates up in the fit output by their unsuffixed names, the
+            // same way h3D_b and h3D_bb are cloned just above. For dR the two spellings
+            // coincide, which is why only the balance fit tripped over it.
             if(!h3D_nob){Error("Get:", "histogram does not exist '%s' ",h3D_nob->GetName()); return;}
 
     //-- Bjet sample:
@@ -131,7 +140,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
     }
 
     bins_pt = jtpt_binsVectorSize - 1; // == jtpt_bins, and == h3D_data->GetNbinsZ()
-    bins_dr = dr_binsVectorSize   - 1;
+    bins_dr = obs.nbins;   // the MEASURED OBSERVABLE's bin count, not necessarily dR's
     mb_bins = mb_binsVectorSize   - 1; // updated below if the mass axis is rebinned
         cout << "-- Data hist initial binning" << endl;
         cout << "pt bins = "<< bins_pt << endl;
@@ -144,9 +153,9 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
     if (also_bjet) { h3D_b_bjet->Write(); h3D_bb_bjet->Write();}
     h3D_b->Write(); h3D_bb->Write(); h3D_nob->Write(); 
 
-    // -- Choose dr binning
-    const double* yBins = nullptr; //dr array 
-    int N_bins_dr = 0; N_bins_dr = bins_dr; yBins = dr_binsVector;     
+    // -- Choose the observable binning (dR, B) -- one source, gFitObs()
+    const double* yBins = nullptr;
+    int N_bins_dr = 0; N_bins_dr = obs.nbins; yBins = obs.bins;
 
 
     // -- Rebinning in mass axis when needed 
@@ -194,7 +203,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
         // Note that: since inetgaretd bins are pt 0 and dr 0, the hist of fractions should have #bins + 1 size 
         // x = dr, y = jetpt
         // Axis here is for the bin number instead of the values 
-        TH2D *h_sig_fraction = new TH2D("h_sig_fraction", ";dr; jet pt", N_bins_dr+ 1,  1, N_bins_dr+ 2,
+        TH2D *h_sig_fraction = new TH2D("h_sig_fraction", Form(";%s; jet pt", obs.axis.Data()), N_bins_dr+ 1,  1, N_bins_dr+ 2,
                                                                            h3D_data->GetNbinsZ() + 1 , 1, h3D_data->GetNbinsZ()+ 2 );                                                                                                                              
             h_sig_fraction->Reset();
             TH2D *h_bkg_fraction = (TH2D *) h_sig_fraction->Clone("h_bkg_fraction");
@@ -206,7 +215,7 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
             TH2D *h_bkg_frac_true_error = (TH2D *) h_sig_fraction->Clone("h_bkg_frac_true_error");
 
         // -- For unfolding: without integarted bins 
-        TH2D *h_sig_fraction_fit = new TH2D("h_sig_fraction_fit", ";dr; jet pt", N_bins_dr,  yBins, jtpt_bins, jtpt_binsVector);                                                                                                                              
+        TH2D *h_sig_fraction_fit = new TH2D("h_sig_fraction_fit", Form(";%s; jet pt", obs.axis.Data()), N_bins_dr,  yBins, jtpt_bins, jtpt_binsVector);                                                                                                                              
             h_sig_fraction_fit->Reset();
             TH2D *h_bkg_fraction_fit = (TH2D *) h_sig_fraction_fit->Clone("h_bkg_fraction_fit");
             TH2D *h_sig_fraction_fit_error = (TH2D *) h_sig_fraction_fit->Clone("h_sig_fraction_fit_error");
@@ -286,7 +295,10 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
             }
 
             //Define common (pt, dr) canvas name  
-            TString sname_canvas = Form("ptbin_%d_deltaRbin_%d", ibin_pt, ibin_dr);
+            // Plot filenames name the observable. dR keeps the literal "deltaR" it has always
+            // had, so its PNG names are unchanged; the balance gets "Bbin".
+            TString sname_canvas = Form("ptbin_%d_%sbin_%d", ibin_pt,
+                                        (obs.name == "dr") ? "deltaR" : obs.name.Data(), ibin_dr);
 
             // --- Compute Integrals
             // data:
@@ -427,8 +439,16 @@ void do_template_fit_combined(const TString &HighEGdata_name, const TString &Low
                             canva_sum_beforefit->Print(Form("%s/%s_templates_beforefit.png", sDir_canvas.Data(), sname_canvas.Data()));
 */ // ---- end disabled block ----
 
-        // -- Safety for empty bins 
-            if ((int0 + int1 + int2) < 1  ) { cout << " ----------- empty bin -----------  "; continue;}   
+        // -- Safety for empty bins
+            // Scale-free: "empty" must mean NO ENTRIES, not "integral below 1". The old
+            // test was an absolute < 1 on the summed template integrals, which is only ever
+            // a no-op for the EEC-weighted fit, where (pt1*pt2)^n makes those integrals
+            // ~1e7. Run the same fit on UNWEIGHTED templates (EEC_WEIGHT_OFF, the yield
+            // measurement) and the integrals are order 1 -- a whole QCD block sums to 0.86 --
+            // so the sparser high-dr bins tripped this and were silently skipped, leaving
+            // their signal fraction at exactly 0. Comparing against 0 asks the question the
+            // comment always claimed to ask, and is a no-op for the EEC fit.
+            if ((int0 + int1 + int2) <= 0. ) { cout << " ----------- empty bin -----------  "; continue;}   
                 // ----- To avoid empty bins if exist!, set them to eps value
                 const double eps = 1e-6; 
                 for (int i = 1; i <= h_sig_bins; i++){
@@ -1056,7 +1076,12 @@ void Draw_template_Run3(TString &templates, TString pT_selection, TString folder
         TH3D *h3D_bb = (TH3D*)file_dijet->Get(nameh2B)->Clone("h3D_bb");
             if(!h3D_b){Error("Get:", "histogram does not exist '%s' ",h3D_b->GetName()); return;}
             if(!h3D_bb){Error("Get:", "histogram does not exist '%s' ",h3D_bb->GetName()); return;}
-        TH3D *h3D_nob = (TH3D*)file_dijet->Get(nameh0B)->Clone(nameh0B);
+        TH3D *h3D_nob = (TH3D*)file_dijet->Get(nameh0B)->Clone("h3D_0b");  // clone to the
+            // CANONICAL name, not nameh0B: the input histogram carries the observable
+            // suffix ("h3D_0b_B"), but everything downstream -- Draw_EEC.h in particular
+            // -- looks the templates up in the fit output by their unsuffixed names, the
+            // same way h3D_b and h3D_bb are cloned just above. For dR the two spellings
+            // coincide, which is why only the balance fit tripped over it.
             if(!h3D_nob){Error("Get:", "histogram does not exist '%s' ",h3D_nob->GetName()); return;}
 /*
     //-- Bjet sample:
@@ -1217,7 +1242,11 @@ void Draw_template_Run3(TString &templates, TString pT_selection, TString folder
             */
 
             // string (dr, pt) 
-            TString sname_canvas = Form("ptbin_%d_deltaRbin_%d", ibin_pt, ibin_dr);
+            // Plot filenames name the observable. dR keeps the literal "deltaR" it has always
+            // had, so its PNG names are unchanged; the balance gets "Bbin".
+            // Draw_template_Run3 has no local ObsDef, so read the driver-set global.
+            TString sname_canvas = Form("ptbin_%d_%sbin_%d", ibin_pt,
+                                        (gFitObs().name == "dr") ? "deltaR" : gFitObs().name.Data(), ibin_dr);
 
             // --  Calculate true fractions to be used as initial values for the fit (the true fractions are the qcd ones)            
             double int2 = h_bb->Integral(1, mb_bins, "width");
@@ -1357,8 +1386,16 @@ void Draw_template_Run3(TString &templates, TString pT_selection, TString folder
                             canva_sum_beforefit->Write();
                             canva_sum_beforefit->Print(Form("%s/%s_templates_beforefit.png", sDir_canvas.Data(), sname_canvas.Data()));
 
-        // -- Safety for empty bins 
-            if ((int0 + int1 + int2) < 1  ) { cout << " ----------- empty bin -----------  "; continue;}   
+        // -- Safety for empty bins
+            // Scale-free: "empty" must mean NO ENTRIES, not "integral below 1". The old
+            // test was an absolute < 1 on the summed template integrals, which is only ever
+            // a no-op for the EEC-weighted fit, where (pt1*pt2)^n makes those integrals
+            // ~1e7. Run the same fit on UNWEIGHTED templates (EEC_WEIGHT_OFF, the yield
+            // measurement) and the integrals are order 1 -- a whole QCD block sums to 0.86 --
+            // so the sparser high-dr bins tripped this and were silently skipped, leaving
+            // their signal fraction at exactly 0. Comparing against 0 asks the question the
+            // comment always claimed to ask, and is a no-op for the EEC fit.
+            if ((int0 + int1 + int2) <= 0. ) { cout << " ----------- empty bin -----------  "; continue;}   
                 // ----- To avoid empty bins if exist!, set them to eps value
                 const double eps = 1e-6; 
                 for (int i = 1; i <= h_sig_bins; i++){
@@ -1907,8 +1944,58 @@ void Draw_template_Run3(TString &templates, TString pT_selection, TString folder
 // to the agg_ntuple_chunks top level). Only Pythia8 has that production today; asking for
 // it with generator "herwig" returns "" and the caller stops with a message.
 TString mcgenTemplates(const TString &sample, const TString &generator,
-                       bool track_eff_unc = false)
+                       bool track_eff_unc = false, bool eec_weight_off = false,
+                       const TString &observable = "dr")
 {
+    // The B (momentum-balance) histograms exist ONLY in the "_upartv2_B" productions --
+    // the ones run from this working copy after the 2026-09-22 z -> B rename. Afnan's merged
+    // Pythia files below contain dR only, and the pre-rename productions name the balance
+    // axis "_z", so a B fit cannot use either and must not silently fall back to them.
+    //
+    // Every B production is Zoe's own, all under ONE naming scheme, so the path is built
+    // rather than listed: the generator picks the directory, and the tag is the same one
+    // apply_unfolding_2d.C reads its per-block files with (mcVarTag + obsProdTag), in the
+    // order the macro and the run script write it:
+    //     <sample>_fMCGEN [_trkdrop030] [_noeecw] _upartv2_B .root
+    // That covers the three fits the B band needs -- Pythia nominal, Pythia 3% track drop
+    // ("Tracking efficiency") and Herwig nominal ("MC template modeling") -- each from its
+    // per-block files hadd'ed to the agg_ntuple_chunks top level. A combination nobody
+    // produced resolves to a file that does not exist, and the driver stops on it.
+    if (observable != "dr") {
+        const TString base = "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/";
+        const bool herwig  = (generator == "herwig");
+        TString subdir;
+        if (sample == "qcd")  subdir = herwig ? "QCDHerwig"  : "QCD";
+        if (sample == "bjet") subdir = herwig ? "bJetHerwig" : "bJet";
+        if (subdir.Length() == 0) return "";
+        // trkTag / eecWeightTag / obsProdTag are result_paths.h's, so the literals are shared
+        // with apply_unfolding_2d.C and cannot drift from what it reads.
+        const TString tag = trkTag(track_eff_unc) + eecWeightTag(eec_weight_off)
+                          + obsProdTag(observable);
+        return base + subdir + "/agg_ntuple_chunks/"
+               "Run3_btagWP0712_template_for_fit_histos_3D_" + sample + "_fMCGEN" + tag + ".root";
+    }
+
+    // The YIELD production (EEC weight off). Not a variation of the EEC fit -- the same fit
+    // performed on unweighted templates, so the signal fraction it returns is the one a
+    // yield measurement needs. Zoe's own blocks, hadd'ed to the agg_ntuple_chunks top level:
+    // Afnan's merged Pythia production is EEC-weighted and has no unweighted counterpart,
+    // so there is deliberately nothing to fall back on here.
+    if (eec_weight_off) {
+        if (generator != "pythia") return "";  // no Herwig yield production
+        // The tracking variation of the yield run: 3% of reco tracks dropped AND the EEC
+        // weight off. Tagged "_trkdrop030_noeecw" -- the macro appends TrkEffSyst::tag()
+        // then EecWeight::tag(), in that order, and variationTag() in result_paths.h builds
+        // the reader side the same way round.
+        const TString tag = track_eff_unc ? "_trkdrop030_noeecw" : "_noeecw";
+        if (sample == "qcd")
+            return "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/QCD/agg_ntuple_chunks/Run3_btagWP0712_template_for_fit_histos_3D_qcd_fMCGEN"
+                 + tag + "_upartv2.root";
+        if (sample == "bjet")
+            return "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/bJet/agg_ntuple_chunks/Run3_btagWP0712_template_for_fit_histos_3D_bjet_fMCGEN"
+                 + tag + "_upartv2.root";
+        return "";
+    }
     if (track_eff_unc) {
         if (generator != "pythia") return "";   // no varied Herwig production
         if (sample == "qcd")
@@ -1950,7 +2037,40 @@ TString mcgenTemplates(const TString &sample, const TString &generator,
 //       root -l -b -q 'template_fit.cpp("both","herwig")'
 //       root -l -b -q 'template_fit.cpp("both","pythia",true)'   // tracking variation
 void template_fit(TString SAMPLE = "both", TString GENERATOR = "pythia",
-                  bool TRACK_EFF_UNC = false){
+                  bool TRACK_EFF_UNC = false, bool EEC_WEIGHT_OFF = false,
+                  TString OBSERVABLE = "dr"){
+
+    // Which axis the fit slices in. "dr" is the original behaviour in every respect --
+    // same input files, same histogram names, same output directory -- so an existing call
+    // that does not pass this argument is unaffected.
+    const ObsDef obs = obsByName(OBSERVABLE);
+    if (obs.nbins == 0) {
+        std::cerr << "ERROR: unknown OBSERVABLE '" << OBSERVABLE << "' (use dr | B)" << std::endl;
+        return;
+    }
+    // Set BEFORE anything is read or booked: CheckInputBinning(), the histogram names and
+    // the plot labels all read gFitObs().
+    setFitObservable(obs);
+
+    /* ---- disabled (kept for reference): B was Pythia-only, no track drop ----
+    // True until 2026-09-24, when the B band grew to the full dr set. mcgenTemplates() now
+    // builds the Herwig and track-drop B paths, and a production that was never made fails
+    // on the missing-file check below, naming the file.
+    if (OBSERVABLE != "dr" && (GENERATOR != "pythia" || TRACK_EFF_UNC)) {
+        std::cerr << "ERROR: the " << OBSERVABLE << " templates exist only as Pythia "
+                  << "productions with no "
+                  << "track-drop variation. Asked for generator '" << GENERATOR
+                  << "', track_eff_unc=" << TRACK_EFF_UNC << "." << std::endl;
+        return;
+    }
+    ---- end disabled ---- */
+    // For B, EEC_WEIGHT_OFF is not a variation -- it IS the measurement. The EEC weight
+    // pT_b1*pT_b2 equals B(1-B)S², an analytic function of B itself, so an EEC-weighted B
+    // distribution is the yield times a known kinematic factor. See readme_workflow.md.
+    if (nominalEecWeightOff(OBSERVABLE) && !EEC_WEIGHT_OFF)
+        std::cout << "NOTE: fitting the EEC-WEIGHTED " << OBSERVABLE << " templates. The "
+                  << "measurement is the YIELD run (EEC_WEIGHT_OFF=true); this one is the "
+                  << "comparison." << std::endl;
 
     if (SAMPLE == "bjet") {
         std::cerr << "ERROR: SAMPLE 'bjet' is not a valid template fit: the 0B template "
@@ -1973,9 +2093,16 @@ void template_fit(TString SAMPLE = "both", TString GENERATOR = "pythia",
     // Same tag create_files_for_template_fit.cpp puts on the varied files, so the fit
     // that used them is identifiable from its directory name alone. "" when nominal, so
     // nominal output paths are unchanged.
-    const TString trk_tag = TRACK_EFF_UNC ? "_trkdrop030" : "";
+    const TString trk_tag  = TRACK_EFF_UNC  ? "_trkdrop030" : "";
+    // The yield fit gets its own directory for the same reason: it is a different
+    // observable, not a variation, and must never overwrite the EEC fit.
+    const TString eecw_tag = EEC_WEIGHT_OFF ? "_noeecw" : "";
+    // Observable tag: "" for dR so the dR fit keeps its existing directory, "_B" otherwise.
+    // A B fit must never land in the dR fit's folder -- apply_unfolding_2d.C reads
+    // h_sig_fraction_fit by name, and a B-binned one there would be silently wrong.
+    const TString obs_tag  = (OBSERVABLE == "dr") ? "" : ("_" + OBSERVABLE);
     sDirname     = "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/results/TemplateFit_Run3/"
-                   "TemplateFits_" + SAMPLE + "_" + GENERATOR + trk_tag + "_upartv2";
+                   "TemplateFits_" + SAMPLE + "_" + GENERATOR + trk_tag + eecw_tag + obs_tag + "_upartv2";
     sDirname_www = sDirname;
 
     // -- Output folder to save the result of the tests
@@ -2013,10 +2140,22 @@ void template_fit(TString SAMPLE = "both", TString GENERATOR = "pythia",
         // btagWP<NNN> follows BTAG_WP in the run scripts.
         // dataset_HG = "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/HardProbes/agg_template_chunks/Run3_btagWP0712_template_for_fit_histos_3D_data_fMCGEN_upartv2.root"; // Does not exist!
 
-        // Data is the same whichever generator the templates come from.
-        dataset_HG = "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/HardProbes/agg_template_chunks/Run3_btagWP712_template_for_fit_histos_3D_data_f_80_9999_2MCGEN.root";
-        templates_dijet = mcgenTemplates("qcd",  GENERATOR, TRACK_EFF_UNC);
-        templates_bjet  = mcgenTemplates("bjet", GENERATOR, TRACK_EFF_UNC);
+        // Data is the same whichever generator the templates come from -- but NOT the same
+        // whichever observable is being measured. h3D_data is filled with eec * weight_tree
+        // like everything else, so the EEC-weighted data file would be fitted against
+        // unweighted templates, which mixes two observables. The yield run therefore takes
+        // its own data production (make_hardprobes_condor_scripts.sh with EEC_WEIGHT_OFF=true,
+        // hadd'ed to the agg_template_chunks top level).
+        // The B data file is the "_upartv2_B" production, for the same reason as the
+        // templates: Afnan's data file has no h3D_data_B. Data and templates must come from
+        // productions that agree on the observable, or the fit is meaningless.
+        // ⚠️ h3D_data_<obs>, not h_count_data_<obs>: with the EEC weight off the fill
+        // weight is 1 * prescale, so h3D_data carries the TRIGGER PRESCALE and h_count does
+        // not (the prescale multiplies eec, never the count). The yield measurement wants
+        // the prescale-corrected one -- 1.949M against 1.773M raw jets.
+        dataset_HG = dataTemplateFile(EEC_WEIGHT_OFF, OBSERVABLE);
+        templates_dijet = mcgenTemplates("qcd",  GENERATOR, TRACK_EFF_UNC, EEC_WEIGHT_OFF, OBSERVABLE);
+        templates_bjet  = mcgenTemplates("bjet", GENERATOR, TRACK_EFF_UNC, EEC_WEIGHT_OFF, OBSERVABLE);
         fout_name = Form("Run%d_TemplateFits_histos_3d_%s.root", RunN, pT_selection.Data());
 
         if (templates_dijet.Length() == 0 ||

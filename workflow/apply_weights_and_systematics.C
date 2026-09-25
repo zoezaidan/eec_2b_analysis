@@ -9,6 +9,7 @@
 // works -- you just get stat errors until the Herwig run exists.
 
 #include "result_paths.h"   // the ONE definition of every result path and variation tag
+#include "observables.h"    // ObsDef: the axis title and binning of the observable measured
 #include <vector>
 #include <cmath>
 #include <map>
@@ -199,11 +200,22 @@ TH1D *loadWeighted(const TString &filename, const TString &histname,
 // =====================================================================================
 // GENERATOR / TF_GENERATOR are the UNFOLDING_GENERATOR and TF_GENERATOR of the NOMINAL
 // unfolding run; the variations below say which of them to flip.
+//
+// OBSERVABLE: dr | B -- which measurement to build the band for. It is threaded into every
+//             result path (result_paths.h), so a B run reads B results and only B results;
+//             it also picks the variation list, because the two observables do not have the
+//             same systematics available. unfoldBayes defaults to false (matrix inversion)
+//             to match apply_unfolding_2d.C -- the two must agree or every file is "missing".
+//
+//   root -l -b -q 'apply_weights_and_systematics.C("both","pythia")'                      # EEC(dr)
+//   root -l -b -q 'apply_weights_and_systematics.C("both","pythia",2,false,"h_data_fully_corrected_2D","pythia",2,false,"B")'   # dN/dB
 void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = "pythia",
-                                   int test_mode = 2, bool unfoldBayes = true,
+                                   int test_mode = 2, bool unfoldBayes = false,
                                    TString histname = "h_data_fully_corrected_2D",
                                    TString TF_GENERATOR = "pythia",
-                                   int ibin_pt = 2)
+                                   int ibin_pt = 2,
+                                   bool EEC_WEIGHT_OFF = false,
+                                   TString OBSERVABLE = "dr")
 {
     if (SAMPLE != "qcd" && SAMPLE != "bjet" && SAMPLE != "both") {
         std::cerr << "ERROR: unknown SAMPLE '" << SAMPLE << "' (use qcd | bjet | both)" << std::endl;
@@ -212,6 +224,24 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
     if (GENERATOR != "pythia" && GENERATOR != "herwig") {
         std::cerr << "ERROR: unknown GENERATOR '" << GENERATOR << "' (use pythia | herwig)" << std::endl;
         return;
+    }
+    if (!isKnownObservable(OBSERVABLE)) {
+        std::cerr << "ERROR: unknown OBSERVABLE '" << OBSERVABLE << "' (use dr | B)" << std::endl;
+        return;
+    }
+    // The two per-observable conventions, read from result_paths.h rather than repeated here.
+    // apply_unfolding_2d.C forces the same two when it WRITES, so these are what is actually
+    // on disk; reproducing them by hand in this file is exactly the drift that header exists
+    // to stop.
+    //   B carries no UParT SF (it is measured in reco dR bins and has no B equivalent), so
+    //   the nominal B result and every B variation live under "_sfupartoff".
+    //   B is a yield measurement: no EEC weight, so the result is dN/dB.
+    const TString SFUPART_NOM = nominalSfupart(OBSERVABLE);
+    if (!EEC_WEIGHT_OFF && nominalEecWeightOff(OBSERVABLE)) {
+        std::cout << "NOTE: OBSERVABLE '" << OBSERVABLE << "' is measured WITHOUT the EEC "
+                  << "weight (dN/d" << OBSERVABLE << "). Reading the EEC_WEIGHT_OFF results -- "
+                  << "see nominalEecWeightOff() in result_paths.h." << std::endl;
+        EEC_WEIGHT_OFF = true;
     }
     // A generator systematic only means something when both unfoldings ran on the SAME
     // input, which is only true for data. In the closure modes each run unfolds its own MC,
@@ -249,7 +279,75 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
     // give them a shared Variation::group -- the total loop then takes their envelope once,
     // which is how the light-jet mistag pair below is combined.)
     const TString other_gen = (GENERATOR == "pythia") ? "herwig" : "pythia";
-    std::vector<Variation> variations = {
+    // What the observable is called on every axis of every plot this macro draws. With the
+    // EEC weight off the same chain measures a yield, so labelling it "EEC" would be wrong,
+    // and with OBSERVABLE = B it is not dr either. One definition, used by every axis title
+    // below.
+    //
+    // The x-axis title for dr stays the literal "#Delta r" it always was rather than
+    // obs.axis ("#DeltaR"), so every existing dr plot is pixel-for-pixel unchanged; B takes
+    // its full label from the ObsDef, which is the one place it is written down.
+    const ObsDef  obs       = obsByName(OBSERVABLE);
+    const TString obs_sym   = obsSymbol(OBSERVABLE);
+    const TString obs_axis  = (OBSERVABLE == "dr") ? "#Delta r" : obs.axis;
+    const TString obs_title = EEC_WEIGHT_OFF ? ("dN/d" + obs_sym) : ("EEC(" + obs_sym + ")");
+
+    // An axis with no explicit range is padded by ROOT when it draws it: B lives on
+    // [0.5, 1.0] in 5 bins and comes out drawn to 1.1, which puts empty frame where the
+    // observable cannot go at all (B = 1 needs one B hadron with zero pT), and makes the last bin
+    // look like it is missing. Asking for the bin range explicitly is what stops it --
+    // SetNdivisions(..., kFALSE) does NOT, the padding is not the tick optimisation.
+    //
+    // dr already draws as exactly [0, 0.45], so it is left untouched and every existing dr
+    // plot is unchanged.
+    auto fixXRange = [&](TH1 *h) {
+        if (OBSERVABLE != "dr") h->GetXaxis()->SetRange(1, h->GetNbinsX());
+    };
+    // Each observable gets the variations that EXIST for it, and only those. Booking an entry
+    // whose production was never made just prints a wall of "skipped" lines and invites
+    // someone to read a band built from whatever happened to load -- so a variation that is
+    // not producible today is commented out here, next to what it would take to produce it.
+    std::vector<Variation> variations;
+
+    if (OBSERVABLE != "dr") {
+      // ---- B (dN/dB) --------------------------------------------------------------------
+      // The full dr set, minus the two sources that cannot exist for B (2026-09-24). Same
+      // entries, same groups, same sysLabels as dr, so the two bands are directly comparable
+      // source by source. All of them run off the "_upartv2_B" productions
+      // (obsProdTag() in result_paths.h) with the EEC weight off:
+      //   template_fit     Herwig B template fit           needs the Herwig B production
+      //   unfolding_model  Herwig B unfolding MC           the same Herwig B production
+      //   tracking_eff     3% track drop, MC AND refit     TRACK_EFF_UNC=true B production
+      //   mistag_0B_*      0B x2 / x0 refits               no new MC, one unfolding each
+      //
+      // Deliberately NOT in this band, each for a different reason:
+      //   UParT SF (all of it)  no equivalent exists -- the SF is measured in reco dR bins.
+      //                         Every such path carries "_sfupartoff" and says so. KNOWN GAP:
+      //                         the dr result carries a correction this result does not.
+      //   EEC weight modelling  the weight is off here, so the correction is identically 1.
+      variations = {
+        { "template_fit",    SAMPLE, GENERATOR, other_gen,    "TF " + prettyGen(other_gen),        false,
+          "nominal", SFUPART_NOM, "", "MC template modeling" },
+        { "unfolding_model", SAMPLE, other_gen, TF_GENERATOR, "Unfolding " + prettyGen(other_gen), false,
+          "nominal", SFUPART_NOM, "", "Detector response" },
+        { "tracking_eff",    SAMPLE, GENERATOR, TF_GENERATOR, "Tracking eff. (-3% tracks)", true,
+          "nominal", SFUPART_NOM, "", "Tracking efficiency" },
+        { "mistag_0B_up",   SAMPLE, GENERATOR, TF_GENERATOR, "Light-jet mistag (0B #times 2)", false,
+          "var0B_2", SFUPART_NOM, "mistag_0B", "Light jet mistagging" },
+        { "mistag_0B_down", SAMPLE, GENERATOR, TF_GENERATOR, "Light-jet mistag (0B #times 0)", false,
+          "var0B_0", SFUPART_NOM, "mistag_0B", "Light jet mistagging" },
+      };
+    } else if (EEC_WEIGHT_OFF) {
+      // The dr YIELD run has only ONE variation produced so far: the 3% track drop, re-run
+      // with the weight off. Every other entry below needs a production that does not exist
+      // unweighted (Herwig, the 0B template refits, the UParT SF variations). So the yield
+      // band is exactly the tracking uncertainty, and says so.
+      variations = {
+        { "tracking_eff", SAMPLE, GENERATOR, TF_GENERATOR, "Tracking eff. (-3% tracks)", true,
+          "nominal", "nominal", "", "Tracking efficiency" },
+      };
+    } else {
+      variations = {
         { "template_fit",    SAMPLE, GENERATOR, other_gen,    "TF " + prettyGen(other_gen),        false,
           "nominal", "nominal", "", "MC template modeling" },
         { "unfolding_model", SAMPLE, other_gen, TF_GENERATOR, "Unfolding " + prettyGen(other_gen), false,
@@ -290,10 +388,12 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
         // The two sides shift the SF coherently by +/- its bin error, so they are a genuine
         // pair: grouped, envelope counted once, and free to come out asymmetric.
         // Produce with SFUPART_VARIATION = "statup" / "statdn".
+        // sysLabel deliberately EMPTY: this pair counts in the band and shows on the
+        // per-source breakdown, but is kept off the tag on the data-vs-gen plot.
         { "sfupart_stat_up", SAMPLE, GENERATOR, TF_GENERATOR, "UParT SF (stat +1#sigma)", false,
-          "nominal", "statup", "sfupart_stat", "UParT SF: stat. precision" },
+          "nominal", "statup", "sfupart_stat", "" },
         { "sfupart_stat_dn", SAMPLE, GENERATOR, TF_GENERATOR, "UParT SF (stat #minus1#sigma)", false,
-          "nominal", "statdn", "sfupart_stat", "UParT SF: stat. precision" },
+          "nominal", "statdn", "sfupart_stat", "" },
 
         // DISPLAY ONLY (inBand = false): the same unfolding with no UParT SF applied, so
         // the plot shows the result before and after the correction. It is a correction,
@@ -320,8 +420,30 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
           "nominal", "qqrate_up",   "sfupart_qqrate", "UParT SF: qq rate #pm25%" },
         { "sfupart_qq_down",SAMPLE, GENERATOR, TF_GENERATOR, "UParT SF (qq rate #minus25%)", false,
           "nominal", "qqrate_down", "sfupart_qqrate", "UParT SF: qq rate #pm25%" },
+
+        // THE SECOND WAY TO USE THE SAME JP HF MEASUREMENT -- for comparison against
+        // "sfupart_jphf" above, which is the first.
+        //
+        //   sfupart_jphf        : the alternative SF CURVE, applied as measured. Its shift
+        //                         flips sign across dr (+ in bins 1-3, - from 4 on), so it
+        //                         reshapes the EEC and survives the unit-area normalisation.
+        //   sfupart_jpsyst_*    : the quoted JP HF UNCERTAINTY, +/- |jphf - central| applied
+        //                         coherently in every dr bin. Identical magnitudes, one sign.
+        //                         A coherent shift is nearly a normalisation, so most of it
+        //                         cancels when the result is renormalised to unit area.
+        //
+        // Both read the same two histograms in the calibration file, so booking both in the
+        // band would count the JP HF calibration twice. The pair is therefore DISPLAY ONLY
+        // (trailing false) while the two treatments are being compared -- flip that to true
+        // and drop "sfupart_jphf" if this is the treatment you want in the band.
+        // Produce with SFUPART_VARIATION = "jpsyst_up" / "jpsyst_dn".
+        { "sfupart_jpsyst_up", SAMPLE, GENERATOR, TF_GENERATOR, "UParT SF (JP HF syst +1#sigma)",
+          false, "nominal", "jpsyst_up", "sfupart_jpsyst", "", false },
+        { "sfupart_jpsyst_dn", SAMPLE, GENERATOR, TF_GENERATOR, "UParT SF (JP HF syst #minus1#sigma)",
+          false, "nominal", "jpsyst_dn", "sfupart_jpsyst", "", false },
         // { "sample", (SAMPLE == "both") ? "qcd" : "both", GENERATOR, TF_GENERATOR, "qcd only", false }, // MC composition
-    };
+      };
+    }
 
     // ---- Correction-level variations (no second unfolding; see the loop below) --------
     // NOTE ON DOUBLE COUNTING: "unfolding_model" above already swaps the whole unfolding MC
@@ -331,7 +453,11 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
     // deliberately conservative option.
     const TString corr_dir = "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/results/";
     const TString corr_tag = Form("_%s_pt%d.root", SAMPLE.Data(), ibin_pt);
-    std::vector<CorrVariation> corrVariations = {
+    // Correction-level variations are all EEC-weight modelling, which is meaningless once
+    // the weight is off -- the correction itself is identically 1 there.
+    std::vector<CorrVariation> corrVariations = EEC_WEIGHT_OFF
+      ? std::vector<CorrVariation>{}
+      : std::vector<CorrVariation>{
         /* ---- disabled (kept for reference): 2SV+UParT efficiency variation ----
         // Dropped on request 2026-09-09: not used in the result. Commenting the entry
         // out removes it from the quadrature total, the printout, both plots and the
@@ -369,6 +495,14 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
                 std::cerr << "ERROR: variation '" << v.name << "' has unknown sfupartVariation '"
                           << v.sfupartVariation << "'" << std::endl; ok = false;
             }
+            // An observable with no UParT SF has none to vary either: such an entry would
+            // build a path apply_unfolding_2d.C refuses to write, so it could only ever be
+            // reported as missing. Say why here instead.
+            if (SFUPART_NOM == "off" && v.sfupartVariation != "off") {
+                std::cerr << "ERROR: variation '" << v.name << "' asks for sfupartVariation '"
+                          << v.sfupartVariation << "', but OBSERVABLE '" << OBSERVABLE
+                          << "' has no UParT SF -- use \"off\"." << std::endl; ok = false;
+            }
         }
         // Two entries writing to the same name would silently overwrite each other's
         // histograms in the output file.
@@ -385,17 +519,37 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
     }
 
     // The nominal always has trackEffUnc = false: every variation above is measured
-    // against the unvaried MC.
-    const TString label       = resultLabel(SAMPLE, GENERATOR, test_mode, unfoldBayes, TF_GENERATOR, false);
-    const TString nominalFile = resultFile(SAMPLE, GENERATOR, test_mode, unfoldBayes, TF_GENERATOR, false);
+    // against the unvaried MC. SFUPART_NOM is "nominal" for dr and "off" for B -- the nominal
+    // B run applies no UParT SF and its path says so.
+    const TString label       = resultLabel(SAMPLE, GENERATOR, test_mode, unfoldBayes, TF_GENERATOR,
+                                            false, "nominal", SFUPART_NOM, EEC_WEIGHT_OFF,
+                                            OBSERVABLE);
+    const TString nominalFile = resultFile(SAMPLE, GENERATOR, test_mode, unfoldBayes, TF_GENERATOR,
+                                           false, "nominal", SFUPART_NOM, EEC_WEIGHT_OFF,
+                                           OBSERVABLE);
 
+    // The folder every plot and the final file are written to. One expression, used
+    // everywhere below -- it used to be spelled out at each of the six call sites, and the
+    // observable would have had to be added to all six.
+    const TString outFolder   = resultFolder(SAMPLE, GENERATOR, unfoldBayes, TF_GENERATOR,
+                                             false, "nominal", SFUPART_NOM, EEC_WEIGHT_OFF,
+                                             OBSERVABLE);
+
+    std::cout << "Observable: " << OBSERVABLE << "  (" << obs_title << ")" << std::endl;
+    std::cout << "Unfolding : " << (unfoldBayes ? "Bayesian" : "matrix inversion") << std::endl;
     std::cout << "Nominal : " << nominalFile << std::endl;
     std::cout << "Histogram: " << histname << std::endl;
 
     TH1D *h_nom = loadWeighted(nominalFile, histname, "h_nominal", w);
     if (!h_nom) {
+        // The full call, out to the observable, as for the variations below: a B nominal
+        // rebuilt from a two-argument call would be the dr one.
         std::cerr << "ERROR: no nominal result -- run apply_unfolding_2d.C(\"" << SAMPLE
-                  << "\",\"" << GENERATOR << "\") first" << std::endl;
+                  << "\",\"" << GENERATOR << "\"," << test_mode << ","
+                  << (unfoldBayes ? "true" : "false") << ",false,\"" << TF_GENERATOR
+                  << "\",false,\"nominal\",\"" << SFUPART_NOM << "\","
+                  << (EEC_WEIGHT_OFF ? "true" : "false") << ",\"" << OBSERVABLE
+                  << "\") first" << std::endl;
         return;
     }
 
@@ -431,16 +585,21 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
     for (const Variation &v : variations) {
         const TString varFile =
             resultFile(v.sample, v.generator, test_mode, unfoldBayes, v.tfGenerator,
-                       v.trackEffUnc, v.tfVariation, v.sfupartVariation);
+                       v.trackEffUnc, v.tfVariation, v.sfupartVariation, EEC_WEIGHT_OFF,
+                       OBSERVABLE);
         std::cout << "Variation '" << v.name << "' : " << varFile << std::endl;
 
         TH1D *h_var = loadWeighted(varFile, histname, "h_var_" + v.name, w);
         if (!h_var) {
+            // The exact call that produces it, all the way out to the observable: the
+            // trailing arguments are what a B or yield variation differs by, and a command
+            // that stopped at the SF variation would rebuild the dr result instead.
             std::cerr << "   -> skipped (run apply_unfolding_2d.C(\"" << v.sample << "\",\""
                       << v.generator << "\"," << test_mode << "," << (unfoldBayes ? "true" : "false")
                       << ",false,\"" << v.tfGenerator << "\","
                       << (v.trackEffUnc ? "true" : "false")
-                      << ",\"" << v.tfVariation << "\",\"" << v.sfupartVariation << "\""
+                      << ",\"" << v.tfVariation << "\",\"" << v.sfupartVariation << "\","
+                      << (EEC_WEIGHT_OFF ? "true" : "false") << ",\"" << OBSERVABLE << "\""
                       << ") to include it)" << std::endl;
             continue;
         }
@@ -643,10 +802,18 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
     // One signed-shift column per variation -- the shift OF THE RESULT (variation - nominal),
     // so the sign in the table is the direction that source actually pushes the point, and
     // it matches which of syst+/syst- the source feeds.
+    // Column header, 15 chars wide. A longer name is elided in the MIDDLE, not chopped at
+    // the end: the tail is what tells the two sides of a pair apart (sfupart_jpsyst_up vs
+    // ..._dn), so a plain "%.15s" would print two identical headers over two different
+    // columns -- which is how a comparison gets misread.
+    auto colHeader = [](const TString &name, bool in_band) -> TString {
+        const TString s = in_band ? name : ("*" + name);
+        if (s.Length() <= 15) return s;
+        return TString(s(0, 7)) + "~" + TString(s(s.Length() - 7, 7));
+    };
     printf("\n bin |        value |     stat");
     for (size_t k = 0; k < shift_names.size(); ++k)
-        printf(" | %15.15s", shift_in_band[k] ? shift_names[k].Data()
-                                              : ("*" + shift_names[k]).Data());
+        printf(" | %15.15s", colHeader(shift_names[k], shift_in_band[k]).Data());
     printf(" |    syst+ |    syst- |    total |  syst/value\n");
     printf("-----+--------------+---------");
     for (size_t k = 0; k < shift_names.size(); ++k) printf("-+----------------");
@@ -748,7 +915,7 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
         h_nom_draw->SetTitle("");
         h_nom_draw->GetYaxis()->SetRangeUser(0., ymax * 1.75);
         // TLatex (#Delta), not TMathText: TMathText axis titles do not render here.
-        h_nom_draw->GetYaxis()->SetTitle("EEC(#Delta r)");
+        h_nom_draw->GetYaxis()->SetTitle(obs_title);
         h_nom_draw->GetYaxis()->CenterTitle(true);
         h_nom_draw->GetYaxis()->SetTitleFont(font_code); h_nom_draw->GetYaxis()->SetTitleSize(title_size);
         h_nom_draw->GetYaxis()->SetTitleOffset(1.5); // as the bottomline plot's main pad
@@ -758,6 +925,7 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
         h_nom_draw->SetLineColor(col_nom);   h_nom_draw->SetMarkerColor(col_nom);
         h_nom_draw->SetMarkerStyle(kFullCircle); h_nom_draw->SetMarkerSize(1);
         h_nom_draw->SetLineWidth(2);
+        fixXRange(h_nom_draw);
         h_nom_draw->Draw("AXIS");
 
         // Total systematic as a light red band on the nominal, drawn first so the points
@@ -824,7 +992,7 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
         if (rmax <= 0.) rmax = 0.05;
         h_frame->SetTitle("");
         h_frame->GetYaxis()->SetRangeUser(-1.6 * rmax, 1.6 * rmax);
-        h_frame->GetXaxis()->SetTitle("#Delta r");
+        h_frame->GetXaxis()->SetTitle(obs_axis);
         // Short enough to fit the pad height -- "variation / nominal - 1" ran off the end
         // and lost its "1", which made the panel look like it plotted a ratio, not a shift.
         h_frame->GetYaxis()->SetTitle("Variation / nominal #minus 1");
@@ -841,6 +1009,7 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
         // it puts both titles outside the pad, so they are set to what actually renders.
         h_frame->GetXaxis()->SetTitleOffset(1.1);
         h_frame->GetYaxis()->SetTitleOffset(1.5);
+        fixXRange(h_frame);
         h_frame->Draw("AXIS");
 
         // Total systematic as a light red band around zero, for scale.
@@ -878,7 +1047,7 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
         l0->Draw();
         p_bot->RedrawAxis();
 
-        const TString plot_stem = resultFolder(SAMPLE, GENERATOR, TF_GENERATOR)
+        const TString plot_stem = outFolder
                                 + "systematics_curves_" + label;
         c_sys->Print(plot_stem + ".pdf");
         c_sys->Print(plot_stem + ".png");
@@ -925,7 +1094,9 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
         TH1D *h_gen_nom = loadGen(nominalFile, "h_gen_" + GENERATOR);
         TH1D *h_gen_alt = show_alt_gen
                         ? loadGen(resultFile(SAMPLE, other_gen, test_mode, unfoldBayes,
-                                             TF_GENERATOR, false), "h_gen_" + other_gen)
+                                             TF_GENERATOR, false, "nominal", SFUPART_NOM,
+                                             EEC_WEIGHT_OFF, OBSERVABLE),
+                                  "h_gen_" + other_gen)
                         : nullptr;
 
         if (!h_gen_nom) {
@@ -934,6 +1105,9 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
                       << "   That histogram's Write() was disabled until 2026-09-10, so a "
                       << "result unfolded before then does not carry it.\n"
                       << "   Re-run apply_unfolding_2d.C(\"" << SAMPLE << "\",\"" << GENERATOR
+                      << "\"," << test_mode << "," << (unfoldBayes ? "true" : "false")
+                      << ",false,\"" << TF_GENERATOR << "\",false,\"nominal\",\"" << SFUPART_NOM
+                      << "\"," << (EEC_WEIGHT_OFF ? "true" : "false") << ",\"" << OBSERVABLE
                       << "\") to get it." << std::endl;
         } else {
             const Color_t col_data = (Color_t) TColor::GetColor("#C44E52");  // measurement
@@ -975,7 +1149,7 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
             // Headroom: the legend sits upper right, the systematics tag upper left, and
             // both have to clear the peak. 1.75 is what fits the tag's rows above it.
             h_meas->GetYaxis()->SetRangeUser(0., ymax * 1.75);
-            h_meas->GetYaxis()->SetTitle("EEC(#Delta r)");
+            h_meas->GetYaxis()->SetTitle(obs_title);
             h_meas->GetYaxis()->CenterTitle(true);
             h_meas->GetYaxis()->SetTitleFont(font_code); h_meas->GetYaxis()->SetTitleSize(title_size);
             h_meas->GetYaxis()->SetTitleOffset(1.5);
@@ -985,6 +1159,7 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
             h_meas->SetLineColor(col_data);   h_meas->SetMarkerColor(col_data);
             h_meas->SetMarkerStyle(kFullCircle); h_meas->SetMarkerSize(1);
             h_meas->SetLineWidth(2);
+            fixXRange(h_meas);
             h_meas->Draw("AXIS");
 
             // Systematic as a box on each point, drawn under the MC so the curves stay read
@@ -1068,7 +1243,7 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
             // 1.5 puts the frame edge just under a tick, so ROOT draws the top label half
             // outside the pad. The extra headroom keeps every label inside.
             q_frame->GetYaxis()->SetRangeUser(1. - 1.7 * qmax, 1. + 1.7 * qmax);
-            q_frame->GetXaxis()->SetTitle("#Delta r");
+            q_frame->GetXaxis()->SetTitle(obs_axis);
             q_frame->GetYaxis()->SetTitle("MC / Data");
             q_frame->GetXaxis()->CenterTitle(true);
             q_frame->GetYaxis()->CenterTitle(true);
@@ -1079,6 +1254,7 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
             }
             q_frame->GetXaxis()->SetTitleOffset(1.1);
             q_frame->GetYaxis()->SetTitleOffset(1.5);
+            fixXRange(q_frame);
             q_frame->Draw("AXIS");
 
             // Data uncertainty around 1: the systematic as the wide light box, the
@@ -1128,7 +1304,7 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
             l1->Draw();
             q_bot->RedrawAxis();
 
-            const TString gen_stem = resultFolder(SAMPLE, GENERATOR, TF_GENERATOR)
+            const TString gen_stem = outFolder
                                    + "data_vs_gen_" + label;
             c_gen->Print(gen_stem + ".pdf");
             c_gen->Print(gen_stem + ".png");
@@ -1210,7 +1386,7 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
                     ymax = std::max(ymax, h_gen_ref->GetBinContent(i));
             h_a->SetTitle("");
             h_a->GetYaxis()->SetRangeUser(0., ymax * 1.45);
-            h_a->GetYaxis()->SetTitle("EEC(#Delta r)");
+            h_a->GetYaxis()->SetTitle(obs_title);
             h_a->GetYaxis()->CenterTitle(true);
             h_a->GetYaxis()->SetTitleFont(font_code); h_a->GetYaxis()->SetTitleSize(title_size);
             h_a->GetYaxis()->SetTitleOffset(1.5);
@@ -1274,7 +1450,7 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
             const double pad = std::max(0.02, 0.25 * (rhi - rlo));
             h_r->SetTitle("");
             h_r->GetYaxis()->SetRangeUser(rlo - pad, rhi + pad);
-            h_r->GetXaxis()->SetTitle("#Delta r");
+            h_r->GetXaxis()->SetTitle(obs_axis);
             h_r->GetYaxis()->SetTitle("After / Before");
             h_r->GetXaxis()->CenterTitle(true);
             h_r->GetYaxis()->CenterTitle(true);
@@ -1296,7 +1472,7 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
             l_one->Draw();
             s_bot->RedrawAxis();
 
-            const TString sfupart_stem = resultFolder(SAMPLE, GENERATOR, TF_GENERATOR)
+            const TString sfupart_stem = outFolder
                                   + "sfupart_before_after_" + label;
             c_sf->Print(sfupart_stem + ".pdf");
             c_sf->Print(sfupart_stem + ".png");
@@ -1304,8 +1480,247 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
         }
     }
 
+    // ---- Plot: the two JP HF treatments, as two bands on the EEC -----------------------
+    // The JP HF calibration can be used in two ways and the analysis must pick ONE. This
+    // plot puts the resulting uncertainty band from each on the measured EEC, so the choice
+    // is made by looking at the bands rather than at a column of numbers:
+    //
+    //   "SF variation"              (sfupart_jphf) the alternative SF CURVE is divided into
+    //                               the data instead of the central one, and the difference
+    //                               from the nominal EEC is SYMMETRISED -- one alternative
+    //                               gives the size of the shift, not its direction.
+    //   "SF uncertainty propagated" (sfupart_jpsyst_up/dn) the quoted per-bin SF UNCERTAINTY
+    //                               is added to / subtracted from the central SF, coherently
+    //                               in every dr bin, and the pair is combined signed: the
+    //                               member that pushes the result up sets the upper side,
+    //                               the one that pushes down sets the lower.
+    //
+    // Those two phrases are the legend text, so the plot and this comment cannot drift.
+    //
+    // Each band is therefore drawn exactly as that treatment would enter the total, so the
+    // plot answers "which band do I get if I choose this one".
+    //
+    // The two carry the SAME per-bin magnitudes: h_SFb_dr_syst_jpcalib_hf is exactly
+    // |h_SFb_dr_jpcalib_hf - h_SFb_dr_central| (checked 2026-09-14, all 8 bins). They differ
+    // only in the SIGN PATTERN -- the SF variation keeps the measured one, which flips across
+    // dr and so reshapes the EEC and survives the unit-area normalisation; the propagated
+    // uncertainty applies one coherent sign, which is close to a pure normalisation and
+    // largely cancels in it. That is why the bands come out different sizes, and why booking
+    // both would count one measurement twice.
+    //
+    // Driven by the three entries being booked, like the before/after plot above: comment
+    // them out and this plot stops being produced.
+    //
+    // Colours follow the house palette: red is the measurement, and the two bands are
+    // secondary -- green for the SF variation, purple for the propagated uncertainty.
+    {
+        int k_curve = -1, k_up = -1, k_dn = -1;
+        for (size_t k = 0; k < shift_names.size(); ++k) {
+            if (shift_names[k] == "sfupart_jphf")      k_curve = (int) k;
+            if (shift_names[k] == "sfupart_jpsyst_up") k_up    = (int) k;
+            if (shift_names[k] == "sfupart_jpsyst_dn") k_dn    = (int) k;
+        }
+
+        if (k_curve >= 0 && k_up >= 0 && k_dn >= 0) {
+            const Color_t col_meas = (Color_t) TColor::GetColor("#C44E52");  // measurement
+            const Color_t col_1    = (Color_t) TColor::GetColor("#4F8F52");  // SF variation
+            const Color_t col_2    = (Color_t) TColor::GetColor("#8C6BB1");  // SF unc. propagated
+            gStyle->SetOptStat(0);
+            gStyle->SetOptTitle(0);
+            gStyle->SetLegendBorderSize(0);
+            gStyle->SetLegendFillColor(0);
+
+            const Float_t font_scale  = 1200. / 800.;
+            const Style_t font_code   = 43;
+            const Float_t label_size  = 15. * font_scale;
+            const Float_t title_size  = 15. * font_scale;
+            const Float_t legend_size = 14. * font_scale;
+
+            TCanvas *c_jp = new TCanvas("c_jphf_treatments", "", 800, 850);
+            TPad *j_top = new TPad("j_top", "", 0., 0.40, 1., 1.);
+            TPad *j_bot = new TPad("j_bot", "", 0., 0.,   1., 0.40);
+            for (TPad *q : {j_top, j_bot}) { q->SetTicks(1, 0); q->SetFillColor(0); }
+            j_top->SetMargin(0.12, 0.05, 0.0,  0.08);
+            j_bot->SetMargin(0.12, 0.05, 0.18, 0.0);
+            c_jp->cd();
+            j_top->Draw(); j_bot->Draw();
+
+            // ---- the two bands, built the way each treatment is actually combined -------
+            TGraphAsymmErrors *g1 = new TGraphAsymmErrors(nbins);
+            TGraphAsymmErrors *g2 = new TGraphAsymmErrors(nbins);
+            g1->SetName("g_jphf_band_curve");
+            g2->SetName("g_jphf_band_syst");
+
+            // The same two bands again, but centred on zero and in percent of the nominal,
+            // for the lower pad.
+            TGraphAsymmErrors *r1 = new TGraphAsymmErrors(nbins);
+            TGraphAsymmErrors *r2 = new TGraphAsymmErrors(nbins);
+            r1->SetName("g_jphf_rel_variation");
+            r2->SetName("g_jphf_rel_uncprop");
+
+            double ymax = 0., rmax = 0.;
+            for (int i = 1; i <= nbins; ++i) {
+                const double v  = h_nom->GetBinContent(i);
+                const double hw = 0.5 * h_nom->GetBinWidth(i);
+                const double x  = h_nom->GetBinCenter(i);
+
+                // SF variation: one alternative -> symmetrised.
+                const double a1 = std::fabs(h_deltas[k_curve]->GetBinContent(i));
+                // SF uncertainty propagated: a pair -> signed, each side from the member
+                // that pushes that way.
+                // h_deltas is (nominal - variation), so the shift of the RESULT is minus it.
+                const double u = -h_deltas[k_up]->GetBinContent(i);
+                const double d = -h_deltas[k_dn]->GetBinContent(i);
+                const double up2 = std::max(0., std::max(u, d));
+                const double dn2 = std::max(0., std::max(-u, -d));
+
+                g1->SetPoint(i - 1, x, v);
+                g1->SetPointError(i - 1, hw, hw, a1, a1);
+                g2->SetPoint(i - 1, x, v);
+                g2->SetPointError(i - 1, hw, hw, dn2, up2);
+
+                ymax = std::max(ymax, v + std::max(a1, up2) + h_nom->GetBinError(i));
+
+                // As a RATIO to the nominal, so the lower pad reads 1.00 +/- the band and
+                // needs no unit. Same two bands, just divided by the central value.
+                const double p1  = (v != 0.) ? a1  / std::fabs(v) : 0.;
+                const double p2u = (v != 0.) ? up2 / std::fabs(v) : 0.;
+                const double p2d = (v != 0.) ? dn2 / std::fabs(v) : 0.;
+                r1->SetPoint(i - 1, x, 1.);
+                r1->SetPointError(i - 1, hw, hw, p1, p1);
+                r2->SetPoint(i - 1, x, 1.);
+                r2->SetPointError(i - 1, hw, hw, p2d, p2u);
+                rmax = std::max(rmax, std::max(p1, std::max(p2u, p2d)));
+            }
+
+            // ---- Band styles, shared by both pads --------------------------------------
+            // BOTH are drawn as bands, and they overlap in every bin, so they cannot both be
+            // plain solid fills -- whichever is smaller would vanish underneath the other.
+            // The variation is a light solid fill; the propagated uncertainty is HATCHED, so
+            // the fill underneath shows through the gaps and the two stay readable wherever
+            // one contains the other. Hatching rather than a second alpha because it survives
+            // conversion to PDF and printing, which stacked transparencies do not reliably do.
+            auto styleBand1 = [&](TGraphAsymmErrors *g) {
+                g->SetFillColorAlpha(col_1, 0.45);
+                g->SetFillStyle(1001);
+                g->SetLineColor(col_1);
+                g->SetLineWidth(1);
+            };
+            auto styleBand2 = [&](TGraphAsymmErrors *g) {
+                g->SetFillColor(col_2);
+                g->SetFillStyle(3354);
+                g->SetLineColor(col_2);
+                g->SetLineWidth(2);
+            };
+            styleBand1(g1); styleBand1(r1);
+            styleBand2(g2); styleBand2(r2);
+
+            // ---- top: the EEC with both bands ------------------------------------------
+            j_top->cd();
+            TH1D *h_frame = (TH1D *) h_nom->Clone("h_jphf_frame");
+            h_frame->SetDirectory(nullptr);
+            h_frame->SetTitle("");
+            h_frame->GetYaxis()->SetRangeUser(0., ymax * 1.45);
+            h_frame->GetYaxis()->SetTitle(obs_title);
+            h_frame->GetYaxis()->CenterTitle(true);
+            h_frame->GetYaxis()->SetTitleFont(font_code);
+            h_frame->GetYaxis()->SetTitleSize(title_size);
+            h_frame->GetYaxis()->SetTitleOffset(1.5);
+            h_frame->GetYaxis()->SetLabelFont(font_code);
+            h_frame->GetYaxis()->SetLabelSize(label_size);
+            h_frame->GetXaxis()->SetTitleSize(0);
+            h_frame->GetXaxis()->SetLabelSize(0);
+
+            TH1D *h_pts = (TH1D *) h_nom->Clone("h_jphf_points");
+            h_pts->SetDirectory(nullptr);
+            h_pts->SetLineColor(col_meas); h_pts->SetMarkerColor(col_meas);
+            h_pts->SetMarkerStyle(kFullCircle); h_pts->SetMarkerSize(1.0);
+            h_pts->SetLineWidth(2);
+
+            h_frame->Draw("AXIS");
+            g1->Draw("2 same");
+            g2->Draw("2 same");
+            h_pts->Draw("PE X0 same");
+            gPad->RedrawAxis();
+
+            TLegend *leg_jp = new TLegend(0.42, 0.60, 0.93, 0.90);
+            leg_jp->SetTextFont(font_code); leg_jp->SetTextSize(legend_size);
+            leg_jp->AddEntry(h_pts, "Unfolded EEC (#pm stat)", "pe");
+            leg_jp->AddEntry(g1, "SF variation", "f");
+            leg_jp->AddEntry(g2, "SF uncertainty propagated", "f");
+            leg_jp->Draw();
+
+            // ---- bottom: the same two bands as a ratio to the nominal ------------------
+            // The top pad shows the bands on the measurement; this one is where their SIZES
+            // can actually be read off and compared bin by bin. Same two bands, same styles,
+            // centred on 1.
+            j_bot->cd();
+            TH1D *h_rframe = (TH1D *) h_nom->Clone("h_jphf_rel_frame");
+            h_rframe->SetDirectory(nullptr);
+            h_rframe->Reset();
+            h_rframe->SetTitle("");
+            // 1.9, not 1.6: the largest band would otherwise run into the legend.
+            h_rframe->GetYaxis()->SetRangeUser(1. - 1.9 * rmax, 1. + 1.9 * rmax);
+            h_rframe->GetYaxis()->SetTitle("Ratio to nominal");
+            h_rframe->GetXaxis()->SetTitle(obs_axis);
+            h_rframe->GetXaxis()->CenterTitle(true);
+            h_rframe->GetYaxis()->CenterTitle(true);
+            h_rframe->GetYaxis()->SetNdivisions(505);
+            for (TAxis *ax : { h_rframe->GetXaxis(), h_rframe->GetYaxis() }) {
+                ax->SetTitleFont(font_code); ax->SetTitleSize(title_size);
+                ax->SetLabelFont(font_code); ax->SetLabelSize(label_size);
+            }
+            h_rframe->GetXaxis()->SetTitleOffset(1.1);
+            h_rframe->GetYaxis()->SetTitleOffset(1.5);
+
+            h_rframe->Draw("AXIS");
+            r1->Draw("2 same");
+            r2->Draw("2 same");
+
+            TLine *l_one = new TLine(h_rframe->GetXaxis()->GetXmin(), 1.,
+                                     h_rframe->GetXaxis()->GetXmax(), 1.);
+            l_one->SetLineColor(kGray + 1); l_one->SetLineStyle(2);
+            l_one->Draw();
+            j_bot->RedrawAxis();
+
+            TLegend *leg_jp2 = new TLegend(0.16, 0.82, 0.88, 0.98);
+            leg_jp2->SetNColumns(2);
+            leg_jp2->SetTextFont(font_code); leg_jp2->SetTextSize(legend_size);
+            leg_jp2->AddEntry(r1, "SF variation", "f");
+            leg_jp2->AddEntry(r2, "SF uncertainty propagated", "f");
+            leg_jp2->Draw();
+
+            const TString jp_stem = outFolder
+                                  + "jphf_treatments_" + label;
+            c_jp->Print(jp_stem + ".pdf");
+            c_jp->Print(jp_stem + ".png");
+            std::cout << "\nWrote " << jp_stem << ".{pdf,png}" << std::endl;
+
+            // The same numbers, flagging the bins where the choice actually matters.
+            printf("\n  JP HF: SF variation vs SF uncertainty propagated, %% of the nominal\n");
+            printf("  %3s %8s | %9s %8s | %9s %9s %8s\n",
+                   "bin", "value", "var +/-", "rel%", "unc up", "unc dn", "rel%");
+            printf("  ----------------+--------------------+------------------------------\n");
+            for (int i = 1; i <= nbins; ++i) {
+                const double v  = h_nom->GetBinContent(i);
+                const double a1 = std::fabs(h_deltas[k_curve]->GetBinContent(i));
+                const double u  = -h_deltas[k_up]->GetBinContent(i);
+                const double d  = -h_deltas[k_dn]->GetBinContent(i);
+                const double env = std::max(std::fabs(u), std::fabs(d));
+                printf("  %3d %8.4f | %9.5f %7.2f%% | %+9.5f %+9.5f %7.2f%%%s\n",
+                       i, v, a1, v ? 100. * a1 / v : 0., u, d, v ? 100. * env / v : 0.,
+                       (env > 0. && a1 > 0. && (a1 / env > 2. || env / a1 > 2.))
+                           ? "   <-- differ >2x" : "");
+            }
+            printf("\n  Same per-bin magnitudes, different sign pattern: the SF variation keeps\n"
+                   "  the measured one and reshapes, the propagated uncertainty is coherent\n"
+                   "  across dr and cancels in the unit-area normalisation. Pick one -- never\n"
+                   "  book both.\n");
+        }
+    }
+
     // ---- Write ----
-    const TString fout_name = resultFolder(SAMPLE, GENERATOR, TF_GENERATOR)
+    const TString fout_name = outFolder
                             + "final_" + label + "_with_systematics.root";
     TFile fout(fout_name, "RECREATE");
     h_nom->Write("h_nominal");          // central values, stat errors
@@ -1334,7 +1749,7 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
     // INPUTS to the band, not results. Print the short list, so the deliverables can be
     // found without reading the code or guessing from folder names.
     {
-        const TString out = resultFolder(SAMPLE, GENERATOR, TF_GENERATOR);
+        const TString out = outFolder;
         printf("\n");
         printf("================================ FINAL OUTPUTS ================================\n");
         printf("All in %s\n\n", out.Data());
@@ -1349,8 +1764,194 @@ void apply_weights_and_systematics(TString SAMPLE = "both", TString GENERATOR = 
         if (has_sf_cmp)
             printf("  %-46s %s\n", TString("sfupart_before_after_" + label + ".pdf").Data(),
                                     "the UParT SF on its own (comparison)");
+        bool has_jp_cmp = false, has_jp_up = false;
+        for (const TString &n : shift_names) {
+            if (n == "sfupart_jphf")      has_jp_cmp = true;
+            if (n == "sfupart_jpsyst_up") has_jp_up  = true;
+        }
+        if (has_jp_cmp && has_jp_up)
+            printf("  %-46s %s\n", TString("jphf_treatments_" + label + ".pdf").Data(),
+                                    "JP HF: curve swap vs +/- syst (comparison)");
         printf("\nEvery OTHER unfolding_* folder is an INPUT to the band -- one systematic\n");
         printf("variation each -- not a result. The variation list above names them.\n");
         printf("===============================================================================\n");
     }
+}
+
+// ============================================================================
+// The tracking-efficiency uncertainty: EEC vs yields, side by side
+// ============================================================================
+//
+// The same 3% track drop, propagated through the same chain twice -- once with the
+// (pt1*pt2)^n weight on (the EEC) and once with it off (the dN/dr yield). Both productions
+// use the SAME seed, and TrkEffSyst hashes (seed, entry, track index), so the two runs drop
+// exactly the same tracks. The difference between the two bands is therefore the EEC weight
+// and nothing else, which is the only reason this comparison means anything.
+//
+// Reads the two final files apply_weights_and_systematics() already wrote:
+//     unfolding_both_pythia_upartv2/final_..._with_systematics.root         (EEC)
+//     unfolding_both_pythia_noeecw_upartv2/final_..._noeecw_..._root       (yields)
+// so it needs no unfolding of its own. Run the macro for BOTH observables first.
+//
+// TOP:    the two unfolded distributions, each unit-area normalised (as the macro writes
+//         them) so their shapes are directly comparable, each with its tracking band.
+// BOTTOM: the same two bands as a ratio to their own nominal -- this is where the SIZE of
+//         the uncertainty is read off, which is the actual question.
+//
+//   root -l -b -q -e '.L apply_weights_and_systematics.C' \
+//                 -e 'plot_tracking_eec_vs_yield("both","pythia")'
+// ============================================================================
+void plot_tracking_eec_vs_yield(TString SAMPLE = "both", TString GENERATOR = "pythia",
+                                int test_mode = 2, bool unfoldBayes = false,
+                                TString TF_GENERATOR = "pythia")
+{
+    auto finalFile = [&](bool eecw_off) {
+        return resultFolder(SAMPLE, GENERATOR, unfoldBayes, TF_GENERATOR, false, "nominal",
+                            "nominal", eecw_off)
+             + "final_" + resultLabel(SAMPLE, GENERATOR, test_mode, unfoldBayes, TF_GENERATOR,
+                                      false, "nominal", "nominal", eecw_off)
+             + "_with_systematics.root";
+    };
+
+    TFile *fe = TFile::Open(finalFile(false));   // EEC
+    TFile *fy = TFile::Open(finalFile(true));    // yields
+    if (!fe || fe->IsZombie() || !fy || fy->IsZombie()) {
+        std::cerr << "ERROR: need BOTH final files. Missing one of:\n  " << finalFile(false)
+                  << "\n  " << finalFile(true)
+                  << "\n   -> run apply_weights_and_systematics(...) with EEC_WEIGHT_OFF false "
+                  << "and again with true." << std::endl;
+        return;
+    }
+    // h_syst_<name> is the SYMMETRISED |nominal - variation| that entered the band.
+    TH1D *ne = (TH1D *) fe->Get("h_nominal");
+    TH1D *se = (TH1D *) fe->Get("h_syst_tracking_eff");
+    TH1D *ny = (TH1D *) fy->Get("h_nominal");
+    TH1D *sy = (TH1D *) fy->Get("h_syst_tracking_eff");
+    if (!ne || !se || !ny || !sy) {
+        std::cerr << "ERROR: h_nominal / h_syst_tracking_eff missing -- was 'tracking_eff' "
+                  << "booked and its unfolding present in both runs?" << std::endl;
+        return;
+    }
+    const int nb = ne->GetNbinsX();
+    if (ny->GetNbinsX() != nb) {
+        std::cerr << "ERROR: the two results have different binning ("
+                  << nb << " vs " << ny->GetNbinsX() << ")" << std::endl;
+        return;
+    }
+
+    // Same idiom as the JP HF comparison above: two bands, one solid and one hatched, so
+    // whichever is smaller stays visible where one contains the other.
+    const Color_t col_eec = (Color_t) TColor::GetColor("#4F8F52");   // EEC
+    const Color_t col_yld = (Color_t) TColor::GetColor("#8C6BB1");   // yields
+    gStyle->SetOptStat(0); gStyle->SetOptTitle(0);
+    gStyle->SetLegendBorderSize(0); gStyle->SetLegendFillColor(0);
+
+    const Float_t font_scale  = 1200. / 800.;
+    const Style_t font_code   = 43;
+    const Float_t label_size  = 15. * font_scale;
+    const Float_t title_size  = 15. * font_scale;
+    const Float_t legend_size = 14. * font_scale;
+
+    TCanvas *c = new TCanvas("c_trk_eec_vs_yield", "", 800, 850);
+    TPad *p_top = new TPad("k_top", "", 0., 0.40, 1., 1.);
+    TPad *p_bot = new TPad("k_bot", "", 0., 0.,   1., 0.40);
+    for (TPad *q : {p_top, p_bot}) { q->SetTicks(1, 0); q->SetFillColor(0); }
+    p_top->SetMargin(0.13, 0.05, 0.0,  0.08);
+    p_bot->SetMargin(0.13, 0.05, 0.18, 0.0);
+    c->cd(); p_top->Draw(); p_bot->Draw();
+
+    TGraphAsymmErrors *ge = new TGraphAsymmErrors(nb), *gy = new TGraphAsymmErrors(nb);
+    TGraphAsymmErrors *re = new TGraphAsymmErrors(nb), *ry = new TGraphAsymmErrors(nb);
+    double ymax = 0., rmax = 0.;
+    for (int i = 1; i <= nb; ++i) {
+        const double x = ne->GetBinCenter(i), hw = 0.5 * ne->GetBinWidth(i);
+        const double ve = ne->GetBinContent(i), vy = ny->GetBinContent(i);
+        const double ee = se->GetBinContent(i), ey = sy->GetBinContent(i);
+        ge->SetPoint(i - 1, x, ve); ge->SetPointError(i - 1, hw, hw, ee, ee);
+        gy->SetPoint(i - 1, x, vy); gy->SetPointError(i - 1, hw, hw, ey, ey);
+        const double fe_ = (ve != 0.) ? ee / std::fabs(ve) : 0.;
+        const double fy_ = (vy != 0.) ? ey / std::fabs(vy) : 0.;
+        re->SetPoint(i - 1, x, 1.); re->SetPointError(i - 1, hw, hw, fe_, fe_);
+        ry->SetPoint(i - 1, x, 1.); ry->SetPointError(i - 1, hw, hw, fy_, fy_);
+        ymax = std::max(ymax, std::max(ve + ee, vy + ey));
+        rmax = std::max(rmax, std::max(fe_, fy_));
+    }
+    for (TGraphAsymmErrors *g : {ge, re}) {
+        g->SetFillColorAlpha(col_eec, 0.45); g->SetFillStyle(1001);
+        g->SetLineColor(col_eec); g->SetLineWidth(1);
+    }
+    for (TGraphAsymmErrors *g : {gy, ry}) {
+        g->SetFillColor(col_yld); g->SetFillStyle(3354);
+        g->SetLineColor(col_yld); g->SetLineWidth(2);
+    }
+
+    // ---- top: both distributions with their tracking bands ----
+    p_top->cd();
+    TH1D *fr = (TH1D *) ne->Clone("h_trkcmp_frame"); fr->SetDirectory(nullptr); fr->Reset();
+    fr->SetTitle("");
+    fr->GetYaxis()->SetRangeUser(0., ymax * 1.45);
+    fr->GetYaxis()->SetTitle("normalised distribution");
+    fr->GetYaxis()->CenterTitle(true);
+    fr->GetYaxis()->SetTitleFont(font_code); fr->GetYaxis()->SetTitleSize(title_size);
+    fr->GetYaxis()->SetTitleOffset(1.6);
+    fr->GetYaxis()->SetLabelFont(font_code); fr->GetYaxis()->SetLabelSize(label_size);
+    fr->GetYaxis()->ChangeLabel(1, -1, 0.);
+    fr->GetXaxis()->SetTitleSize(0); fr->GetXaxis()->SetLabelSize(0);
+    fr->Draw("AXIS");
+    ge->Draw("2 same"); gy->Draw("2 same");
+    gPad->RedrawAxis();
+
+    TLegend *lg = new TLegend(0.45, 0.66, 0.93, 0.90);
+    lg->SetTextFont(font_code); lg->SetTextSize(legend_size);
+    lg->AddEntry(ge, "EEC, tracking band", "f");
+    lg->AddEntry(gy, "Yield dN/d#Delta r, tracking band", "f");
+    lg->Draw();
+
+    // ---- bottom: the two bands as a ratio to their own nominal ----
+    p_bot->cd();
+    TH1D *rf = (TH1D *) ne->Clone("h_trkcmp_rframe"); rf->SetDirectory(nullptr); rf->Reset();
+    rf->SetTitle("");
+    rf->GetYaxis()->SetRangeUser(1. - 1.9 * rmax, 1. + 1.9 * rmax);
+    rf->GetYaxis()->SetTitle("Ratio to nominal");
+    rf->GetXaxis()->SetTitle("#Delta r");
+    rf->GetXaxis()->CenterTitle(true); rf->GetYaxis()->CenterTitle(true);
+    rf->GetYaxis()->SetNdivisions(505);
+    for (TAxis *ax : { rf->GetXaxis(), rf->GetYaxis() }) {
+        ax->SetTitleFont(font_code); ax->SetTitleSize(title_size);
+        ax->SetLabelFont(font_code); ax->SetLabelSize(label_size);
+    }
+    rf->GetXaxis()->SetTitleOffset(1.1); rf->GetYaxis()->SetTitleOffset(1.6);
+    rf->Draw("AXIS");
+    re->Draw("2 same"); ry->Draw("2 same");
+    TLine *l1 = new TLine(rf->GetXaxis()->GetXmin(), 1., rf->GetXaxis()->GetXmax(), 1.);
+    l1->SetLineColor(kGray + 1); l1->SetLineStyle(2); l1->Draw();
+    p_bot->RedrawAxis();
+
+    TLegend *lg2 = new TLegend(0.16, 0.82, 0.88, 0.98);
+    lg2->SetNColumns(2);
+    lg2->SetTextFont(font_code); lg2->SetTextSize(legend_size);
+    lg2->AddEntry(re, "EEC", "f");
+    lg2->AddEntry(ry, "Yield", "f");
+    lg2->Draw();
+
+    const TString stem = resultFolder(SAMPLE, GENERATOR, unfoldBayes, TF_GENERATOR)
+                       + "tracking_eec_vs_yield_" + SAMPLE + "_" + GENERATOR;
+    c->Print(stem + ".pdf");
+    c->Print(stem + ".png");
+    std::cout << "\nWrote " << stem << ".{pdf,png}" << std::endl;
+
+    printf("\n  Tracking-efficiency uncertainty, EEC vs yields (symmetrised, %% of nominal)\n");
+    printf("  %3s %13s | %9s %8s | %9s %8s | %8s\n",
+           "bin", "dr range", "EEC", "rel%", "yield", "rel%", "yld/EEC");
+    printf("  -----------------+--------------------+--------------------+---------\n");
+    for (int i = 1; i <= nb; ++i) {
+        const double ve = ne->GetBinContent(i), vy = ny->GetBinContent(i);
+        const double ee = se->GetBinContent(i), ey = sy->GetBinContent(i);
+        const double pe = ve ? 100. * ee / std::fabs(ve) : 0.;
+        const double py = vy ? 100. * ey / std::fabs(vy) : 0.;
+        printf("  %3d [%5.2f,%5.2f] | %9.5f %7.2f%% | %9.5f %7.2f%% | %8.2f\n",
+               i, ne->GetXaxis()->GetBinLowEdge(i), ne->GetXaxis()->GetBinUpEdge(i),
+               ee, pe, ey, py, pe ? py / pe : 0.);
+    }
+    fe->Close(); fy->Close();
 }

@@ -55,7 +55,7 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
 
                 // use bins from drbin 2 (1 is for integrated dr)
                 TH1D* hsigfrac_dr = (TH1D*) h1D_scaled->Clone("hsigfrac_dr");
-                        hsigfrac_dr->GetXaxis()->SetTitle("#DeltaR");
+                        hsigfrac_dr->GetXaxis()->SetTitle(gFitObs().axis);
                         hsigfrac_dr->Reset();
                 TH1D* hbkgfrac_dr = (TH1D*) hsigfrac_dr->Clone("hbkgfrac_dr");
 
@@ -129,7 +129,7 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
             else{pt_first = jtpt_binsVector[ibin_pt-1]; pt_last = jtpt_binsVector[ibin_pt]; }
             c_data->cd();
             h1D_scaled->SetTitle("");
-            h1D_scaled->GetXaxis()->SetTitle("#DeltaR");
+            h1D_scaled->GetXaxis()->SetTitle(gFitObs().axis);
             h1D_scaled->GetYaxis()->SetTitle("EEC");
             h1D_scaled->Draw("hist E");
             heec_sigfrac->Draw("hist E same");
@@ -152,7 +152,7 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
                 c_MC->cd();
                 
                 h1D_b_0b->SetTitle("");
-                h1D_b_0b->GetXaxis()->SetTitle("#DeltaR");
+                h1D_b_0b->GetXaxis()->SetTitle(gFitObs().axis);
                 h1D_b_0b->GetYaxis()->SetTitle("EEC");
                 h1D_b_0b->SetMaximum( 1.3 *  h1D_b_0b->GetMaximum() );
                 h1D_b_0b ->Draw("hist E ");
@@ -160,7 +160,7 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
                 h1D_0b->Draw("hist E  same");
 
                 h1D_bb->SetTitle("");
-                h1D_bb->GetXaxis()->SetTitle("#DeltaR");
+                h1D_bb->GetXaxis()->SetTitle(gFitObs().axis);
                 h1D_bb->GetYaxis()->SetTitle("EEC");
                 if (also_bjet) h1D_bb->SetMaximum(1.3 *  h1D_bb_bjets->GetMaximum()); // bjets is larger
                 h1D_bb->Draw("hist E same");
@@ -263,7 +263,7 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
                             // change its y axis name
                             TH1* h1_2B = (TH1*) pad2_2B->GetPrimitive(Form("ratio_%s_%s", heec_sigfrac->GetName(), heec_bb_MC_scaled->GetName()));
                             h1_2B->GetYaxis()->SetTitle("Data/MC");
-                            h1_2B->GetXaxis()->SetTitle("#DeltaR");
+                            h1_2B->GetXaxis()->SetTitle(gFitObs().axis);
                             h1_2B->SetMinimum(0.1);
                             h1_2B->SetMaximum(1.9);
                             TLegend* leg_ratio_2B = CreateLegend(0.7, 0.8, 0.88, 0.90,  // suggested: 0.6,0.7,0.9,0.9 // Right: 0.7, 0.62, 0.89, 0.90
@@ -327,7 +327,7 @@ void draw_eec_simple(TString fout_name, TFile* foutputPlots, TString &folder, bo
                             // change its y axis name
                             TH1* h1 = (TH1*) pad2->GetPrimitive(Form("ratio_%s_%s", heec_sigfrac->GetName(), heec_bb_MC_scaled->GetName()));
                             h1->GetYaxis()->SetTitle("Data/MC");
-                            h1->GetXaxis()->SetTitle("#DeltaR");
+                            h1->GetXaxis()->SetTitle(gFitObs().axis);
                             // h1->SetMinimum(0.1);
                             // h1->SetMaximum(1.9);
                     AddRatioPlot(heec_bkgfrac, heec_b_0b_MC_scaled, "Data/MC" ,"EP same", TFColor::bkg());
