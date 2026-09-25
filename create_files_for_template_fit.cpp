@@ -16,6 +16,7 @@
 #include <TGraph.h>
 #include <TFile.h>
 #include <TTree.h>
+#include <TLeaf.h>
 #include <TH1F.h>
 #include <TH2.h>
 #include <TCanvas.h>
@@ -40,6 +41,8 @@
 #include <functional> // std::not_equal_to<int>.
 #include "TMatrixD.h"
 #include "central_selections.h"
+#include "Run3HeavyIonJetCalibrations/include/JetCorrector.h"
+#include <stdexcept>
 
 
 // -- For Unfolding 
@@ -231,7 +234,7 @@ void PartialBsAggregation(std::vector<ROOT::Math::PtEtaPhiMVector>& hadrons_4vec
     ROOT::Math::PtEtaPhiMVector v(t.refTrkPt [itrk], t.refTrkEta[itrk], t.refTrkPhi[itrk], mass);
     
     Int_t status = t.refTrkSta[itrk];                                                                                                
-    if (status < 100) continue;                                                                                                     
+    if (status < 100 || status % 100 != 0) continue; // b-decay status codes are multiples of 100
     else {
       auto it = std::find(hadrons_stat.begin(), hadrons_stat.end(), status);
       if (it == hadrons_stat.end()) {                                                                                                
@@ -721,7 +724,7 @@ void fill_jk_resampling_1D(std::vector<TH1D *> histos, double num, double x, dou
 struct AggBHadronNtupleRow {
   Long64_t entry;
   Int_t run, lumi, evt, jetIndex;
-  Float_t weight, jtpt, jteta, refpt, refeta;
+  Float_t weight, jtpt, jteta, refpt, refeta, muMax;
   Int_t jtNbHad, jtNcHad;
   Float_t btagScore, jetProbability, wrongJetProbability;
   Int_t passRecoKin, passGenKin, passBtag, nRecoAgg, nGenAgg, genStatus1, genStatus2;
@@ -738,6 +741,9 @@ struct AggBHadronNtupleRow {
   Float_t recoSvHfPtPurity1, recoSvHfPtPurity2;
   Float_t recoSvDominantStatusPtPurity1, recoSvDominantStatusPtPurity2;
   Float_t recoSvDominantStatusPtOverHfPt1, recoSvDominantStatusPtOverHfPt2;
+  // Sum of aggregate transverse momenta, plus the complementary charged tracks.
+  Float_t recoChargedBPt, recoNonBPt, recoChargedBFraction;
+  Float_t genChargedBPt, genNonBPt, genChargedBFraction;
   Float_t recoPt1, recoEta1, recoPhi1, recoM1, recoPt2, recoEta2, recoPhi2, recoM2, recoDr, recoMB, recoEec, genPt1, genEta1, genPhi1, genM1, genPt2, genEta2, genPhi2, genM2, genDr, genMB, genEec;
   Float_t fullBPt1, fullBEta1, fullBPhi1, fullBJetDr1;
   Float_t fullBPt2, fullBEta2, fullBPhi2, fullBJetDr2;
@@ -746,7 +752,7 @@ struct AggBHadronNtupleRow {
     entry = -1;
     run = lumi = evt = jetIndex = -1;
     weight = 1.0;
-    jtpt = jteta = refpt = refeta = -999.0;
+    jtpt = jteta = refpt = refeta = muMax = -999.0;
     jtNbHad = jtNcHad = -1;
     btagScore = jetProbability = wrongJetProbability = -999.0;
     passRecoKin = passGenKin = passBtag = 0;
@@ -766,6 +772,8 @@ struct AggBHadronNtupleRow {
     recoSvHfPtPurity1 = recoSvHfPtPurity2 = 0.0;
     recoSvDominantStatusPtPurity1 = recoSvDominantStatusPtPurity2 = 0.0;
     recoSvDominantStatusPtOverHfPt1 = recoSvDominantStatusPtOverHfPt2 = 0.0;
+    recoChargedBPt = recoNonBPt = genChargedBPt = genNonBPt = 0.0;
+    recoChargedBFraction = genChargedBFraction = -1.0;
     recoPt1 = recoEta1 = recoPhi1 = recoM1 = -999.0;
     recoPt2 = recoEta2 = recoPhi2 = recoM2 = -999.0;
     recoDr = recoMB = recoEec = -999.0;
@@ -786,6 +794,7 @@ void makeAggBHadronBranches(TTree* tree, AggBHadronNtupleRow& row) {
   tree->Branch("weight", &row.weight, "weight/F");
   tree->Branch("jtpt", &row.jtpt, "jtpt/F");
   tree->Branch("jteta", &row.jteta, "jteta/F");
+  tree->Branch("muMax", &row.muMax, "muMax/F");
   tree->Branch("refpt", &row.refpt, "refpt/F");
   tree->Branch("refeta", &row.refeta, "refeta/F");
   tree->Branch("jtNbHad", &row.jtNbHad, "jtNbHad/I");
@@ -798,6 +807,12 @@ void makeAggBHadronBranches(TTree* tree, AggBHadronNtupleRow& row) {
   tree->Branch("passBtag", &row.passBtag, "passBtag/I");
   tree->Branch("nRecoAgg", &row.nRecoAgg, "nRecoAgg/I");
   tree->Branch("nGenAgg", &row.nGenAgg, "nGenAgg/I");
+  tree->Branch("recoChargedBPt", &row.recoChargedBPt, "recoChargedBPt/F");
+  tree->Branch("recoNonBPt", &row.recoNonBPt, "recoNonBPt/F");
+  tree->Branch("recoChargedBFraction", &row.recoChargedBFraction, "recoChargedBFraction/F");
+  tree->Branch("genChargedBPt", &row.genChargedBPt, "genChargedBPt/F");
+  tree->Branch("genNonBPt", &row.genNonBPt, "genNonBPt/F");
+  tree->Branch("genChargedBFraction", &row.genChargedBFraction, "genChargedBFraction/F");
   tree->Branch("genStatus1", &row.genStatus1, "genStatus1/I");
   tree->Branch("genStatus2", &row.genStatus2, "genStatus2/I");
   tree->Branch("recoStatus1", &row.recoStatus1, "recoStatus1/I");
@@ -1819,8 +1834,28 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
   auto active_branches = getActiveBranches(cfg);
   t.SetBranchStatus(active_branches, 1);
 
+  // The MC-labelled levels are common to data and MC. Data also gets the residual.
+  JetCorrector jec;
+  const bool apply2024JEC = cfg.dataset.RunN == 3;
+  if (apply2024JEC) {
+    const TString jecDir =
+        "./Run3HeavyIonJetCalibrations/txt/2024ppRef/";
+    std::vector<std::string> files = {
+        (jecDir + "Prompt24HIpp_V1_MC_L1FastJet_AK4PF.txt").Data(),
+        (jecDir + "Prompt24HIpp_V2_MC_L2Relative_AK4PF.txt").Data()};
+    if (!cfg.dataset.isMC)
+      files.push_back((jecDir + "Prompt24HIpp_V1_DATA_L2Residual_AK4PF.txt").Data());
+    for (const auto& file : files) {
+      if (gSystem->AccessPathName(file.c_str()))
+        throw std::runtime_error("Missing JEC file: " + file);
+      std::cout << "Applying JEC: " << file << std::endl;
+    }
+    jec.Initialize(files);
+  }
+
   TFile* eventInfoFile = nullptr;
   TTree* hiEvtTree = nullptr;
+  TLeaf* hiEvtRhoLeaf = nullptr;
   TTree* hltTree = nullptr;
   TTree* skimTree = nullptr;
   TTree* weightTree = nullptr;
@@ -1838,6 +1873,14 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     hiEvtTree = (TTree*)eventInfoFile->Get("hiEvtAnalyzer/HiTree");
     if (hiEvtTree) {
       hiEvtTree->SetBranchStatus("*", 0);
+      if (apply2024JEC) {
+        if (!hiEvtTree->GetBranch("rho"))
+          throw std::runtime_error("2024 JEC requires hiEvtAnalyzer/HiTree::rho in the input forest");
+        hiEvtTree->SetBranchStatus("rho", 1);
+        hiEvtRhoLeaf = hiEvtTree->GetLeaf("rho");
+        if (!hiEvtRhoLeaf)
+          throw std::runtime_error("Could not read hiEvtAnalyzer/HiTree::rho leaf");
+      }
       if (hiEvtTree->GetBranch("vz")) {
         hiEvtTree->SetBranchStatus("vz", 1);
         hiEvtTree->SetBranchAddress("vz", &hiEvtVz);
@@ -1893,6 +1936,8 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
     std::cout << "WARNING: could not reopen input file for event-level friend trees; falling back to tTree friends" << std::endl;
     eventInfoFile = nullptr;
   }
+  if (apply2024JEC && !hiEvtTree)
+    throw std::runtime_error("2024 JEC requires hiEvtAnalyzer/HiTree with a rho branch");
   if (!cfg.dataset.isMC) {
     weightTree = nullptr;
   }
@@ -1913,6 +1958,26 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
       if (hiEvtTree) {
         hiEvtTree->GetEntry(ient);
         t.vz = hiEvtVz;
+      }
+      if (apply2024JEC) {
+        const double eventRho = hiEvtRhoLeaf->GetValue();
+        if (!std::isfinite(eventRho))
+          throw std::runtime_error("Non-finite event rho encountered while applying 2024 JEC");
+        for (Int_t ijet = 0; ijet < t.nref; ++ijet) {
+          if (!std::isfinite(t.rawpt[ijet]) || t.rawpt[ijet] <= 0 ||
+              !std::isfinite(t.jteta[ijet]) || !std::isfinite(t.jtarea[ijet])) {
+            t.jtpt[ijet] = -999.0f;
+            continue;
+          }
+          jec.SetJetPT(t.rawpt[ijet]);
+          jec.SetJetEta(t.jteta[ijet]);
+          jec.SetJetPhi(t.jtphi[ijet]);
+          jec.SetJetArea(t.jtarea[ijet]);
+          jec.SetRho(eventRho);
+          const double correctedPt = jec.GetCorrectedPT();
+          t.jtpt[ijet] = std::isfinite(correctedPt) && correctedPt > 0
+              ? correctedPt : -999.0f;
+        }
       }
       if (hltTree && cfg.dataset.RunN == 3) {
         hltTree->GetEntry(ient);
@@ -2058,6 +2123,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 	            aggRow.weight = row_weight;
 	            aggRow.jtpt = jpt_reco;
 	            aggRow.jteta = jeta_reco;
+            aggRow.muMax = t.muMax[ijet];
 	            aggRow.refpt = jpt_gen;
 	            aggRow.refeta = jeta_gen;
 	            aggRow.jtNbHad = cfg.dataset.isMC ? t.jtNbHad[ijet] : -1;
@@ -2111,6 +2177,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 	                aggRow.genPhi1 = gen_bh[best_i].Phi();
 	                aggRow.genM1 = gen_bh[best_i].M();
 	                aggRow.genPt2 = gen_bh[best_j].Pt();
+	                aggRow.genChargedBPt = gen_bh[best_i].Pt() + gen_bh[best_j].Pt();
 	                aggRow.genEta2 = gen_bh[best_j].Eta();
 	                aggRow.genPhi2 = gen_bh[best_j].Phi();
 	                aggRow.genM2 = gen_bh[best_j].M();
@@ -2169,6 +2236,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 	        aggRow.recoPhi1 = reco_sv_rm[0].Phi();
 	        aggRow.recoM1 = reco_sv_rm[0].M();
 	        aggRow.recoPt2 = reco_sv_rm[1].Pt();
+	        aggRow.recoChargedBPt = reco_sv_rm[0].Pt() + reco_sv_rm[1].Pt();
 	        aggRow.recoEta2 = reco_sv_rm[1].Eta();
 	        aggRow.recoPhi2 = reco_sv_rm[1].Phi();
 	        aggRow.recoM2 = reco_sv_rm[1].M();
@@ -2207,6 +2275,24 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 	          aggRow.recoSvDominantStatusPtPurity2 = reco_sv_composition_rm[1].dominantStatusPtPurity;
 	          aggRow.recoSvDominantStatusPtOverHfPt2 = reco_sv_composition_rm[1].dominantStatusPtOverHfPt;
 	        }
+	      }
+	      // Use the same jet and pT threshold as the aggregate builders.  A
+	      // fraction is defined only when the corresponding two aggregates exist.
+	      if (reco_sv_ok) {
+	        for (Int_t itrk = 0; itrk < t.ntrk; ++itrk) {
+	          if (t.trkJetId[itrk] != ijet || t.trkPt[itrk] < 1.0) continue;
+	          if (t.trkBdtScore[itrk] <= 0.365) aggRow.recoNonBPt += t.trkPt[itrk];
+	        }
+	        const double chargedPt = aggRow.recoChargedBPt + aggRow.recoNonBPt;
+	        if (chargedPt > 0.0) aggRow.recoChargedBFraction = aggRow.recoChargedBPt / chargedPt;
+	      }
+	      if (cfg.dataset.isMC && gen_ok) {
+	        for (Int_t itrk = 0; itrk < t.nrefTrk; ++itrk) {
+	          if (t.refTrkJetId[itrk] != ijet || t.refTrkPt[itrk] < 1.0) continue;
+	          if (t.refTrkSta[itrk] == 1) aggRow.genNonBPt += t.refTrkPt[itrk];
+	        }
+	        const double chargedPt = aggRow.genChargedBPt + aggRow.genNonBPt;
+	        if (chargedPt > 0.0) aggRow.genChargedBFraction = aggRow.genChargedBPt / chargedPt;
 	      }
 	    if (aggBHadronTree) aggBHadronTree->Fill();
 	    // Diagnostic ntuples may contain data and all MC jet flavors.  The response,

@@ -25,10 +25,16 @@ export ROOT_INCLUDE_PATH=${ROOUNFOLD_INC}:${ROOUNFOLD_BUILD}
 export LD_LIBRARY_PATH=${ROOUNFOLD_BUILD}:${LD_LIBRARY_PATH:-}
 
 
-INPUT_DIR=/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/Pythia8_negTag_chunks/
-OUT_BASE=$mydata/bJetAggRun3/PPRef2024/QCD/agg_ntuple_chunks/
+#INPUT_DIR=/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/bJet/Pythia8_UParTV2_chunks/
+#OUT_BASE=$mydata/bJetAggRun3/PPRef2024/bJet/Pythia8_UParTV2_chunks/
+INPUT_DIR=/data_CMS/cms/mnguyen/bJetAggRun3/PPRef2024/QCD/Pythia8_UParTV2_chunks/
+OUT_BASE=$mydata/bJetAggRun3/PPRef2024/QCD/Pythia8_UParTV2_chunks_JEC_Prompt24HIpp
 LOG_DIR=${OUT_BASE}/logs
 
+if [ -e "${OUT_BASE}" ]; then
+  echo "ERROR: output directory already exists; refusing to overwrite: ${OUT_BASE}"
+  exit 2
+fi
 mkdir -p "${LOG_DIR}"
 
 cd "${WORK}" || exit 1
@@ -52,13 +58,21 @@ fi
 
 echo "compile finished; launching chunk jobs"
 
-for i in $(seq 0 9); do
-  block=$(printf "000%d" "${i}")
-  input="${INPUT_DIR}/merged_block_${block}_Pythia8_negTag.root"
+shopt -s nullglob
+inputs=("${INPUT_DIR}"/merged_block_*_Pythia8_UParTV2_rho.root)
+if [ ${#inputs[@]} -eq 0 ]; then
+  echo "ERROR: no rho-enabled inputs found in ${INPUT_DIR}"
+  exit 2
+fi
+
+for input in "${inputs[@]}"; do
+  filename=$(basename "${input}")
+  block=${filename#merged_block_}
+  block=${block%_Pythia8_UParTV2_rho.root}
   outdir="${OUT_BASE}/block_${block}"
   mkdir -p "${outdir}"
 
-  nice -n 10 root -l -b -q -e "gSystem->AddIncludePath(\"-I${ROOUNFOLD_INC} -I${ROOUNFOLD_BUILD}\"); gSystem->Load(\"${ROOUNFOLD_BUILD}/libRooUnfold.so\"); gSystem->Load(\"${WORK}/create_files_for_template_fit_cpp.so\"); create_files_for_template_fit(3,2,80,200,2,1,true,true,0.868,true,true,true,0,-1,\"${input}\",\"${outdir}\")" \
+  nice -n 10 root -l -b -q -e "gSystem->AddIncludePath(\"-I${ROOUNFOLD_INC} -I${ROOUNFOLD_BUILD}\"); gSystem->Load(\"${ROOUNFOLD_BUILD}/libRooUnfold.so\"); gSystem->Load(\"${WORK}/create_files_for_template_fit_cpp.so\"); create_files_for_template_fit(3,2,80,9999,2,1,true,true,0.712,true,true,true,0,-1,\"${input}\",\"${outdir}\")" \
        > "${LOG_DIR}/block_${block}.log" 2>&1 &
 
   echo "submitted block ${block}, pid $!"
