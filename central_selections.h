@@ -322,10 +322,13 @@ std::vector<TString> getActiveBranches(const AnalysisConfig& cfg)
 
         "vz", // Data and recoMC: in hiEvtAnalyzer/HiTree 
         "jtpt",
+        "rawpt",
+        "jtarea",
         "jteta",
         "jtphi",
         "discr_pfJP",
         "discr_pfWrongJP",
+        "muMax",
         "nref",
 
         "jtNtrk",
