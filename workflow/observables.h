@@ -62,7 +62,7 @@
 #include <cmath>
 
 // ---- B: momentum balance between the two aggregated B hadrons -------------------------
-// ONE definition, shared by the chain and by momentum_balance_mc_study.C. Duplicating it
+// ONE definition, shared by the chain and by momentum_balance_mc_study(). Duplicating it
 // is exactly the failure mode result_paths.h was written to end: two copies of a mapping
 // drift, and the disagreement shows up as a plausible-looking number rather than an error.
 //

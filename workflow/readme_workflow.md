@@ -35,8 +35,20 @@ They stay reproducible from the code that made them. Every path in this readme h
 rewritten to the **new** `_B` spelling, so a path quoted below is where a re-run will put its
 output, not necessarily where the old run's output is sitting today.
 
-`plot_z_first_look.C` keeps its file name — ROOT requires the entry function to match the
-file — but its default observable is now `"B"`.
+`plot_z_first_look()` keeps its name, but its default observable is now `"B"`.
+
+**Four macros were folded into existing files on 2026-09-25**, to keep the number of files
+down. The code is unchanged; only the command line is different (load the host file, then
+call the function):
+
+| was | now lives in | run it as |
+|---|---|---|
+| `plot_z_first_look.C` | `template_fit.cpp` | `root -l -b -q -e '.L template_fit.cpp+' -e 'plot_z_first_look("qcd","pythia","upartv2_B")'` |
+| `plot_systematics_summary.C` | `apply_weights_and_systematics.C` | `root -l -b -q -e '.L apply_weights_and_systematics.C' -e 'plot_systematics_summary("both")'` (and `plot_final_generator_band`) |
+| `momentum_balance_mc_study.C` | `plot_purity_efficiency_response.cpp` | `root -l -b -q -e '.L plot_purity_efficiency_response.cpp' -e 'momentum_balance_mc_study("both","pythia")'` |
+| `compare_root_contents.C` | `Help_Functions.h` | `root -l -b -q -e '#include "Help_Functions.h"' -e 'compare_root_contents("a.root","b.root")'` |
+
+The systematics talk (`talk_systematics/`) is kept locally only, outside git.
 
 **Only ΔR (EEC) and `B` are measured.** `fnb`, `fb` and `lnfb` are commented out; their
 sections are kept for the record in `readme_archive_fraction_observables.md`.
@@ -703,7 +715,7 @@ one number per bin (`h_result_stat_syst`'s bin errors, and any script predating 
 
 ⚠️ **Two sign conventions, deliberately.** The printed table shows `variation − nominal`, the
 shift of the *result*, so its sign matches which of σ⁺/σ⁻ the source feeds. The stored
-`h_delta_*` keep the original `nominal − variation`, because `plot_systematics_summary.C`
+`h_delta_*` keep the original `nominal − variation`, because `plot_systematics_summary()`
 reads them and flips the sign itself. Same numbers, opposite sign.
 
 ### The per-source breakdown plot
@@ -836,7 +848,7 @@ the ΔR templates and response makes the `B` ones.
 had and nothing downstream had to change. That is verified, not assumed — see below.
 
 `observables.h` also holds the single definition of `B` (`MomBalance::value`), shared with
-`momentum_balance_mc_study.C`. It is deliberately **not** a function pointer inside `ObsDef`:
+`momentum_balance_mc_study()`. It is deliberately **not** a function pointer inside `ObsDef`:
 ΔR comes from `tTree::calc_dr`, which truncates through `Float_t` twice, and reimplementing
 that to satisfy a uniform interface would move ΔR in its last bits for no reason. The caller
 computes the value; `ObsDef` owns the binning, the overflow fold and the naming.
@@ -860,7 +872,7 @@ RMatrix …_qcd_f.root   46 histograms, 0 differ, max |delta| = 0  ->  IDENTICAL
 all 6 RooUnfoldResponse objects (Mresponse element by element)   ->  IDENTICAL
 ```
 
-`compare_root_contents.C` only compares `TH1`s, so the six response objects were compared
+`compare_root_contents()` only compares `TH1`s, so the six response objects were compared
 separately — that is the check that would have caught a response filled on a different axis.
 
 Cross-check that `B` is filled on *exactly* the same jets: `h3D_bb` and `h3D_bb_B` integrate
@@ -874,15 +886,15 @@ root -l -b -q -e "gSystem->Load(\"$WORKFLOW/create_files_for_template_fit_cpp.so
   create_files_for_template_fit(3,80,2,1,true,true,0.712,true,true,false,0,100000, \
   \"<a merged_block_*.root>\",\"/tmp/ab_before\",\"qcd\",false,20260908,false)"
 # then the same into /tmp/ab_after with the new source, and:
-root -l -b -q 'compare_root_contents.C("/tmp/ab_before/<f>","/tmp/ab_after/<f>")'
+root -l -b -q -e '#include "Help_Functions.h"' -e 'compare_root_contents("/tmp/ab_before/<f>","/tmp/ab_after/<f>")'
 ```
 
 ### The binning study
 
-`momentum_balance_mc_study.C` decided the binning **before** the reprocessing was spent:
+`momentum_balance_mc_study()` (in `plot_purity_efficiency_response.cpp`) decided the binning **before** the reprocessing was spent:
 
 ```bash
-root -l -b -q 'momentum_balance_mc_study.C("both","pythia")'
+root -l -b -q -e '.L plot_purity_efficiency_response.cpp' -e 'momentum_balance_mc_study("both","pythia")'
 ```
 
 **It reprocesses nothing.** `AggBHadronNtuple` already stores `recoPt1/recoPt2` and
@@ -967,11 +979,11 @@ bJet/Pythia (9 blocks) MC and a full HardProbes data production (50 condor jobs)
 
 **Cost of a re-production, measured:** 3 min for QCD, 5 min for bJet, ~10 min for the condor
 data run — *not* the ~50-60 min the MC section above quotes, because the inputs were warm in
-page cache from earlier passes. Iterating on the B binning is cheap when the inputs are hot. Plots and per-bin tables: `plot_z_first_look.C`, writing to
+page cache from earlier passes. Iterating on the B binning is cheap when the inputs are hot. Plots and per-bin tables: `plot_z_first_look()` in `template_fit.cpp`, writing to
 `results/B_first_look_qcd_pythia_upartv2_B/`.
 
 ```bash
-root -l -b -q 'plot_z_first_look.C("qcd","pythia","upartv2_B")'
+root -l -b -q -e '.L template_fit.cpp+' -e 'plot_z_first_look("qcd","pythia","upartv2_B")'
 ```
 
 **Nothing here is a measurement** — reco level, pre-fit, un-unfolded, no corrections, no SF.
@@ -1134,7 +1146,7 @@ binning; the only difference is that `h_count_*` is filled with the tree weight 
 | ΔR | `h_count_data` | `h_count_bb`, `h_count_b`, `h_count_0b` |
 | B | `h_count_data_B` | `h_count_bb_B`, `h_count_b_B`, `h_count_0b_B` |
 
-Section 5 of `plot_z_first_look.C` prints and plots them.
+Section 5 of `plot_z_first_look()` prints and plots them.
 
 **Data, raw b-tagged 2-SV jet counts per B bin** (full HardProbes, 5 × 0.1 binning):
 
