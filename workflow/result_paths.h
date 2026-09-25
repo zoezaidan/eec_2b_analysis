@@ -1,28 +1,13 @@
 #ifndef RESULT_PATHS_H
 #define RESULT_PATHS_H
 
-// Where unfolding results live, and how a systematic variation is spelled in a path.
-//
-// WHY THIS FILE EXISTS
-// --------------------
+
+
 // apply_unfolding_2d.C WRITES these paths and apply_weights_and_systematics.C READS them.
-// The two used to build them from their own private copies of the same mapping functions,
-// which is exactly the kind of duplication that fails silently: on 2026-09-11 a new
-// variation ("off", the no-SF run) was added to one copy and not the other. The reader's
-// copy did not recognise it, fell through to "", and resolved to the NOMINAL folder -- so
-// the macro compared the nominal against itself and printed a column of -0. Nothing
-// errored. It looked like "the scale factor does nothing" rather than "I opened the wrong
-// file".
 //
-// Both macros now include this header, so there is ONE definition of every mapping and the
-// two cannot drift. Two further guards make a mistake loud instead of silent:
-//
-//   1. An unrecognised variation returns kUnknownTag, not "". The path then fails to open
-//      with a message naming the bad value, instead of aliasing onto the nominal.
-//   2. isKnown*() lets a caller validate its whole list of variations up front, before any
-//      file is touched.
-//
-// If you add a variation, add it in ONE place -- here -- and both macros follow.
+// Both macros include this header, so there is ONE definition of every mapping and the
+// two cannot drift. 
+// If you add a variation, add it in ONE place here and both macros follow.
 
 #include "TString.h"
 #include <iostream>
@@ -66,11 +51,22 @@ inline bool isKnownTfVariation(const TString &v)
 
 // Which UParT b-tag efficiency scale factor is divided into the reco-level data.
 // "off" applies no SF at all -- a comparison, not a systematic.
+// Two DIFFERENT ways to use the JP HF calibration, deliberately both available:
+//   jpcalib_hf            applies the alternative SF curve itself, signs and all. The shift
+//                         flips sign across dr (up in bins 1-3, down from 4 on), so it
+//                         RESHAPES the distribution and survives the unit-area normalisation.
+//   jpsyst_up / jpsyst_dn shift the CENTRAL SF by +/- |jphf - central| coherently in every
+//                         dr bin. Same magnitude per bin, sign discarded -- the usual
+//                         "propagate the quoted uncertainty" treatment. A coherent shift is
+//                         much closer to a normalisation, so most of it cancels in the
+//                         unit-area renormalisation.
+// They are the same numbers used two ways, so they must never both enter the band.
 inline bool isKnownSfupartVariation(const TString &v)
 {
     return v == "nominal" || v == "off"
         || v == "jpcalib_hf" || v == "qqrate_up" || v == "qqrate_down"
-        || v == "statup"     || v == "statdn";
+        || v == "statup"     || v == "statdn"
+        || v == "jpsyst_up"  || v == "jpsyst_dn";
 }
 
 // ---- Path tags ----------------------------------------------------------------------
@@ -94,6 +90,16 @@ inline TString trkTag(bool trackEffUnc)
     return trackEffUnc ? TString("_trkdrop030") : TString("");
 }
 
+// EEC_WEIGHT_OFF: the yield run. NOT a systematic variation -- the same chain measuring a
+// different observable, with the (pt1*pt2)^n weight dropped everywhere, so the unfolded
+// result is dN/dr instead of the EEC. Its own tag so a yield file can never be mistaken for,
+// or overwrite, an EEC one. Must stay in step with EecWeight::tag() in
+// create_files_for_template_fit.cpp, which is what the WRITER uses.
+inline TString eecWeightTag(bool eecWeightOff)
+{
+    return eecWeightOff ? TString("_noeecw") : TString("");
+}
+
 // TF_VARIATION: the template-fit variation supplying the signal fraction.
 inline TString tfVarTag(const TString &tfVariation)
 {
@@ -112,7 +118,8 @@ inline TString sfupartVarTag(const TString &sfupartVariation)
 {
     if (!isKnownSfupartVariation(sfupartVariation)) {
         warnUnknown("SFUPART_VARIATION", sfupartVariation,
-                    "nominal | off | jpcalib_hf | qqrate_up | qqrate_down | statup | statdn");
+                    "nominal | off | jpcalib_hf | qqrate_up | qqrate_down | statup | statdn "
+                    "| jpsyst_up | jpsyst_dn");
         return kUnknownTag();
     }
     if (sfupartVariation == "off")         return "_sfupartoff";
@@ -121,6 +128,8 @@ inline TString sfupartVarTag(const TString &sfupartVariation)
     if (sfupartVariation == "qqrate_down") return "_sfupartqqdn";
     if (sfupartVariation == "statup")      return "_sfupartstatup";
     if (sfupartVariation == "statdn")      return "_sfupartstatdn";
+    if (sfupartVariation == "jpsyst_up")   return "_sfupartjpsystup";
+    if (sfupartVariation == "jpsyst_dn")   return "_sfupartjpsystdn";
     return "";
 }
 
@@ -145,7 +154,8 @@ inline TString sfupartHist(const TString &sfupartVariation)
 {
     if (!isKnownSfupartVariation(sfupartVariation)) {
         warnUnknown("SFUPART_VARIATION", sfupartVariation,
-                    "nominal | off | jpcalib_hf | qqrate_up | qqrate_down | statup | statdn");
+                    "nominal | off | jpcalib_hf | qqrate_up | qqrate_down | statup | statdn "
+                    "| jpsyst_up | jpsyst_dn");
         return "";
     }
     if (sfupartVariation == "off")         return "(none)";
@@ -154,34 +164,219 @@ inline TString sfupartHist(const TString &sfupartVariation)
     // dr bins, because the analysis's last two bins share ONE calibration bin and their
     // errors are therefore 100% correlated -- a coherent shift gets that right, and is the
     // conservative choice elsewhere.
+    // jpsyst_up/jpsyst_dn likewise start from the CENTRAL SF and are shifted by the JP HF
+    // systematic where the SF is used -- see sfupartSystHist() just below.
     if (sfupartVariation == "nominal"
      || sfupartVariation == "statup"
-     || sfupartVariation == "statdn")      return "h_SFb_dr_central";
+     || sfupartVariation == "statdn"
+     || sfupartVariation == "jpsyst_up"
+     || sfupartVariation == "jpsyst_dn")   return "h_SFb_dr_central";
     if (sfupartVariation == "jpcalib_hf")  return "h_SFb_dr_jpcalib_hf";
     if (sfupartVariation == "qqrate_up")   return "h_SFb_dr_qqrate_up";
     if (sfupartVariation == "qqrate_down") return "h_SFb_dr_qqrate_down";
     return "";
 }
 
+// The per-bin UNCERTAINTY histogram added to / subtracted from the central SF, for the
+// variations that propagate a quoted error rather than swapping in another curve. "" means
+// no such shift, which is every other variation.
+//
+// h_SFb_dr_syst_jpcalib_hf is |h_SFb_dr_jpcalib_hf - h_SFb_dr_central| bin by bin (checked
+// 2026-09-14, all 8 bins). That is why this is NOT a duplicate of jpcalib_hf: the same
+// magnitudes are applied with one coherent sign instead of the measured, sign-flipping one.
+inline TString sfupartSystHist(const TString &sfupartVariation)
+{
+    if (sfupartVariation == "jpsyst_up" || sfupartVariation == "jpsyst_dn")
+        return "h_SFb_dr_syst_jpcalib_hf";
+    return "";
+}
+
+// +1 / -1 / 0: which way sfupartSystHist() is applied.
+inline double sfupartSystShift(const TString &sfupartVariation)
+{
+    if (sfupartVariation == "jpsyst_up") return  1.;
+    if (sfupartVariation == "jpsyst_dn") return -1.;
+    return 0.;
+}
+
 // ---- Result paths --------------------------------------------------------------------
 // The combined tag every path carries. One function, so a folder and the label inside it
 // can never disagree about which variation they are.
-inline TString variationTag(const TString &tfGenerator, bool trackEffUnc,
-                            const TString &tfVariation, const TString &sfupartVariation)
+// Which OBSERVABLE the result measures. "" for dr, so every existing dr path is unchanged;
+// "_B" for the momentum balance. It is a different measurement, not a variation of the dr
+// one, so it gets its own results folder -- a B result sitting in the dr folder would be
+// picked up by apply_weights_and_systematics.C by name and silently compared against dr.
+//
+// Same rule as the rest of this header: ONE definition, both the writer
+// (apply_unfolding_2d.C) and the reader (apply_weights_and_systematics.C) go through it.
+//
+// ⚠️ RENAMED 2026-09-22: the momentum balance is "B", tagged "_B". It was "z"/"_z", and
+// nothing translates between the two -- results and MC written under the old spelling are
+// not found by this code, and are not overwritten by it either. They sit alongside the new
+// ones in the results area under their "_z" names.
+//
+// ⚠️ fnb, fb and lnfb are DISABLED (2026-09-22) together with their ObsDefs in
+// observables.h and their binnings in binning_histos_small.h. Their branches are left
+// commented rather than deleted, so re-enabling one is an uncomment here too.
+inline bool isKnownObservable(const TString &observable)
 {
-    return tfTag(tfGenerator) + trkTag(trackEffUnc)
-         + tfVarTag(tfVariation) + sfupartVarTag(sfupartVariation);
+    return observable == "dr" || observable == "B";
+    //  || observable == "fnb" || observable == "fb" || observable == "lnfb";
 }
 
-inline TString resultFolder(const TString &sample, const TString &generator,
+inline TString observableTag(const TString &observable)
+{
+    if (observable == "dr")  return "";
+    if (observable == "B")   return "_B";
+    // DISABLED 2026-09-22:
+    //   if (observable == "fnb")  return "_fnb";
+    //   if (observable == "fb")   return "_fb";
+    //   if (observable == "lnfb") return "_lnfb";
+    return kUnknownTag();   // never "" -- an unknown value must not alias onto dr
+}
+
+// ---- Which MC PRODUCTION carries an observable ----------------------------------------
+// This is the run scripts' OUT_TAG, i.e. an INPUT path tag, not a results-path tag -- it is
+// here for the same reason trkTag() is: the literal is shared by the production filenames
+// and by three macros that have to agree on it (template_fit.cpp, apply_unfolding_2d.C and
+// the data-file choice in both). An observable only exists in blocks produced AFTER the code
+// that fills it, so a run pointed at the wrong production fails on a missing histogram --
+// the right way round, but it has to be pointed correctly from one place.
+//
+//   dr   "_upartv2"          the original production, dR only
+//   B    "_upartv2_B"        NOT PRODUCED YET. The momentum balance, under its new name.
+//
+// ⚠️ WHY B NEEDS A NEW PRODUCTION, even though the observable itself did not change.
+// The balance histograms used to be named "..._z" and are now "..._B" (ObsDef::suffix in
+// observables.h). The earlier productions -- "_upartv2_zfirst", "_upartv2_3obs",
+// "_upartv2_lnfblin", "_upartv2_fb" -- all carry the "_z" spelling, so this code opens them
+// and finds nothing on the balance axis. Re-run step 1 with OUT_TAG=_upartv2_B
+// (run_agg_ntuple_chunks.sh) before unfolding B.
+//
+// The old productions are NOT deleted and NOT renamed: the "_z" results already on disk stay
+// reproducible from the files they were made from, by the version of the code that made them.
+//
+//   fnb  "_upartv2_3obs"     ) DISABLED 2026-09-22 with the observables themselves. All three
+//   lnfb "_upartv2_lnfblin"  ) predate the rename, so re-enabling any of them means a fresh
+//   fb   "_upartv2_fb"       ) production too, not just an uncomment.
+inline TString obsProdTag(const TString &observable)
+{
+    if (observable == "dr")  return "_upartv2";
+    if (observable == "B")   return "_upartv2_B";
+    // DISABLED 2026-09-22:
+    //   if (observable == "fnb")  return "_upartv2_3obs";
+    //   if (observable == "lnfb") return "_upartv2_lnfblin";
+    //   if (observable == "fb")   return "_upartv2_fb";
+    warnUnknown("OBSERVABLE", observable, "dr | B");
+    return kUnknownTag();   // never "_upartv2": must not alias onto the dr production
+}
+
+// ---- The DATA file an observable is measured from -------------------------------------
+// The reco-level data templates, as hadd'ed to the top of agg_template_chunks. Three macros
+// need it -- template_fit.cpp fits it, apply_unfolding_2d.C unfolds it, plot_raw_yields.C
+// draws it -- and they must all open the SAME file, or the raw yields shown do not belong
+// to the fit that was run on them.
+//
+// Two things pick the file, and both are properties of the measurement, not of the run:
+//   the EEC weight   h3D_data is filled with eec * weight_tree, so EEC-weighted data fitted
+//                    against unweighted templates would mix two observables. The yield run
+//                    takes its own data production.
+//   the observable   only a production that filled this observable's axis has its
+//                    histograms at all -- obsProdTag() above.
+inline TString dataTemplateFile(bool eecWeightOff, const TString &observable = "dr")
+{
+    const TString hp = "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/HardProbes/"
+                       "agg_template_chunks/";
+    if (observable != "dr")
+        return hp + "Run3_btagWP0712_template_for_fit_histos_3D_data_fMCGEN"
+                  + (eecWeightOff ? TString("_noeecw") : TString(""))
+                  + obsProdTag(observable) + ".root";
+    if (eecWeightOff)
+        return hp + "Run3_btagWP0712_template_for_fit_histos_3D_data_fMCGEN_noeecw_upartv2.root";
+    // The dR EEC measurement still reads Afnan's data production, which predates all of this.
+    return "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/HardProbes/agg_template_chunks/"
+           "Run3_btagWP712_template_for_fit_histos_3D_data_f_80_9999_2MCGEN.root";
+}
+
+// ---- What the NOMINAL run of an observable is ----------------------------------------
+// Two things differ between dr and B for reasons that are properties of the OBSERVABLE, not
+// choices of a particular run. Both were being applied by hand in one macro each, which is
+// the drift this header exists to stop: the writer forced them and the reader had to
+// reproduce the same forcing from memory, or it would look for a path that is never written.
+// One definition, both macros go through it.
+
+// The UParT b-tag efficiency SF is measured in reco dR bins and has no B equivalent, so the
+// nominal B run applies NO SF and says so in its path ("_sfupartoff"). That is a KNOWN GAP,
+// not a silent skip: the dr result carries a correction (0.933 -> 1.149 across its range)
+// that the B result does not.
+//
+// Written as "everything that is not dr", so the disabled fraction observables are still
+// covered by it if one of them comes back: the SF exists in reco dR and nowhere else.
+inline TString nominalSfupart(const TString &observable)
+{
+    return (observable == "dr") ? TString("nominal") : TString("off");
+}
+
+// The momentum balance is a YIELD measurement: B is measured with the (pt1*pt2)^n EEC weight
+// OFF, so the unfolded result is dN/dB. Unlike the SF above this is a convention rather than
+// an impossibility -- the EEC-weighted B production exists -- but it is THE convention, so
+// both macros default to it and a B run that quietly used the weighted templates would be
+// compared against an unweighted band without anything saying so.
+// Flip this one function if the weighted B ever becomes the measurement.
+inline bool nominalEecWeightOff(const TString &observable)
+{
+    return observable == "B";
+    // DISABLED 2026-09-22. The fraction observables followed B here: they are
+    // momentum-sharing fractions, not the angular structure of the pair, so weighting them
+    // by (pt1*pt2)^n would measure something nobody asked for.
+    //  || observable == "fnb" || observable == "fb" || observable == "lnfb";
+}
+
+inline TString variationTag(const TString &tfGenerator, bool trackEffUnc,
+                            const TString &tfVariation, const TString &sfupartVariation,
+                            bool eecWeightOff = false,
+                            const TString &observable = "dr")
+{
+    return observableTag(observable) + tfTag(tfGenerator) + trkTag(trackEffUnc)
+         + tfVarTag(tfVariation) + sfupartVarTag(sfupartVariation)
+         + eecWeightTag(eecWeightOff);
+}
+
+// ---- Which unfolding produced it ------------------------------------------------------
+// Matrix inversion results live in their own subdirectory of the results area, so a whole
+// MI production -- every variation, every observable, plots and logs included -- is one
+// directory to sync, compare or throw away.
+//
+// This is a DIRECTORY, unlike every other tag in this header, because it is not a variation
+// of the measurement: the same variation unfolded two ways is the same systematic, and
+// putting the two side by side under one parent would interleave two complete productions.
+//
+// Bayesian keeps the flat layout it always had -- "" here, the same rule as every other
+// nominal in this file -- so every Bayesian path that exists on disk today is unchanged,
+// including the ones already used in talks.
+inline TString methodDir(bool unfoldBayes)
+{
+    return unfoldBayes ? TString("") : TString("matrix_inversion/");
+}
+
+// unfoldBayes sits third, before the defaulted arguments and in the same position it holds
+// in resultLabel/resultFile, so it CANNOT be forgotten: a call written for the old signature
+// passes a TString where a bool is expected and fails to compile, rather than quietly
+// building a Bayesian path for a matrix-inversion run.
+inline TString resultFolder(const TString &sample, const TString &generator, bool unfoldBayes,
                             const TString &tfGenerator = "pythia",
                             bool trackEffUnc = false,
                             const TString &tfVariation = "nominal",
-                            const TString &sfupartVariation = "nominal")
+                            const TString &sfupartVariation = "nominal",
+                            bool eecWeightOff = false,
+                            const TString &observable = "dr")
 {
-    return "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/results/unfolding_"
+    return "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/results/"
+         + methodDir(unfoldBayes)
+         + "unfolding_"
          + sample + "_" + generator
-         + variationTag(tfGenerator, trackEffUnc, tfVariation, sfupartVariation)
+         + variationTag(tfGenerator, trackEffUnc, tfVariation, sfupartVariation,
+                        eecWeightOff, observable)
          + "_upartv2/";
 }
 
@@ -193,10 +388,13 @@ inline TString resultLabel(const TString &sample, const TString &generator,
                            const TString &tfGenerator = "pythia",
                            bool trackEffUnc = false,
                            const TString &tfVariation = "nominal",
-                           const TString &sfupartVariation = "nominal")
+                           const TString &sfupartVariation = "nominal",
+                           bool eecWeightOff = false,
+                           const TString &observable = "dr")
 {
     TString label = sample + "_" + generator
-                  + variationTag(tfGenerator, trackEffUnc, tfVariation, sfupartVariation);
+                  + variationTag(tfGenerator, trackEffUnc, tfVariation, sfupartVariation,
+                                 eecWeightOff, observable);
     label += unfoldBayes ? "_bayesian" : "_MI";
     if (test_mode == 0) label += "_full_closure";
     if (test_mode == 1) label += "_split_test";
@@ -209,12 +407,15 @@ inline TString resultFile(const TString &sample, const TString &generator,
                           const TString &tfGenerator = "pythia",
                           bool trackEffUnc = false,
                           const TString &tfVariation = "nominal",
-                          const TString &sfupartVariation = "nominal")
+                          const TString &sfupartVariation = "nominal",
+                          bool eecWeightOff = false,
+                          const TString &observable = "dr")
 {
-    return resultFolder(sample, generator, tfGenerator, trackEffUnc, tfVariation,
-                        sfupartVariation)
+    return resultFolder(sample, generator, unfoldBayes, tfGenerator, trackEffUnc, tfVariation,
+                        sfupartVariation, eecWeightOff, observable)
          + "histos_" + resultLabel(sample, generator, test_mode, unfoldBayes, tfGenerator,
-                                   trackEffUnc, tfVariation, sfupartVariation)
+                                   trackEffUnc, tfVariation, sfupartVariation, eecWeightOff,
+                                   observable)
          + "_after_unfolding_2D.root";
 }
 

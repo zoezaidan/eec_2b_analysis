@@ -3,8 +3,10 @@
 // anything loading the library by path must use the same ACLIC_BUILD_DIR
 // (see run_agg_ntuple_chunks.sh and make_hardprobes_condor_scripts.sh).
 {
+   // const char* aclic_build_dir =
+   //     "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/build";
    const char* aclic_build_dir =
-       "/data_CMS/cms/shatat/bJetAggRun3/PPRef2024/build";
+       "/data_CMS/cms/zaidan/bJetAggRun3/PPRef2024/build";
 
    gSystem->mkdir(aclic_build_dir, kTRUE);
    // kTRUE = flat, so product paths stay predictable for jobs.
