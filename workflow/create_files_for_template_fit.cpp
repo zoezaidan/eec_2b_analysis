@@ -164,6 +164,57 @@ inline void print(bool isMC)
 
 } // namespace Jec
 
+// ============================================================================
+// 2024 jet veto map (added 2026-10-16)
+// ============================================================================
+// Matt's veto (top-level create_files_for_template_fit.cpp, commit cebffbc5 "add jet veto
+// map"): a jet whose (eta, phi) falls in a cell flagged in jetvetomap_all of
+// Winter24Prompt24_2024BCDEFGHI.root (repo top) is rejected, data and MC alike -- from the
+// templates, and from reco_pass of the response, so the unfolding efficiency corrects for it.
+// Non-finite eta/phi fails. The aggregation ntuple records the decision (passJetVeto).
+//
+// Default OFF, so a caller that never mentions it reproduces the earlier productions. Switched
+// on by the last argument of create_files_for_template_fit() (Run 3 only, as in Matt's); the
+// run scripts insist the OUT_TAG then says "veto" (eraTag() in result_paths.h).
+namespace JetVeto {
+
+inline bool &enabled() { static bool on = false; return on; }
+inline TH2D *&map() { static TH2D *m = nullptr; return m; }
+
+inline TString file()
+{
+    return "/home/llr/cms/zaidan/analysis_lise/eec_2b_analysis/Winter24Prompt24_2024BCDEFGHI.root";
+}
+
+inline void enable(bool on)
+{
+    enabled() = on;
+    if (!on || map()) return;
+    TFile *f = TFile::Open(file());
+    if (!f || f->IsZombie()) { delete f; throw std::runtime_error(("Could not open jet veto map: " + file()).Data()); }
+    TH2D *source = dynamic_cast<TH2D *>(f->Get("jetvetomap_all"));
+    if (!source) { f->Close(); delete f; throw std::runtime_error(("Histogram jetvetomap_all is missing from: " + file()).Data()); }
+    map() = (TH2D *) source->Clone("jetVetoMap_2024");
+    map()->SetDirectory(nullptr);
+    f->Close(); delete f;
+}
+
+// true = the jet is kept. Always true when off.
+inline bool pass(double eta, double phi)
+{
+    if (!enabled()) return true;
+    if (!std::isfinite(eta) || !std::isfinite(phi)) return false;
+    return map()->GetBinContent(map()->FindBin(eta, phi)) == 0.0;
+}
+
+inline void print()
+{
+    if (enabled()) std::cout << "Jet veto map: ON -- jetvetomap_all from " << file() << std::endl;
+    else           std::cout << "Jet veto map: OFF" << std::endl;
+}
+
+} // namespace JetVeto
+
 // RooUnfold comes from the private build; setup_roounfold_env.sh puts it on the paths.
 
 #if __has_include("RooUnfold.h") && __has_include("RooUnfoldResponse.h")
@@ -530,19 +581,6 @@ vector<ROOT::Math::PtEtaPhiMVector> makeSvtxs(
 }
 
 // Status is used for quality plots and BDT cut for the merging.
-// pt_nonb (optional, may be null): the scalar pT sum of this jet's tracks that do NOT end up
-// in either of the two B hadrons -- the reco half of the fnb observable (observables.h).
-// ⚠️ Every caller passes it since 2026-09-22 but nothing CONSUMES it: fnb, fb and lnfb are
-// commented out. It stays filled because it is an out-parameter of a pass being made anyway.
-// It is computed HERE and nowhere else because this is the only place that knows which
-// tracks the B reconstruction kept: a track fails the BDT cut below and is gone, and every
-// track that passes but has no SV is absorbed into the nearer vertex further down. So the
-// complement is exactly "passed the jet and pT cuts, failed the BDT cut", which cannot be
-// reconstructed from the two returned four-vectors afterwards.
-// sv_sta (optional, may be null): the dominant trkMatchSta of the SV tracks of each returned
-// vertex, same order as the four-vectors. >= 100 means the SV is from a B hadron -- that is
-// what decides whether the SV b scale factor applies to it (sv_sf.h). MC only; meaningless
-// in data, where nothing reads it.
 vector<ROOT::Math::PtEtaPhiMVector> makeSvtxs_withBDT(
   tTree& t,     //event
   Int_t& ijet,  //jet nb
@@ -668,7 +706,7 @@ struct AggBHadronNtupleRow {
   Float_t weight, jtpt, jteta, refpt, refeta;
   Int_t jtNbHad;
   Float_t btagScore;
-  Int_t passRecoKin, passGenKin, passBtag, nRecoAgg, nGenAgg, genStatus1, genStatus2;
+  Int_t passRecoKin, passGenKin, passBtag, passJetVeto, nRecoAgg, nGenAgg, genStatus1, genStatus2;
   Float_t recoPt1, recoEta1, recoPhi1, recoM1, recoPt2, recoEta2, recoPhi2, recoM2, recoDr, recoMB, recoEec, genPt1, genEta1, genPhi1, genM1, genPt2, genEta2, genPhi2, genM2, genDr, genMB, genEec;
 
   void reset() {
@@ -680,7 +718,7 @@ struct AggBHadronNtupleRow {
     jtpt = jteta = refpt = refeta = -999.0;
     jtNbHad = -1;
     btagScore = -999.0;
-    passRecoKin = passGenKin = passBtag = 0;
+    passRecoKin = passGenKin = passBtag = passJetVeto = 0;
     nRecoAgg = nGenAgg = 0;
     genStatus1 = genStatus2 = 0;
     recoPt1 = recoEta1 = recoPhi1 = recoM1 = -999.0;
@@ -711,6 +749,7 @@ void makeAggBHadronBranches(TTree* tree, AggBHadronNtupleRow& row) {
   br("refpt", &row.refpt, "F"); br("refeta", &row.refeta, "F");
   br("jtNbHad", &row.jtNbHad, "I"); br("btagScore", &row.btagScore, "F");
   br("passRecoKin", &row.passRecoKin, "I"); br("passGenKin", &row.passGenKin, "I"); br("passBtag", &row.passBtag, "I");
+  br("passJetVeto", &row.passJetVeto, "I");
   br("nRecoAgg", &row.nRecoAgg, "I"); br("nGenAgg", &row.nGenAgg, "I");
   br("genStatus1", &row.genStatus1, "I"); br("genStatus2", &row.genStatus2, "I");
   br("recoPt1", &row.recoPt1, "F"); br("recoEta1", &row.recoEta1, "F"); br("recoPhi1", &row.recoPhi1, "F"); br("recoM1", &row.recoM1, "F");
@@ -1203,41 +1242,17 @@ void create_response_templatefit(
 }
 #endif // ---- end disabled: create_response_templatefit ----
 
-// ---- The observable list, and the one place that fixes its order -----------------------
-// obsList() and obsValues() are a matched pair: the Nth entry of obsValues() must be the
-// value of the Nth observable in obsList(). Everything downstream indexes the two together,
-// so this is the single place where "which observable is index 1" is decided. Adding a third
-// observable means one more entry in EACH -- and the size check in Build_templates fails
-// loudly if only one of them is edited.
-//
-// ⚠️ 2026-09-22: this pass fills TWO observables, dr and the momentum balance B. The three
-// b/non-b fractions are commented out here and in observables.h -- they are one quantity
-// three ways (fb = 1 - fnb, lnfb = ln(1 + fb)) and none of them is being measured. The
-// non-b pT sums they need are still computed at the fill sites, also commented out; see
-// the DISABLED markers there.
-//
-// ⚠️ B was called z until 2026-09-22. Its histograms now carry "_B", so this pass must be
-// re-run into a fresh production (OUT_TAG=_upartv2_B) before anything downstream can read
-// the balance axis -- obsProdTag() in result_paths.h.
+
 inline std::vector<ObsDef> obsList()
 {
     return { obsDr(), obsB() };
-    // DISABLED 2026-09-22: { obsDr(), obsB(), obsFnb(), obsFb(), obsLnFb() }
-    // fnb, fb and lnfb were kept together on purpose: each costs one extra set of histograms
-    // in a pass that is already being made, and having all three lets the binnings be judged
-    // against each other. fb and fnb on matching uniform edges are exact mirrors, which is a
-    // free closure check on the whole chain. Re-enable all three together, or the mirror
-    // check goes away with them.
+
 }
 
 inline std::vector<double> obsValues(double dr, double B)
 {
     return { dr, B };
-    // DISABLED 2026-09-22, matching obsList() above -- the signature was
-    //   obsValues(double dr, double B, double fnb, double fb, double lnfb)
-    // returning { dr, B, fnb, fb, lnfb }. Restoring it means restoring the extra arguments
-    // at all four call sites, which the size check in Build_templates will catch.
-}
+ }
 
 // ---- Per-observable histogram sets ------------------------------------------------------
 // One TemplateHistos and one ResponseHistos per measured observable (dr, B). Every name
@@ -1781,9 +1796,12 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 
     for (Int_t ijet = 0; ijet < t.nref; ijet++) { // Jet loop
 
+      // 2024 jet veto map (JetVeto at the top): true when off.
+      const bool passJetVeto = JetVeto::pass(t.jteta[ijet], t.jtphi[ijet]);
+
       // Fill templates from DATA or RECO MC: jet kinematics + btagging
 
-      if(isMakeTemplates && passRecoJetKinematics(t, ijet, cfg) &&  passBtag(t, ijet, cfg)){
+      if(isMakeTemplates && passJetVeto && passRecoJetKinematics(t, ijet, cfg) &&  passBtag(t, ijet, cfg)){
 
               // -- Fill here Selected jets histogram: selected jets after btagging + >=2svx (cut)
               if (t.jtNsvtx[ijet] >= 2){
@@ -1808,20 +1826,9 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
                 double eec  = EecWeight::value(pt1, pt2, cfg.n);
                 double jtpt = jtpt_fill(t.jtpt[ijet]);
                 double mB   = reco_sv[0].M() + reco_sv[1].M();
-                // The second observable, from the same two B hadrons. Symmetric in pt1/pt2,
-                // so the SV ordering does not matter.
+               
                 double Bbal = MomBalance::value(pt1, pt2);
-                // DISABLED 2026-09-22 -- fnb/fb/lnfb, how much of the jet is NOT in those two
-                // B hadrons, the same split the other way up, and the log of 1 + that. No
-                // overflow fold here; ObsDef::fill() does it inside the histogram set, which
-                // is where every observable's fold belongs (the dr line above predates that).
-                //   double fnb  = NonBFraction::value(pt1 + pt2, pt_nonb_reco);
-                //   double fb   = BFraction::value(pt1 + pt2, pt_nonb_reco);
-                //   double lnfb = LogBFraction::value(pt1 + pt2, pt_nonb_reco);
-                // pt_nonb_reco above is still computed by makeSvtxs_withBDT -- it is an
-                // out-parameter of the SV pass, not a separate loop, so leaving it costs
-                // nothing and keeps the three lines above a straight uncomment.
-                (void)pt_nonb_reco;
+                 (void)pt_nonb_reco;
 
                 //Fix the under/overflow
                 //if(dr < dr_min) dr = dr_min_fill;
@@ -1830,13 +1837,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 
                 // Match the response-matrix reco definition: drop the dr<=0.005 spike so
                 // templates and response cover the same reco domain. Data and all MC.
-                //
-                // ⚠️ This gate is dr's, and it applies to EVERY observable: the B templates
-                // are filled from the same jets as the dr ones, so a jet dropped here is
-                // dropped from B too. That is deliberate -- the two measurements must share
-                // a reco domain, or the signal fraction fitted on one does not apply to the
-                // other. It is ObsDef::passReco() for dr, spelled out here because it gates
-                // the whole block rather than one fill.
+          
                 if (obsDr().passReco(dr)) {
 
                 // Prescale factor for data
@@ -1888,6 +1889,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
 	            aggRow.passRecoKin = passRecoJetKinematics(t, ijet, cfg);
 	            aggRow.passGenKin = passGenJetKinematics(t, ijet, cfg);
 	            aggRow.passBtag = passBtag(t, ijet, cfg);
+	            aggRow.passJetVeto = passJetVeto;
 
 	                // step1: for Response matrix ---- Gen b hadrons ----
 	                std::vector<ROOT::Math::PtEtaPhiMVector> gen_bh;
@@ -2030,7 +2032,7 @@ void Build_templates(const AnalysisConfig& cfg, bool isMakeTemplates = true, boo
                   if (dr_reco_fill >= dr_max) dr_reco_fill = dr_max_fill;
 
             // Define reco_pass: full detector-level selection
-            bool reco_pass = passRecoJetKinematics(t, ijet, cfg) && dr_reco_fill > 0.005;
+            bool reco_pass = passJetVeto && passRecoJetKinematics(t, ijet, cfg) && dr_reco_fill > 0.005;
 
             // Define gen_pass: particle-level jet kinematics + gen observable range.
             // Requires gen_ok, so a jet with < 2 gen B-hadrons stays out of num/eff/response.
@@ -2324,6 +2326,7 @@ void create_files_for_template_fit(Int_t RunN = 3, Float_t pT_low = 80, Float_t 
                                    bool eec_weight_off = false,
                                    bool apply_jec = false,
                                    const char* sv_sf = "off",
+                                   bool apply_jetveto = false,
                                    const char* track_bdt_sf = "nominal"){
  // load at prompt: gSystem->Load("libGenVector");
  // -- test use of central configuration
@@ -2375,6 +2378,11 @@ void create_files_for_template_fit(Int_t RunN = 3, Float_t pT_low = 80, Float_t 
 	  TrackBdtSF::enable(track_bdt_sf, cfg.dataset.isMC);
 	  TrackBdtSF::print();
 
+	  // ---- 2024 jet veto map on/off (see the JetVeto namespace at the top) ----
+	  // Run 3 only, as in Matt's version. Data and MC alike.
+	  JetVeto::enable(apply_jetveto && cfg.dataset.RunN == 3);
+	  JetVeto::print();
+
       // make_templates(cfg, 1, 1e+04);
       // TString output_hist_response =  Form("response_templatefit_n1_bjet_Run%d", cfg.dataset.RunN);
       // create_response_templatefit(cfg, output_hist_response, 0, 1e+04);
@@ -2382,6 +2390,6 @@ void create_files_for_template_fit(Int_t RunN = 3, Float_t pT_low = 80, Float_t 
     cout << "Build_templates " << endl;
     Build_templates(cfg, makeTemplates, createRmatrix, ev_first, ev_last, -1, makeAggNtuple); // switches exposed for diagnostic/template-only runs
 
-   std::cout << "finished :) :D " << std::endl;
-  //filter_b_bb_as_data_and_mc(cfg);
+   std::cout << "finished :D " << std::endl;
+  
   }

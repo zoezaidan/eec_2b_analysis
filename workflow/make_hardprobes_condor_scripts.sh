@@ -65,6 +65,23 @@ case "${OUT_TAG}" in
   *)     [ "${APPLY_JEC}" = false ] || { echo "APPLY_JEC=true needs an OUT_TAG containing 'jec' (e.g. upartv2rhojec) -- refusing"; exit 1; } ;;
 esac
 [ "${APPLY_JEC}" = true ] && echo "JEC ON: jtpt recomputed from rawpt (L1FastJet + L2Relative, + L2Residual on data)"
+
+# ---------------------------------------------------------------------------
+# 2024 jet veto map (Matt's, Winter24Prompt24_2024BCDEFGHI.root; JetVeto namespace in
+# create_files_for_template_fit.cpp)
+# ---------------------------------------------------------------------------
+# false (default) reproduces every earlier production. true rejects jets in the vetoed
+# (eta, phi) cells, data and MC alike. The OUT_TAG must then say "veto" (eraTag() in
+# result_paths.h: upartv2rhojecveto / upartv2rhojecveto_B), and must NOT say it otherwise.
+APPLY_JETVETO=${APPLY_JETVETO:-false}   # true | false
+if [ "${APPLY_JETVETO}" != true ] && [ "${APPLY_JETVETO}" != false ]; then
+  echo "APPLY_JETVETO must be exactly 'true' or 'false', got '${APPLY_JETVETO}'"; exit 1
+fi
+case "${OUT_TAG}" in
+  *veto*) [ "${APPLY_JETVETO}" = true ]  || { echo "OUT_TAG '${OUT_TAG}' says veto but APPLY_JETVETO=false -- refusing"; exit 1; } ;;
+  *)      [ "${APPLY_JETVETO}" = false ] || { echo "APPLY_JETVETO=true needs an OUT_TAG containing 'veto' (e.g. upartv2rhojecveto) -- refusing"; exit 1; } ;;
+esac
+[ "${APPLY_JETVETO}" = true ] && echo "JET VETO MAP ON: jets in the 2024 vetoed (eta, phi) cells rejected"
 # Staging dir only, so two productions can never share a staging area.
 STAGE_TAG="${EECW_TAG}${OUT_SUFFIX}"
 # The job scripts get their own directory per production too, so two productions (the EEC and
@@ -131,7 +148,7 @@ if [ ! -f "\${ACLIC_BUILD_DIR}/create_files_for_template_fit_cpp.so" ]; then
   exit 3
 fi
 
-root -l -b -q -e "gSystem->AddIncludePath(\"-I\${ROOUNFOLD_INC} -I\${ROOUNFOLD_BUILD}\"); if (gSystem->Load(\"\${ROOUNFOLD_BUILD}/libRooUnfold.so\") < 0) gSystem->Exit(3); if (gSystem->Load(\"\${ACLIC_BUILD_DIR}/create_files_for_template_fit_cpp.so\") < 0) gSystem->Exit(3); create_files_for_template_fit(3,80,2,1,true,false,${BTAG_WP},true,false,true,0,-1,\"\${INPUT}\",\"\${STAGEDIR}\",\"${SAMPLE_TAG}\",false,20260908,${EEC_WEIGHT_OFF},${APPLY_JEC})"
+root -l -b -q -e "gSystem->AddIncludePath(\"-I\${ROOUNFOLD_INC} -I\${ROOUNFOLD_BUILD}\"); if (gSystem->Load(\"\${ROOUNFOLD_BUILD}/libRooUnfold.so\") < 0) gSystem->Exit(3); if (gSystem->Load(\"\${ACLIC_BUILD_DIR}/create_files_for_template_fit_cpp.so\") < 0) gSystem->Exit(3); create_files_for_template_fit(3,80,2,1,true,false,${BTAG_WP},true,false,true,0,-1,\"\${INPUT}\",\"\${STAGEDIR}\",\"${SAMPLE_TAG}\",false,20260908,${EEC_WEIGHT_OFF},${APPLY_JEC},\"off\",${APPLY_JETVETO})"
 
 for f in "\${STAGEDIR}"/*.root; do
   [ -e "\${f}" ] || continue

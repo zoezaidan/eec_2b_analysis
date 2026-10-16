@@ -326,12 +326,21 @@ inline bool rhoInputs() { return true; }
 // uncorrected _upartv2rho results, which are untouched.
 inline bool jecInputs() { return true; }
 
-// "_upartv2rho" in the rho era, "_upartv2" before it, "_upartv2rhojec" with the JEC. Ends
-// every production name, every template-fit directory and every result folder.
+// ---- 2024 jet veto map (added 2026-10-16) ----------------------------------------------
+// true = read the productions made with APPLY_JETVETO=true (Matt's veto map, see the JetVeto
+// namespace in create_files_for_template_fit.cpp), tagged "veto" at every level. Only on top of
+// the JEC ones. ON since 2026-10-16 (Zoe: pull Matt's modifications and run). Set false to read
+// the _upartv2rhojec results (no veto), which are untouched.
+inline bool vetoInputs() { return true; }
+
+// "_upartv2rho" in the rho era, "_upartv2" before it, "_upartv2rhojec" with the JEC,
+// "_upartv2rhojecveto" with the JEC and the jet veto map. Ends every production name, every
+// template-fit directory and every result folder.
 inline TString eraTag()
 {
     if (!rhoInputs()) return TString("_upartv2");
-    return jecInputs() ? TString("_upartv2rhojec") : TString("_upartv2rho");
+    if (!jecInputs()) return TString("_upartv2rho");
+    return vetoInputs() ? TString("_upartv2rhojecveto") : TString("_upartv2rhojec");
 }
 
 inline TString obsProdTag(const TString &observable)

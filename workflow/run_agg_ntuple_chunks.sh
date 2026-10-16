@@ -70,6 +70,23 @@ case "${OUT_TAG}" in
 esac
 [ "${APPLY_JEC}" = true ] && echo "JEC ON: jtpt recomputed from rawpt (L1FastJet + L2Relative, + L2Residual on data)"
 
+# ---------------------------------------------------------------------------
+# 2024 jet veto map (Matt's, Winter24Prompt24_2024BCDEFGHI.root; JetVeto namespace in
+# create_files_for_template_fit.cpp)
+# ---------------------------------------------------------------------------
+# false (default) reproduces every earlier production. true rejects jets in the vetoed
+# (eta, phi) cells, data and MC alike. The OUT_TAG must then say "veto" (eraTag() in
+# result_paths.h: upartv2rhojecveto / upartv2rhojecveto_B), and must NOT say it otherwise.
+APPLY_JETVETO=${APPLY_JETVETO:-false}   # true | false
+if [ "${APPLY_JETVETO}" != true ] && [ "${APPLY_JETVETO}" != false ]; then
+  echo "APPLY_JETVETO must be exactly 'true' or 'false', got '${APPLY_JETVETO}'"; exit 1
+fi
+case "${OUT_TAG}" in
+  *veto*) [ "${APPLY_JETVETO}" = true ]  || { echo "OUT_TAG '${OUT_TAG}' says veto but APPLY_JETVETO=false -- refusing"; exit 1; } ;;
+  *)      [ "${APPLY_JETVETO}" = false ] || { echo "APPLY_JETVETO=true needs an OUT_TAG containing 'veto' (e.g. upartv2rhojecveto) -- refusing"; exit 1; } ;;
+esac
+[ "${APPLY_JETVETO}" = true ] && echo "JET VETO MAP ON: jets in the 2024 vetoed (eta, phi) cells rejected"
+
 # ---- Tracking-efficiency systematic -----------------------------------------
 # false = nominal production (nothing is dropped, output names unchanged)
 # true  = the systematic: throw away 3% of the RECONSTRUCTED tracks in MC during
@@ -259,10 +276,10 @@ for input in "${inputs[@]}"; do
 
   (
   
-  # Remeber: create_files_for_template_fit(..., bool apply_jec = false, const char* sv_sf = "off", const char* track_bdt_sf = "nominal")
+  # Remeber: create_files_for_template_fit(..., bool apply_jec = false, const char* sv_sf = "off", bool apply_jetveto = false, const char* track_bdt_sf = "nominal")
   # MC vs data is the isMC argument; bjet vs qcd is SAMPLE_TAG.
 
-  nice -n 10 root -l -b -q -e "gSystem->Load(\"${ACLIC_BUILD_DIR}/create_files_for_template_fit_cpp.so\"); create_files_for_template_fit(3,80,2,1,true,true,${BTAG_WP},true,true,true,0,-1,\"${input}\",\"${stagedir}\",\"${SAMPLE_TAG}\",${TRACK_EFF_UNC},${TRK_SEED},${EEC_WEIGHT_OFF},${APPLY_JEC},\"${SV_SF}\",\"${TRACK_BDT_SF}\")"
+  nice -n 10 root -l -b -q -e "gSystem->Load(\"${ACLIC_BUILD_DIR}/create_files_for_template_fit_cpp.so\"); create_files_for_template_fit(3,80,2,1,true,true,${BTAG_WP},true,true,true,0,-1,\"${input}\",\"${stagedir}\",\"${SAMPLE_TAG}\",${TRACK_EFF_UNC},${TRK_SEED},${EEC_WEIGHT_OFF},${APPLY_JEC},\"${SV_SF}\",${APPLY_JETVETO},\"${TRACK_BDT_SF}\")"
 
     for f in "${stagedir}"/*.root; do
       [ -e "${f}" ] || continue
